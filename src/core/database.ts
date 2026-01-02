@@ -22,6 +22,7 @@ export class DatabaseManager {
   }
 
   private setPragmas(): void {
+    this.db.exec('PRAGMA foreign_keys = ON');
     this.db.exec('PRAGMA journal_mode = WAL');
     this.db.exec('PRAGMA synchronous = NORMAL');
   }
@@ -77,6 +78,7 @@ export class DatabaseManager {
     if (this.ftsExists()) return;
     this.createFtsTable();
     this.createFtsTriggers();
+    this.backfillFts();
   }
 
   private ftsExists(): boolean {
@@ -95,6 +97,13 @@ export class DatabaseManager {
         summary,
         content_rowid='id'
       );
+    `);
+  }
+
+  private backfillFts(): void {
+    this.db.exec(`
+      INSERT INTO memories_fts(rowid, content, summary)
+      SELECT id, content, summary FROM memories
     `);
   }
 

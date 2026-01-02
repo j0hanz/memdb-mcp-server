@@ -58,6 +58,14 @@ export const executeSearch = (
     return stmt.all(...params) as DbRow[];
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (
+      message.includes('no such module: fts5') ||
+      message.includes('no such table: memories_fts')
+    ) {
+      throw new Error(
+        'Search index unavailable. Ensure FTS5 is enabled and the index is initialized.'
+      );
+    }
     if (message.includes('fts5') || message.includes('syntax error')) {
       throw new Error(
         'Invalid search query syntax. Check for unbalanced quotes or special characters. ' +

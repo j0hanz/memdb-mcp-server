@@ -6,8 +6,7 @@ export interface RelatedMemory extends Memory {
 }
 
 export interface StatementResult {
-  changes: number | bigint;
-  lastInsertRowid: number | bigint;
+  changes: number;
 }
 
 export interface MemoryInsertResult {

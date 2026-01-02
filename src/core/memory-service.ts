@@ -5,8 +5,10 @@ import type { Memory, SearchResult } from '../types/index.js';
 import { dbManager } from './database.js';
 import type { DbRow } from './memory-mappers.js';
 import {
+  mapRowToMemory,
   mapRowToRelatedMemory,
   mapRowToSearchResult,
+  toSafeInteger,
 } from './memory-mappers.js';
 import { buildSearchQuery, executeSearch } from './memory-search.js';
 import type {
@@ -15,6 +17,11 @@ import type {
   RelatedMemory,
   StatementResult,
 } from './memory-types.js';
+
+interface RunResult {
+  changes: number | bigint;
+  lastInsertRowid: number | bigint;
+}
 
 export class MemoryService {
   private db: DatabaseSync;
@@ -30,10 +37,28 @@ export class MemoryService {
     memoryType = 'general'
   ): MemoryInsertResult {
     const hash = this.buildHash(content);
-    const existing = this.getExistingMemory(hash);
-    if (existing) return existing;
+    const uniqueTags = this.normalizeTags(tags);
 
-    return this.createNewMemory(content, tags, importance, memoryType, hash);
+    return this.withImmediateTransaction(() => {
+      const insert = this.db.prepare(
+        'INSERT OR IGNORE INTO memories (content, importance, memory_type, hash) VALUES (?, ?, ?, ?)'
+      );
+      const result = insert.run(
+        content,
+        importance,
+        memoryType,
+        hash
+      ) as RunResult;
+      const changes = this.normalizeChanges(result.changes);
+      const id = this.findMemoryIdByHash(hash);
+      if (id === undefined) {
+        throw new Error('Failed to resolve memory id');
+      }
+      if (uniqueTags.length > 0) {
+        this.insertTags(id, uniqueTags, true);
+      }
+      return { id, hash, isNew: changes === 1 };
+    });
   }
 
   searchMemories(
@@ -54,15 +79,17 @@ export class MemoryService {
   }
 
   getMemory(hash: string): Memory | undefined {
-    return this.db
+    const row = this.db
       .prepare('SELECT * FROM memories WHERE hash = ?')
-      .get(hash) as Memory | undefined;
+      .get(hash) as DbRow | undefined;
+    return row ? mapRowToMemory(row) : undefined;
   }
 
   deleteMemory(hash: string): StatementResult {
-    return this.db
+    const result = this.db
       .prepare('DELETE FROM memories WHERE hash = ?')
-      .run(hash) as StatementResult;
+      .run(hash) as RunResult;
+    return { changes: this.normalizeChanges(result.changes) };
   }
 
   linkMemories(
@@ -80,7 +107,8 @@ export class MemoryService {
     const insert = this.db.prepare(
       'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type) VALUES (?, ?, ?)'
     );
-    return insert.run(from.id, to.id, relationType) as StatementResult;
+    const result = insert.run(from.id, to.id, relationType) as RunResult;
+    return { changes: this.normalizeChanges(result.changes) };
   }
 
   getRelated(hash: string, relationType?: string, depth = 1): RelatedMemory[] {
@@ -96,16 +124,20 @@ export class MemoryService {
   }
 
   getStats(): MemoryStats {
-    const memoryCount = (
-      this.db.prepare('SELECT COUNT(*) as count FROM memories').get() as {
-        count: number;
-      }
-    ).count;
-    const relationshipCount = (
-      this.db.prepare('SELECT COUNT(*) as count FROM relationships').get() as {
-        count: number;
-      }
-    ).count;
+    const memoryRow = this.db
+      .prepare('SELECT COUNT(*) as count FROM memories')
+      .get() as DbRow | undefined;
+    const relationshipRow = this.db
+      .prepare('SELECT COUNT(*) as count FROM relationships')
+      .get() as DbRow | undefined;
+    if (!memoryRow || !relationshipRow) {
+      throw new Error('Failed to load database stats');
+    }
+    const memoryCount = toSafeInteger(memoryRow.count, 'memoryCount');
+    const relationshipCount = toSafeInteger(
+      relationshipRow.count,
+      'relationshipCount'
+    );
     return { memoryCount, relationshipCount };
   }
 
@@ -113,70 +145,23 @@ export class MemoryService {
     return crypto.createHash('md5').update(content).digest('hex');
   }
 
-  private getExistingMemory(hash: string): MemoryInsertResult | undefined {
-    const existingId = this.findMemoryIdByHash(hash);
-    if (existingId === undefined) return undefined;
-    return { id: existingId, hash, isNew: false };
-  }
-
-  private createNewMemory(
-    content: string,
-    tags: string[],
-    importance: number,
-    memoryType: string,
-    hash: string
-  ): MemoryInsertResult {
-    const uniqueTags = this.normalizeTags(tags);
-    const memoryId =
-      uniqueTags.length > 0
-        ? this.insertMemoryWithTags(
-            content,
-            uniqueTags,
-            importance,
-            memoryType,
-            hash
-          )
-        : this.insertMemory(content, importance, memoryType, hash);
-    return { id: memoryId, hash, isNew: true };
-  }
-
   private findMemoryIdByHash(hash: string): number | undefined {
     const row = this.db
       .prepare('SELECT id FROM memories WHERE hash = ?')
-      .get(hash) as { id: number } | undefined;
-    return row?.id;
+      .get(hash) as DbRow | undefined;
+    if (!row) return undefined;
+    return toSafeInteger(row.id, 'id');
   }
 
-  private insertMemory(
-    content: string,
-    importance: number,
-    memoryType: string,
-    hash: string
-  ): number {
-    const insert = this.db.prepare(
-      'INSERT INTO memories (content, importance, memory_type, hash) VALUES (?, ?, ?, ?)'
-    );
-    const result = insert.run(content, importance, memoryType, hash);
-    return result.lastInsertRowid as number;
-  }
-
-  private insertMemoryWithTags(
-    content: string,
+  private insertTags(
+    memoryId: number,
     tags: string[],
-    importance: number,
-    memoryType: string,
-    hash: string
-  ): number {
-    return this.withImmediateTransaction(() => {
-      const id = this.insertMemory(content, importance, memoryType, hash);
-      this.insertTags(id, tags);
-      return id;
-    });
-  }
-
-  private insertTags(memoryId: number, tags: string[]): void {
+    ignoreDuplicates = false
+  ): void {
     const insertTag = this.db.prepare(
-      'INSERT INTO tags (memory_id, tag) VALUES (?, ?)'
+      ignoreDuplicates
+        ? 'INSERT OR IGNORE INTO tags (memory_id, tag) VALUES (?, ?)'
+        : 'INSERT INTO tags (memory_id, tag) VALUES (?, ?)'
     );
     for (const tag of tags) {
       insertTag.run(memoryId, tag);
@@ -201,6 +186,10 @@ export class MemoryService {
 
   private normalizeDepth(depth: number): number {
     return Math.max(1, depth);
+  }
+
+  private normalizeChanges(value: number | bigint): number {
+    return toSafeInteger(value, 'changes');
   }
 
   private buildRelationFilter(relationType?: string): {
