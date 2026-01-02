@@ -41,9 +41,9 @@
   "author": "j0hanz",
   "repository": {
     "type": "git",
-    "url": "https://github.com/j0hanz/memdb.git"
+    "url": "https://github.com/j0hanz/memdb-mcp-server.git"
   },
-  "homepage": "https://github.com/j0hanz/memdb#readme",
+  "homepage": "https://github.com/j0hanz/memdb-mcp-server#readme",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.1",
