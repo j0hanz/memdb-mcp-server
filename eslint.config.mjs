@@ -1,17 +1,22 @@
 import eslint from '@eslint/js';
 import eslintConfigPrettier from 'eslint-config-prettier';
 import unusedImports from 'eslint-plugin-unused-imports';
+import { defineConfig } from 'eslint/config';
 import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default defineConfig([
   { ignores: ['dist', 'node_modules', '*.config.mjs', '*.config.js'] },
   eslint.configs.recommended,
+  ...tseslint.configs.strictTypeChecked.map((config) => ({
+    ...config,
+    files: ['src/**/*.ts'],
+  })),
+  ...tseslint.configs.stylisticTypeChecked.map((config) => ({
+    ...config,
+    files: ['src/**/*.ts'],
+  })),
   {
     files: ['src/**/*.ts'],
-    extends: [
-      tseslint.configs.strictTypeChecked,
-      tseslint.configs.stylisticTypeChecked,
-    ],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -46,5 +51,5 @@ export default tseslint.config(
       'no-var': 'error',
     },
   },
-  eslintConfigPrettier
-);
+  eslintConfigPrettier,
+]);
