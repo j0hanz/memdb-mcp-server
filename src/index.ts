@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
+import { dbManager } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { logger } from './utils/logger.js';
@@ -47,6 +48,7 @@ async function shutdown(signal: string): Promise<void> {
   }, 5000);
 
   try {
+    dbManager.close();
     if (transport) {
       await transport.close();
     }
@@ -75,6 +77,7 @@ void main();
 // Graceful shutdown handlers
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGBREAK', () => void shutdown('SIGBREAK'));
 
 // Uncaught error handlers
 process.on('uncaughtException', (err, origin) => {

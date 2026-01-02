@@ -9,9 +9,7 @@ export class DatabaseManager {
 
   constructor() {
     const dbDir = path.dirname(config.dbPath);
-    if (!fs.existsSync(dbDir)) {
-      fs.mkdirSync(dbDir, { recursive: true });
-    }
+    fs.mkdirSync(dbDir, { recursive: true });
 
     this.db = new DatabaseSync(config.dbPath, { timeout: 5000 });
     this.init();
@@ -124,6 +122,11 @@ export class DatabaseManager {
 
   public getDb(): DatabaseSync {
     return this.db;
+  }
+
+  public close(): void {
+    if (!this.db.isOpen) return;
+    this.db.close();
   }
 }
 

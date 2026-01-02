@@ -60,7 +60,20 @@ npm run build
 
 ## ⚙️ Configuration
 
-The server uses a local SQLite database located at `data/memory.db` relative to the working directory. No environment variables are required for basic operation.
+The server uses a local SQLite database located at `data/memory.db` relative to the working directory.
+
+### Environment Variables
+
+- `MEMDB_PATH`: Override the database path (`:memory:` for in-memory).
+- `MEMDB_LOG_LEVEL`: `info`, `warn`, or `error` (default: `info`).
+
+### CLI Flags
+
+- `--db <path>`: Override the database path.
+- `--memory`: Use in-memory database (`:memory:`).
+- `--log-level <level>`: `info`, `warn`, or `error`.
+
+Precedence: CLI flags > environment variables > defaults.
 
 ## 🔧 Tools
 
