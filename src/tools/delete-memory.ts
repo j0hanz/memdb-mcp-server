@@ -21,7 +21,10 @@ export function registerDeleteMemory(server: McpServer): void {
     (params) => {
       try {
         const { hash } = params;
-        memoryService.deleteMemory(hash);
+        const result = memoryService.deleteMemory(hash);
+        if (result.changes === 0) {
+          return createErrorResponse('E_NOT_FOUND', 'Memory not found');
+        }
         return createToolResponse({
           ok: true,
           result: { deleted: true },

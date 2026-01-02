@@ -21,9 +21,36 @@ const server = new McpServer(
 
 registerAllTools(server);
 
+let transport: StdioServerTransport | undefined;
+let shutdownInProgress = false;
+
+async function shutdown(signal: string): Promise<void> {
+  if (shutdownInProgress) return;
+  shutdownInProgress = true;
+
+  logger.info(`Received ${signal}, shutting down gracefully...`);
+
+  const forceExitTimer = setTimeout(() => {
+    logger.warn('Shutdown timeout exceeded, forcing exit');
+    process.exit(1);
+  }, 5000);
+
+  try {
+    if (transport) {
+      await transport.close();
+    }
+    clearTimeout(forceExitTimer);
+    process.exit(0);
+  } catch (err) {
+    logger.error('Error during shutdown:', err);
+    clearTimeout(forceExitTimer);
+    process.exit(1);
+  }
+}
+
 async function main(): Promise<void> {
   try {
-    const transport = new StdioServerTransport();
+    transport = new StdioServerTransport();
     await server.connect(transport);
     logger.info('Memory MCP Server running on stdio');
   } catch (error) {
@@ -35,14 +62,8 @@ async function main(): Promise<void> {
 void main();
 
 // Graceful shutdown handlers
-process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down');
-  process.exit(0);
-});
-process.on('SIGINT', () => {
-  logger.info('Received SIGINT, shutting down');
-  process.exit(0);
-});
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
 
 // Uncaught error handlers
 process.on('uncaughtException', (err, origin) => {

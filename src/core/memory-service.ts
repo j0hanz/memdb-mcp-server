@@ -69,7 +69,6 @@ export class MemoryService {
   }
 
   searchMemories(query: string, limit = 10): SearchResult[] {
-    // FTS search
     const stmt = this.db.prepare(`
       SELECT m.*, bm25(memories_fts) as relevance
       FROM memories m
@@ -78,7 +77,20 @@ export class MemoryService {
       ORDER BY relevance
       LIMIT ?
     `);
-    const rows = stmt.all(query, limit) as Record<string, unknown>[];
+
+    let rows: Record<string, unknown>[];
+    try {
+      rows = stmt.all(query, limit) as Record<string, unknown>[];
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('fts5') || message.includes('syntax error')) {
+        throw new Error(
+          `Invalid search query syntax. Check for unbalanced quotes or special characters. Details: ${message}`
+        );
+      }
+      throw err;
+    }
+
     return rows.map(
       (row): SearchResult => ({
         id: row.id as number,
