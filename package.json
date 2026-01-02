@@ -2,7 +2,7 @@
   "name": "@j0hanz/memdb",
   "version": "1.0.0",
   "mcpName": "io.github.j0hanz/memdb",
-  "description": "A Memory MCP Server for AI Assistants using node:sqlite",
+  "description": "A memory-based MCP server using SQLite in-memory database.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
