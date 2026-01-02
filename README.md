@@ -1,52 +1,223 @@
 # memdb
 
-A Memory MCP Server for AI Assistants using `node:sqlite`.
+A memory-based MCP server using SQLite in-memory database.
 
-## Features
+[![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb)
 
-- **Zero External DB Dependencies**: Uses `node:sqlite` built into Node.js 22+.
-- **Local-First**: All data stored locally in `data/memory.db`.
-- **Full-Text Search**: Uses SQLite FTS5 for fast search.
-- **Knowledge Graph**: Supports relationships between memories.
+## One-Click Install
 
-## Prerequisites
+[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D)[![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D&quality=insiders)
 
-- Node.js v22.0.0 or higher.
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=memdb&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovbWVtZGJAbGF0ZXN0Il19)
 
-## Installation
+## ✨ Features
 
-1. Clone the repository.
-2. Run `npm install`.
-3. Build the project: `npm run build`.
+| Feature                  | Description                                               |
+| :----------------------- | :-------------------------------------------------------- |
+| 🧠 **Memory Storage**    | Store text-based memories with tags and importance scores |
+| 🔍 **Full-Text Search**  | Search memories using FTS5 with relevance ranking         |
+| 🕸️ **Graph Connections** | Link memories together to create knowledge graphs         |
+| 📊 **Analytics**         | Track memory statistics and database health               |
+| 🔒 **Local Privacy**     | All data stored locally in SQLite (`data/memory.db`)      |
 
-## Usage
+## 🚀 Quick Start
 
-### Stdio Transport (Default)
+### VS Code / Cursor
 
-Add to your MCP client configuration:
+Add this to your `mcpServers` configuration:
+
+```json
+{
+  "memdb": {
+    "command": "npx",
+    "args": ["-y", "@j0hanz/memdb@latest"]
+  }
+}
+```
+
+## 📦 Installation
+
+### NPX (Recommended)
+
+```bash
+npx -y @j0hanz/memdb@latest
+```
+
+### Global Installation
+
+```bash
+npm install -g @j0hanz/memdb
+```
+
+### From Source
+
+```bash
+git clone https://github.com/j0hanz/memdb-mcp-server.git
+cd memdb-mcp-server
+npm install
+npm run build
+```
+
+## ⚙️ Configuration
+
+The server uses a local SQLite database located at `data/memory.db` relative to the working directory. No environment variables are required for basic operation.
+
+## 🔧 Tools
+
+### `store_memory`
+
+Store a new memory with optional tags and metadata.
+
+| Parameter    | Type     | Required | Default | Description                                     |
+| :----------- | :------- | :------- | :------ | :---------------------------------------------- |
+| `content`    | string   | ✅       | -       | The content of the memory                       |
+| `tags`       | string[] | ❌       | -       | Tags to categorize the memory                   |
+| `importance` | number   | ❌       | -       | Importance score (0-10)                         |
+| `memoryType` | string   | ❌       | -       | Type of memory (e.g., conversation, fact, rule) |
+
+**Returns:** The created memory object with its hash.
+
+### `search_memories`
+
+Full-text search with filters.
+
+| Parameter      | Type     | Required | Default | Description               |
+| :------------- | :------- | :------- | :------ | :------------------------ |
+| `query`        | string   | ✅       | -       | Search query              |
+| `limit`        | number   | ❌       | -       | Maximum number of results |
+| `tags`         | string[] | ❌       | -       | Filter by tags            |
+| `minRelevance` | number   | ❌       | -       | Minimum relevance score   |
+
+**Returns:** Array of matching memories.
+
+### `get_memory`
+
+Retrieve a specific memory by its hash.
+
+| Parameter | Type   | Required | Default | Description            |
+| :-------- | :----- | :------- | :------ | :--------------------- |
+| `hash`    | string | ✅       | -       | MD5 hash of the memory |
+
+**Returns:** The memory object.
+
+### `delete_memory`
+
+Delete a memory by its hash.
+
+| Parameter | Type   | Required | Default | Description            |
+| :-------- | :----- | :------- | :------ | :--------------------- |
+| `hash`    | string | ✅       | -       | MD5 hash of the memory |
+
+**Returns:** Confirmation of deletion.
+
+### `link_memories`
+
+Create a relationship between two memories.
+
+| Parameter      | Type   | Required | Default | Description               |
+| :------------- | :----- | :------- | :------ | :------------------------ |
+| `fromHash`     | string | ✅       | -       | Hash of the source memory |
+| `toHash`       | string | ✅       | -       | Hash of the target memory |
+| `relationType` | string | ✅       | -       | Type of relationship      |
+
+**Returns:** Confirmation of link creation.
+
+### `get_related`
+
+Get memories related to a given memory.
+
+| Parameter      | Type   | Required | Default | Description                 |
+| :------------- | :----- | :------- | :------ | :-------------------------- |
+| `hash`         | string | ✅       | -       | Hash of the memory          |
+| `relationType` | string | ❌       | -       | Filter by relationship type |
+| `depth`        | number | ❌       | -       | Traversal depth (1-3)       |
+
+**Returns:** Array of related memories.
+
+### `memory_stats`
+
+Get database statistics and health information.
+
+_No parameters required._
+
+**Returns:** Database statistics (count, size, etc.).
+
+## 🔌 Client Configuration
+
+<details>
+<summary><b>VS Code</b></summary>
+
+Add to your `settings.json` or `mcpServers` config:
 
 ```json
 {
   "mcpServers": {
     "memdb": {
-      "command": "node",
-      "args": ["path/to/memdb/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
     }
   }
 }
 ```
 
-## Tools
+</details>
 
-- `store_memory`: Store a new memory.
-- `search_memories`: Search memories by content or tags.
-- `get_memory`: Retrieve a memory by hash.
-- `delete_memory`: Delete a memory by hash.
-- `link_memories`: Create a relationship between two memories.
-- `get_related`: Get related memories.
-- `memory_stats`: Get database statistics.
+<details>
+<summary><b>Claude Desktop</b></summary>
 
-## Development
+Add to your `claude_desktop_config.json`:
 
-- `npm run dev`: Watch mode.
-- `npm test`: Run tests.
+```json
+{
+  "mcpServers": {
+    "memdb": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
+    }
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><b>Cursor</b></summary>
+
+1. Go to **Cursor Settings** > **Features** > **MCP**
+2. Click **+ Add New MCP Server**
+3. Name: `memdb`
+4. Type: `command`
+5. Command: `npx -y @j0hanz/memdb@latest`
+
+</details>
+
+## 🛠️ Development
+
+### Prerequisites
+
+- Node.js >= 22.0.0
+
+### Scripts
+
+| Command         | Description                        |
+| :-------------- | :--------------------------------- |
+| `npm run build` | Compile TypeScript to `dist/`      |
+| `npm run dev`   | Run in development mode with watch |
+| `npm run test`  | Run tests                          |
+| `npm run lint`  | Run ESLint                         |
+
+### Project Structure
+
+```text
+src/
+├── index.ts          # Entry point
+├── core/             # Database and memory service
+├── tools/            # Tool implementations
+├── schemas/          # Zod input/output schemas
+├── lib/              # Utility functions
+└── utils/            # Config and logger
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.

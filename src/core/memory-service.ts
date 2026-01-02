@@ -46,41 +46,75 @@ export class MemoryService {
     const insert = this.db.prepare(
       'INSERT INTO memories (content, importance, memory_type, hash) VALUES (?, ?, ?, ?)'
     );
-    const result = insert.run(content, importance, memoryType, hash);
-    const memoryId = result.lastInsertRowid as number;
 
-    if (tags.length > 0) {
-      const insertTag = this.db.prepare(
-        'INSERT INTO tags (memory_id, tag) VALUES (?, ?)'
-      );
+    const uniqueTags = tags.length > 0 ? [...new Set(tags)] : [];
+    if (uniqueTags.length > 0) {
       this.db.exec('BEGIN IMMEDIATE');
       try {
-        for (const tag of tags) {
+        const result = insert.run(content, importance, memoryType, hash);
+        const memoryId = result.lastInsertRowid as number;
+        const insertTag = this.db.prepare(
+          'INSERT INTO tags (memory_id, tag) VALUES (?, ?)'
+        );
+        for (const tag of uniqueTags) {
           insertTag.run(memoryId, tag);
         }
         this.db.exec('COMMIT');
+        return { id: memoryId, hash, isNew: true };
       } catch (err) {
         this.db.exec('ROLLBACK');
         throw err;
       }
     }
 
+    const result = insert.run(content, importance, memoryType, hash);
+    const memoryId = result.lastInsertRowid as number;
     return { id: memoryId, hash, isNew: true };
   }
 
-  searchMemories(query: string, limit = 10): SearchResult[] {
-    const stmt = this.db.prepare(`
-      SELECT m.*, bm25(memories_fts) as relevance
-      FROM memories m
-      JOIN memories_fts fts ON m.id = fts.rowid
-      WHERE memories_fts MATCH ?
-      ORDER BY relevance
-      LIMIT ?
-    `);
+  searchMemories(
+    query: string,
+    limit = 10,
+    tags: string[] = [],
+    minRelevance?: number
+  ): SearchResult[] {
+    const uniqueTags = tags.length > 0 ? [...new Set(tags)] : [];
+    const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
+    const whereParts: string[] = ['memories_fts MATCH ?'];
+    const params: (number | string)[] = [query];
+
+    if (uniqueTags.length > 0) {
+      whereParts.push(
+        `m.id IN (SELECT memory_id FROM tags WHERE tag IN (${uniqueTags
+          .map(() => '?')
+          .join(', ')}))`
+      );
+      params.push(...uniqueTags);
+    }
+
+    let sql = `
+      WITH ranked AS (
+        SELECT m.*, ${relevanceExpr} as relevance
+        FROM memories m
+        JOIN memories_fts fts ON m.id = fts.rowid
+        WHERE ${whereParts.join(' AND ')}
+      )
+      SELECT * FROM ranked
+    `;
+
+    if (minRelevance !== undefined) {
+      sql += ' WHERE relevance >= ?';
+      params.push(minRelevance);
+    }
+
+    sql += ' ORDER BY relevance DESC LIMIT ?';
+    params.push(limit);
+
+    const stmt = this.db.prepare(sql);
 
     let rows: Record<string, unknown>[];
     try {
-      rows = stmt.all(query, limit) as Record<string, unknown>[];
+      rows = stmt.all(...params) as Record<string, unknown>[];
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       if (message.includes('fts5') || message.includes('syntax error')) {
@@ -131,7 +165,7 @@ export class MemoryService {
     }
 
     const insert = this.db.prepare(
-      'INSERT INTO relationships (from_memory_id, to_memory_id, relation_type) VALUES (?, ?, ?)'
+      'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type) VALUES (?, ?, ?)'
     );
     return insert.run(from.id, to.id, relationType) as StatementResult;
   }

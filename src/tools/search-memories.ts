@@ -20,8 +20,13 @@ export function registerSearchMemories(server: McpServer): void {
     },
     (params) => {
       try {
-        const { query, limit } = params;
-        const results = memoryService.searchMemories(query, limit);
+        const { query, limit, tags, minRelevance } = params;
+        const results = memoryService.searchMemories(
+          query,
+          limit,
+          tags ?? [],
+          minRelevance
+        );
         return createToolResponse({
           ok: true,
           result: results,

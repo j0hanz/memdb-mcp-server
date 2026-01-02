@@ -4,7 +4,9 @@ import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
+import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { logger } from './utils/logger.js';
 
@@ -19,6 +21,14 @@ const server = new McpServer(
     capabilities: { logging: {} },
   }
 );
+
+// Ensure tool errors always include structuredContent (matches DefaultOutputSchema).
+(
+  server as unknown as {
+    createToolError: (message: string) => CallToolResult;
+  }
+).createToolError = (message: string): CallToolResult =>
+  createErrorResponse('E_TOOL_ERROR', message);
 
 registerAllTools(server);
 
