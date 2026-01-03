@@ -2,7 +2,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
 
-const DEFAULT_DB_PATH = path.join(process.cwd(), 'data', 'memory.db');
+const DEFAULT_DB_PATH = path.join(process.cwd(), '.memdb', 'memory.db');
 const DEFAULT_LOG_LEVEL = 'info';
 
 export type LogLevel = 'error' | 'info' | 'warn';

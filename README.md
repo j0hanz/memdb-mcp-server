@@ -18,7 +18,7 @@ A memory-based MCP server using SQLite in-memory database.
 | 🔍 **Full-Text Search**  | Search memories using FTS5 with relevance ranking         |
 | 🕸️ **Graph Connections** | Link memories together to create knowledge graphs         |
 | 📊 **Analytics**         | Track memory statistics and database health               |
-| 🔒 **Local Privacy**     | All data stored locally in SQLite (`data/memory.db`)      |
+| 🔒 **Local Privacy**     | All data stored locally in SQLite (`.memdb/memory.db`)    |
 
 ## 🚀 Quick Start
 
@@ -60,7 +60,7 @@ npm run build
 
 ## ⚙️ Configuration
 
-The server uses a local SQLite database located at `data/memory.db` relative to the working directory.
+The server uses a local SQLite database located at `.memdb/memory.db` relative to the working directory.
 
 ### Environment Variables
 
@@ -222,7 +222,7 @@ Add to your `claude_desktop_config.json`:
 
 - **Content deduplication**: Memories are deduplicated using MD5 hashes. Storing the same content twice returns the existing memory.
 - **Query timeouts**: The server uses SQLite's synchronous API with a 5-second busy timeout. Individual queries are bounded by result limits rather than execution time.
-- **Local storage**: All data is stored locally in `data/memory.db`. No network requests are made.
+- **Local storage**: All data is stored locally in `.memdb/memory.db`. No network requests are made.
 
 ## 🛠️ Development
 
@@ -232,17 +232,17 @@ Add to your `claude_desktop_config.json`:
 
 ### Scripts
 
-| Command                  | Description                        |
-| :----------------------- | :--------------------------------- |
-| `npm run build`          | Compile TypeScript to `dist/`      |
-| `npm run dev`            | Run in development mode with watch |
-| `npm run test`           | Run tests                          |
-| `npm run test:coverage`  | Run tests with coverage            |
-| `npm run lint`           | Run ESLint                         |
-| `npm run format`         | Format code with Prettier          |
-| `npm run format:check`   | Check code formatting              |
-| `npm run type-check`     | TypeScript type checking           |
-| `npm run inspector`      | Run MCP inspector                  |
+| Command                 | Description                        |
+| :---------------------- | :--------------------------------- |
+| `npm run build`         | Compile TypeScript to `dist/`      |
+| `npm run dev`           | Run in development mode with watch |
+| `npm run test`          | Run tests                          |
+| `npm run test:coverage` | Run tests with coverage            |
+| `npm run lint`          | Run ESLint                         |
+| `npm run format`        | Format code with Prettier          |
+| `npm run format:check`  | Check code formatting              |
+| `npm run type-check`    | TypeScript type checking           |
+| `npm run inspector`     | Run MCP inspector                  |
 
 ### Project Structure
 

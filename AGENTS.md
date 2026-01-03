@@ -5,7 +5,7 @@
 - **Purpose**: Memory MCP Server for AI Assistants using `node:sqlite`
 - **Stack**: TypeScript, Node.js 22+, MCP SDK (`@modelcontextprotocol/sdk`), Zod
 - **Transport**: Stdio (default)
-- **Data storage**: Local SQLite with FTS5 full-text search (`data/memory.db`)
+- **Data storage**: Local SQLite with FTS5 full-text search (`.memdb/memory.db`)
 
 ## Repo Map / Structure
 
@@ -19,13 +19,13 @@
   - `utils/`: Config and logger utilities
 - `dist/`: Build output (generated, do not edit)
 - `tests/`: Tests using Node.js built-in test runner
-- `data/`: Runtime database directory (`memory.db`)
+- `.memdb/`: Runtime database directory (`memory.db`)
 
 ## Setup & Environment
 
 - **Prerequisites**: Node.js >= 22.0.0
 - **Install deps**: `npm install`
-- **Env config**: None required; database auto-created at `data/memory.db`
+- **Env config**: None required; database auto-created at `.memdb/memory.db`
 
 ## Development Workflow
 
@@ -83,7 +83,7 @@
 
 ## Security & Safety
 
-- Database stored locally (`data/memory.db`)
+- Database stored locally (`.memdb/memory.db`)
 - No network requests by default (stdio transport only)
 - Graceful shutdown with 5-second timeout
 - Uncaught exceptions and unhandled rejections logged and exit with code 1
