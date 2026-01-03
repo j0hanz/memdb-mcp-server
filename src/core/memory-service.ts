@@ -81,15 +81,21 @@ const mapRowToRelatedMemory = (row: DbRow): RelatedMemory => ({
   depth: toSafeInteger(row.depth, 'depth'),
 });
 
+const sanitizeFts5Query = (query: string): string => {
+  const escaped = query.replace(/"/g, '""');
+  return `"${escaped}"`;
+};
+
 const buildSearchQuery = (
   query: string,
   limit: number,
   tags: string[],
   minRelevance?: number
 ): SearchQuery => {
+  const sanitizedQuery = sanitizeFts5Query(query);
   const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
   const whereParts: string[] = ['memories_fts MATCH ?'];
-  const params: (number | string)[] = [query];
+  const params: (number | string)[] = [sanitizedQuery];
 
   if (tags.length > 0) {
     whereParts.push(
@@ -304,6 +310,7 @@ const getRelatedDirect = (
     FROM memories m
     JOIN relationships r ON m.id = r.to_memory_id
     WHERE r.from_memory_id = ?${clause}
+    LIMIT 1000
   `;
   const rows = db.prepare(sql).all(memoryId, ...params) as DbRow[];
   return rows.map((row) => mapRowToRelatedMemory(row));
@@ -331,6 +338,7 @@ const getRelatedRecursive = (
     JOIN memories m ON m.id = rels.to_id
     GROUP BY m.id, rels.relation_type
     ORDER BY depth, m.id
+    LIMIT 1000
   `;
   const baseParams: (number | string)[] = [memoryId, ...params, maxDepth];
   const recursiveParams =

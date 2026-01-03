@@ -8,8 +8,12 @@ export const StoreMemoryInputSchema = z.strictObject({
     .meta({ description: 'The content of the memory' }),
   tags: z
     .array(z.string().min(1).max(50))
+    .max(100)
     .optional()
-    .meta({ description: 'Tags to categorize the memory' }),
+    .meta({
+      description:
+        'Tags to categorize the memory (max 100 tags, each max 50 chars)',
+    }),
   importance: z
     .number()
     .min(0)
@@ -34,8 +38,9 @@ export const SearchMemoriesInputSchema = z.strictObject({
     .meta({ description: 'Maximum number of results' }),
   tags: z
     .array(z.string().min(1).max(50))
+    .max(50)
     .optional()
-    .meta({ description: 'Filter by tags' }),
+    .meta({ description: 'Filter by tags (max 50 tags)' }),
   minRelevance: z
     .number()
     .min(0)

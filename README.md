@@ -204,7 +204,24 @@ Add to your `claude_desktop_config.json`:
 
 </details>
 
-## 🛠️ Development
+## � Limits & Constraints
+
+| Constraint                    | Value    | Description                                              |
+| :---------------------------- | :------- | :------------------------------------------------------- |
+| **Max tags per memory**       | 100      | Maximum number of tags when storing a memory             |
+| **Max tag length**            | 50 chars | Maximum characters per tag                               |
+| **Max tags in search filter** | 50       | Maximum tags when filtering search results               |
+| **Max related memories**      | 1000     | Maximum results from `get_related` queries               |
+| **Max traversal depth**       | 3        | Maximum depth for relationship traversal                 |
+| **Search mode**               | Phrase   | Search uses phrase matching (FTS5 operators are escaped) |
+
+### Notes
+
+- **Content deduplication**: Memories are deduplicated using MD5 hashes. Storing the same content twice returns the existing memory.
+- **Query timeouts**: The server uses SQLite's synchronous API with a 5-second busy timeout. Individual queries are bounded by result limits rather than execution time.
+- **Local storage**: All data is stored locally in `data/memory.db`. No network requests are made.
+
+## �🛠️ Development
 
 ### Prerequisites
 
