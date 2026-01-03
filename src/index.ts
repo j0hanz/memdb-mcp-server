@@ -105,10 +105,11 @@ const serverCore = server.server as unknown as {
 if (!serverCore._oninitialize) {
   throw new Error('MCP SDK server initialize handler is unavailable');
 }
-const onInitialize = serverCore._oninitialize;
+const onInitialize = serverCore._oninitialize.bind(server.server);
 
 server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
   assertSupportedProtocolVersion(request.params.protocolVersion);
+  // Preserve "this" binding for the MCP SDK's private handler.
   const result = await onInitialize(request);
   hasInitialized = true;
   return result;
