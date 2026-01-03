@@ -4,7 +4,15 @@ import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  ErrorCode,
+  type InitializeRequest,
+  InitializeRequestSchema,
+  type InitializeResult,
+  McpError,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
@@ -22,6 +30,21 @@ const server = new McpServer(
     capabilities: { logging: {} },
   }
 );
+
+const serverCore = server.server as unknown as {
+  _oninitialize: (request: InitializeRequest) => Promise<InitializeResult>;
+};
+
+server.server.setRequestHandler(InitializeRequestSchema, (request) => {
+  const requestedVersion = request.params.protocolVersion;
+  if (!SUPPORTED_PROTOCOL_VERSIONS.includes(requestedVersion)) {
+    throw new McpError(
+      ErrorCode.InvalidParams,
+      `Unsupported protocol version: ${requestedVersion}`
+    );
+  }
+  return serverCore._oninitialize(request);
+});
 
 // Ensure tool errors always include structuredContent (matches DefaultOutputSchema).
 (

@@ -95,4 +95,4 @@ export const GetRelatedInputSchema = z.strictObject({
     .meta({ description: 'Traversal depth (1-3)' }),
 });
 
-export const MemoryStatsInputSchema = z.strictObject({}).optional();
+export const MemoryStatsInputSchema = z.strictObject({});
