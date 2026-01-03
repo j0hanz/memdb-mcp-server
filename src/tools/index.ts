@@ -1,19 +1,191 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-import { registerDeleteMemory } from './delete-memory.js';
-import { registerGetMemory } from './get-memory.js';
-import { registerGetRelated } from './get-related.js';
-import { registerLinkMemories } from './link-memories.js';
-import { registerMemoryStats } from './memory-stats.js';
-import { registerSearchMemories } from './search-memories.js';
-import { registerStoreMemory } from './store-memory.js';
+import {
+  createMemory,
+  deleteMemory,
+  getMemory,
+  getRelated,
+  getStats,
+  linkMemories,
+  searchMemories,
+} from '../core/memory-service.js';
+import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
+import { createToolResponse } from '../lib/tool_response.js';
+import {
+  DeleteMemoryInputSchema,
+  GetMemoryInputSchema,
+  GetRelatedInputSchema,
+  LinkMemoriesInputSchema,
+  MemoryStatsInputSchema,
+  SearchMemoriesInputSchema,
+  StoreMemoryInputSchema,
+} from '../schemas/inputs.js';
+import { DefaultOutputSchema } from '../schemas/outputs.js';
+
+const ok = (result: unknown): CallToolResult =>
+  createToolResponse({ ok: true, result });
 
 export function registerAllTools(server: McpServer): void {
-  registerStoreMemory(server);
-  registerSearchMemories(server);
-  registerGetMemory(server);
-  registerDeleteMemory(server);
-  registerLinkMemories(server);
-  registerGetRelated(server);
-  registerMemoryStats(server);
+  server.registerTool(
+    'store_memory',
+    {
+      title: 'Store Memory',
+      description: 'Store a new memory with optional tags',
+      inputSchema: StoreMemoryInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        idempotentHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { content, tags, importance, memoryType } = params;
+        return ok(
+          createMemory(
+            content,
+            tags ?? [],
+            importance ?? 0,
+            memoryType ?? 'general'
+          )
+        );
+      } catch (err) {
+        return createErrorResponse('E_STORE_MEMORY', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'search_memories',
+    {
+      title: 'Search Memories',
+      description: 'Full-text search with filters',
+      inputSchema: SearchMemoriesInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { query, limit, tags, minRelevance } = params;
+        return ok(searchMemories(query, limit ?? 10, tags ?? [], minRelevance));
+      } catch (err) {
+        return createErrorResponse('E_SEARCH_MEMORIES', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_memory',
+    {
+      title: 'Get Memory',
+      description: 'Retrieve memory by hash',
+      inputSchema: GetMemoryInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { hash } = params;
+        const result = getMemory(hash);
+        if (!result) {
+          return createErrorResponse('E_NOT_FOUND', 'Memory not found');
+        }
+        return ok(result);
+      } catch (err) {
+        return createErrorResponse('E_GET_MEMORY', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'delete_memory',
+    {
+      title: 'Delete Memory',
+      description: 'Delete by hash',
+      inputSchema: DeleteMemoryInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        destructiveHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { hash } = params;
+        const result = deleteMemory(hash);
+        if (result.changes === 0) {
+          return createErrorResponse('E_NOT_FOUND', 'Memory not found');
+        }
+        return ok({ deleted: true });
+      } catch (err) {
+        return createErrorResponse('E_DELETE_MEMORY', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'link_memories',
+    {
+      title: 'Link Memories',
+      description: 'Create relationship between memories',
+      inputSchema: LinkMemoriesInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        idempotentHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { fromHash, toHash, relationType } = params;
+        linkMemories(fromHash, toHash, relationType);
+        return ok({ linked: true });
+      } catch (err) {
+        return createErrorResponse('E_LINK_MEMORIES', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'get_related',
+    {
+      title: 'Get Related Memories',
+      description: 'Get memories related to a given memory',
+      inputSchema: GetRelatedInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    (params) => {
+      try {
+        const { hash, relationType, depth } = params;
+        return ok(getRelated(hash, relationType, depth ?? 1));
+      } catch (err) {
+        return createErrorResponse('E_GET_RELATED', getErrorMessage(err));
+      }
+    }
+  );
+
+  server.registerTool(
+    'memory_stats',
+    {
+      title: 'Memory Stats',
+      description: 'Database statistics and health',
+      inputSchema: MemoryStatsInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: {
+        readOnlyHint: true,
+      },
+    },
+    () => {
+      try {
+        return ok(getStats());
+      } catch (err) {
+        return createErrorResponse('E_MEMORY_STATS', getErrorMessage(err));
+      }
+    }
+  );
 }

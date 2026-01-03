@@ -21,3 +21,23 @@ export interface SearchResult extends Memory {
   relevance: number | undefined;
   matchedTags?: string[];
 }
+
+export interface RelatedMemory extends Memory {
+  relation_type: string;
+  depth: number;
+}
+
+export interface StatementResult {
+  changes: number;
+}
+
+export interface MemoryInsertResult {
+  id: number;
+  hash: string;
+  isNew: boolean;
+}
+
+export interface MemoryStats {
+  memoryCount: number;
+  relationshipCount: number;
+}
