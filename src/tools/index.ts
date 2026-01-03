@@ -18,13 +18,20 @@ import {
 } from '../core/memory-service.js';
 import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
 import {
+  type DeleteMemoryInput,
   DeleteMemoryInputSchema,
+  type GetMemoryInput,
   GetMemoryInputSchema,
+  type GetRelatedInput,
   GetRelatedInputSchema,
+  type LinkMemoriesInput,
   LinkMemoriesInputSchema,
   MemoryStatsInputSchema,
+  type SearchMemoriesInput,
   SearchMemoriesInputSchema,
+  type StoreMemoryInput,
   StoreMemoryInputSchema,
+  type UpdateMemoryInput,
   UpdateMemoryInputSchema,
 } from '../schemas/inputs.js';
 import { DefaultOutputSchema } from '../schemas/outputs.js';
@@ -71,12 +78,8 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_STORE_MEMORY', () => {
-        const { content, tags, importance, memoryType } = params as {
-          content: string;
-          tags?: string[];
-          importance?: number;
-          memoryType?: string;
-        };
+        const { content, tags, importance, memoryType } =
+          params as StoreMemoryInput;
         return ok(
           createMemory(
             content,
@@ -98,13 +101,8 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_SEARCH_MEMORIES', () => {
-        const { query, limit, offset, tags, minRelevance } = params as {
-          query: string;
-          limit?: number;
-          offset?: number;
-          tags?: string[];
-          minRelevance?: number;
-        };
+        const { query, limit, offset, tags, minRelevance } =
+          params as SearchMemoriesInput;
         return ok(
           searchMemories(query, limit ?? 10, tags ?? [], minRelevance, offset)
         );
@@ -121,7 +119,7 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_GET_MEMORY', () => {
-        const { hash } = params as { hash: string };
+        const { hash } = params as GetMemoryInput;
         const result = getMemory(hash);
         if (!result) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
@@ -140,7 +138,7 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_DELETE_MEMORY', () => {
-        const { hash } = params as { hash: string };
+        const { hash } = params as DeleteMemoryInput;
         const result = deleteMemory(hash);
         if (result.changes === 0) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
@@ -159,11 +157,7 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_LINK_MEMORIES', () => {
-        const { fromHash, toHash, relationType } = params as {
-          fromHash: string;
-          toHash: string;
-          relationType: string;
-        };
+        const { fromHash, toHash, relationType } = params as LinkMemoriesInput;
         linkMemories(fromHash, toHash, relationType);
         return ok({ linked: true });
       }),
@@ -179,12 +173,8 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_GET_RELATED', () => {
-        const { hash, relationType, depth, direction } = params as {
-          hash: string;
-          relationType?: string;
-          depth?: number;
-          direction?: 'outgoing' | 'incoming' | 'both';
-        };
+        const { hash, relationType, depth, direction } =
+          params as GetRelatedInput;
         return ok(
           getRelated(hash, relationType, depth ?? 1, direction ?? 'outgoing')
         );
@@ -216,14 +206,7 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_UPDATE_MEMORY', () => {
-        const { hash, ...options } = params as {
-          hash: string;
-          importance?: number;
-          memoryType?: string;
-          tags?: string[];
-          addTags?: string[];
-          removeTags?: string[];
-        };
+        const { hash, ...options } = params as UpdateMemoryInput;
         return ok(updateMemory(hash, options));
       }),
   },

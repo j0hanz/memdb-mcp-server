@@ -27,11 +27,11 @@ const loadTagsForMemory = (memoryId: number): Set<string> => {
 };
 
 interface UpdateMemoryOptions {
-  importance?: number;
-  memoryType?: string;
-  tags?: readonly string[];
-  addTags?: readonly string[];
-  removeTags?: readonly string[];
+  importance?: number | undefined;
+  memoryType?: string | undefined;
+  tags?: readonly string[] | undefined;
+  addTags?: readonly string[] | undefined;
+  removeTags?: readonly string[] | undefined;
 }
 
 const updateMetadataFields = (
@@ -117,10 +117,11 @@ const removeTagsFromMemory = (
   tags: readonly string[]
 ): void => {
   if (tags.length === 0) return;
-  const deleteTag = db.prepare(
-    'DELETE FROM tags WHERE memory_id = ? AND tag = ?'
+  const placeholders = tags.map(() => '?').join(', ');
+  const stmt = db.prepare(
+    `DELETE FROM tags WHERE memory_id = ? AND tag IN (${placeholders})`
   );
-  for (const tag of tags) executeRun(deleteTag, memoryId, tag);
+  executeRun(stmt, memoryId, ...tags);
 };
 
 const updateTags = (memoryId: number, options: UpdateMemoryOptions): void => {

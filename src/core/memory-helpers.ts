@@ -1,5 +1,5 @@
 import { db } from './database.js';
-import { executeGet, executeRun } from './db-helpers.js';
+import { executeGet, executeRun, type SqlParam } from './db-helpers.js';
 import { toSafeInteger } from './row-mappers.js';
 
 export const findMemoryIdByHash = (hash: string): number | undefined => {
@@ -13,10 +13,10 @@ export const findMemoryIdByHash = (hash: string): number | undefined => {
 
 export const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
-  const insertTag = db.prepare(
-    'INSERT OR IGNORE INTO tags (memory_id, tag) VALUES (?, ?)'
+  const placeholders = tags.map(() => '(?, ?)').join(', ');
+  const params: SqlParam[] = tags.flatMap((tag) => [memoryId, tag]);
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO tags (memory_id, tag) VALUES ${placeholders}`
   );
-  for (const tag of tags) {
-    executeRun(insertTag, memoryId, tag);
-  }
+  executeRun(stmt, ...params);
 };

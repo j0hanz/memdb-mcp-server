@@ -97,6 +97,10 @@ const createInitGuardTransport = (
   return guarded;
 };
 
+// HACK: Accessing internal _oninitialize to intercept protocol version validation.
+// This is necessary because the MCP SDK doesn't expose a public hook for this.
+// Tested with @modelcontextprotocol/sdk ^1.25.1. May break on major SDK updates.
+// Runtime check below ensures graceful failure if SDK internals change.
 const serverCore = server.server as unknown as {
   _oninitialize?: (request: InitializeRequest) => Promise<InitializeResult>;
 };
