@@ -4,10 +4,10 @@ const INDEX_MISSING_TOKENS = [
 ];
 const QUERY_INVALID_TOKENS = ['fts5', 'syntax error'];
 
-export const isSearchIndexMissing = (message: string): boolean =>
+const isSearchIndexMissing = (message: string): boolean =>
   INDEX_MISSING_TOKENS.some((token) => message.includes(token));
 
-export const isSearchQueryInvalid = (message: string): boolean =>
+const isSearchQueryInvalid = (message: string): boolean =>
   QUERY_INVALID_TOKENS.some((token) => message.includes(token));
 
 export const toSearchError = (err: unknown): Error | undefined => {
