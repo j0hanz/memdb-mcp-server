@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-- **Name**: `@j0hanz/memdb` — A memory-based MCP server using SQLite in-memory database
+- **Name**: `@j0hanz/memdb` - A memory-based MCP server using SQLite in-memory database
 - **Purpose**: Provides AI assistants with persistent memory storage, full-text search (FTS5), and graph-based memory relationships
-- **Primary Stack**: TypeScript (ES2022), Node.js ≥ 22.0.0, `@modelcontextprotocol/sdk`, Zod
+- **Primary Stack**: TypeScript (ES2022), Node.js >= 22.0.0, `@modelcontextprotocol/sdk`, Zod
 - **Package Type**: ESM (`"type": "module"`)
 - **Entry Point**: `dist/index.js` (compiled) / `src/index.ts` (source)
 
@@ -12,24 +12,24 @@
 
 ```text
 src/
-├── index.ts          # Server entry point, stdio transport, shutdown handling
-├── core/             # Database initialization and memory service logic
-│   ├── database.ts   # SQLite setup, FTS5 tables, migrations
-│   └── memory-service.ts  # CRUD + search + relationships
-├── tools/            # MCP tool implementations (store, search, get, delete, link, stats)
-├── schemas/          # Zod input/output schemas for tool validation
-│   ├── inputs.ts     # Input schemas with constraints
-│   └── outputs.ts    # Output schemas for structured responses
-├── lib/              # Utilities
-│   ├── errors.ts     # Standardized error responses
-│   └── tool_response.ts  # Tool response helpers
-├── types/            # TypeScript type definitions
-└── utils/            # Config parsing and logger
-    ├── config.ts     # CLI flags + env vars parsing
-    └── logger.ts     # Logging utility
+|-- index.ts          # Server entry point, stdio transport, shutdown handling
+|-- core/             # Database initialization and memory service logic
+|   |-- database.ts   # SQLite setup, FTS5 tables, migrations
+|   `-- memory-service.ts  # CRUD + search + relationships
+|-- tools/            # MCP tool implementations (store, search, get, delete, link, stats)
+|-- schemas/          # Zod input/output schemas for tool validation
+|   |-- inputs.ts     # Input schemas with constraints
+|   `-- outputs.ts    # Output schemas for structured responses
+|-- lib/              # Utilities
+|   |-- errors.ts     # Standardized error responses
+|   `-- tool_response.ts  # Tool response helpers
+|-- types/            # TypeScript type definitions
+`-- utils/            # Config parsing and logger
+    |-- config.ts     # CLI flags + env vars parsing
+    `-- logger.ts     # Logging utility
 
 tests/
-└── memory-service.test.ts  # Node.js native test runner tests
+`-- memory-service.test.ts  # Node.js native test runner tests
 
 dist/                 # Build output (gitignored)
 ```
@@ -38,7 +38,7 @@ dist/                 # Build output (gitignored)
 
 ### Prerequisites
 
-- Node.js **≥ 22.0.0** (required for `node:sqlite`)
+- Node.js **>= 22.0.0** (required for `node:sqlite`)
 
 ### Install Dependencies
 
@@ -146,7 +146,7 @@ npm run build       # Compile before commit
 ### Pre-publish Checks
 
 ```bash
-npm run prepublishOnly  # lint → type-check → build
+npm run prepublishOnly  # lint -> type-check -> build
 ```
 
 ## Security & Safety
@@ -188,7 +188,7 @@ npm run lint && npm run type-check
 
 | Issue                              | Solution                                                |
 | ---------------------------------- | ------------------------------------------------------- |
-| `Cannot find module 'node:sqlite'` | Upgrade to Node.js ≥ 22.0.0                             |
+| `Cannot find module 'node:sqlite'` | Upgrade to Node.js >= 22.0.0                            |
 | Type errors after pulling changes  | Run `npm install` then `npm run type-check`             |
 | Tests fail with DB errors          | Ensure `MEMDB_PATH=:memory:` is set for test isolation  |
 | ESLint errors on type imports      | Use inline type imports: `import { type X } from '...'` |

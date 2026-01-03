@@ -26,7 +26,7 @@ import { DefaultOutputSchema } from '../schemas/outputs.js';
 const ok = (result: unknown): CallToolResult =>
   createToolResponse({ ok: true, result });
 
-export function registerAllTools(server: McpServer): void {
+const registerStoreMemoryTool = (server: McpServer): void => {
   server.registerTool(
     'store_memory',
     {
@@ -55,7 +55,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerSearchMemoriesTool = (server: McpServer): void => {
   server.registerTool(
     'search_memories',
     {
@@ -77,7 +79,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerGetMemoryTool = (server: McpServer): void => {
   server.registerTool(
     'get_memory',
     {
@@ -103,7 +107,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerDeleteMemoryTool = (server: McpServer): void => {
   server.registerTool(
     'delete_memory',
     {
@@ -129,7 +135,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerLinkMemoriesTool = (server: McpServer): void => {
   server.registerTool(
     'link_memories',
     {
@@ -152,7 +160,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerGetRelatedTool = (server: McpServer): void => {
   server.registerTool(
     'get_related',
     {
@@ -174,7 +184,9 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
 
+const registerMemoryStatsTool = (server: McpServer): void => {
   server.registerTool(
     'memory_stats',
     {
@@ -195,4 +207,14 @@ export function registerAllTools(server: McpServer): void {
       }
     }
   );
+};
+
+export function registerAllTools(server: McpServer): void {
+  registerStoreMemoryTool(server);
+  registerSearchMemoriesTool(server);
+  registerGetMemoryTool(server);
+  registerDeleteMemoryTool(server);
+  registerLinkMemoriesTool(server);
+  registerGetRelatedTool(server);
+  registerMemoryStatsTool(server);
 }

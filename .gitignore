@@ -50,3 +50,7 @@ coverage/
 # Cache
 .cache/
 *.cache
+
+# Local reports
+.jscpd/
+reports/

@@ -42,6 +42,12 @@ jobs:
       - name: Run coverage
         run: npm run test:coverage
 
+      - name: Run maintainability report
+        run: npm run maintainability
+
+      - name: Run duplication check
+        run: npm run duplication
+
       - name: Build package
         run: npm run build
 
@@ -60,18 +66,18 @@ jobs:
 
       - name: Create workflow summary
         run: |
-          echo "## 📦 Package Published to npm" >> $GITHUB_STEP_SUMMARY
+          echo "## Package Published to npm" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| **Package** | [\`@j0hanz/memdb\`](https://www.npmjs.com/package/@j0hanz/memdb) |" >> $GITHUB_STEP_SUMMARY
           echo "| **Version** | \`${{ steps.version.outputs.version }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Registry** | npmjs.com |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Auth** | 🔐 Trusted Publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Provenance** | ✅ Auto-generated |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Auth** | Trusted Publishing (OIDC) |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Provenance** | Auto-generated |" >> $GITHUB_STEP_SUMMARY
           echo "| **Release** | [${{ github.event.release.name }}](${{ github.event.release.html_url }}) |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🚀 Usage" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**MCP Server Configuration:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`json" >> $GITHUB_STEP_SUMMARY

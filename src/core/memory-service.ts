@@ -10,8 +10,15 @@ import type {
   StatementResult,
 } from '../types/index.js';
 import { db } from './database.js';
+import {
+  type DbRow,
+  mapRowToMemory,
+  mapRowToRelatedMemory,
+  mapRowToSearchResult,
+  toSafeInteger,
+} from './row-mappers.js';
+import { toSearchError } from './search-errors.js';
 
-type DbRow = Record<string, unknown>;
 type SqlParam = string | number | bigint | null | Uint8Array;
 
 interface RunResult {
@@ -34,66 +41,6 @@ const executeGet = (
 
 const executeRun = (stmt: StatementSync, ...params: unknown[]): RunResult =>
   stmt.run(...(params as SqlParam[])) as RunResult;
-
-const toNumber = (value: unknown, field: string): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'bigint') {
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) return numeric;
-  }
-  throw new Error(`Invalid ${field}`);
-};
-
-const toSafeInteger = (value: unknown, field: string): number => {
-  const numeric = toNumber(value, field);
-  if (!Number.isSafeInteger(numeric)) {
-    throw new Error(`Invalid ${field}`);
-  }
-  return numeric;
-};
-
-const toString = (value: unknown, field: string): string => {
-  if (typeof value === 'string') return value;
-  throw new Error(`Invalid ${field}`);
-};
-
-const toOptionalString = (
-  value: unknown,
-  field: string
-): string | undefined => {
-  if (value === null || value === undefined) return undefined;
-  return toString(value, field);
-};
-
-const toOptionalNumber = (
-  value: unknown,
-  field: string
-): number | undefined => {
-  if (value === null || value === undefined) return undefined;
-  return toNumber(value, field);
-};
-
-const mapRowToMemory = (row: DbRow): Memory => ({
-  id: toSafeInteger(row.id, 'id'),
-  content: toString(row.content, 'content'),
-  summary: toOptionalString(row.summary, 'summary'),
-  importance: toSafeInteger(row.importance, 'importance'),
-  memory_type: toString(row.memory_type, 'memory_type'),
-  created_at: toString(row.created_at, 'created_at'),
-  accessed_at: toString(row.accessed_at, 'accessed_at'),
-  hash: toString(row.hash, 'hash'),
-});
-
-const mapRowToSearchResult = (row: DbRow): SearchResult => ({
-  ...mapRowToMemory(row),
-  relevance: toOptionalNumber(row.relevance, 'relevance'),
-});
-
-const mapRowToRelatedMemory = (row: DbRow): RelatedMemory => ({
-  ...mapRowToMemory(row),
-  relation_type: toString(row.relation_type, 'relation_type'),
-  depth: toSafeInteger(row.depth, 'depth'),
-});
 
 const sanitizeFts5Query = (query: string): string => {
   const escaped = query.replace(/"/g, '""');
@@ -142,25 +89,13 @@ const buildSearchQuery = (
 };
 
 const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
-  const stmt = db.prepare(sql);
-
   try {
+    const stmt = db.prepare(sql);
     return executeAll(stmt, ...params);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (
-      message.includes('no such module: fts5') ||
-      message.includes('no such table: memories_fts')
-    ) {
-      throw new Error(
-        'Search index unavailable. Ensure FTS5 is enabled and the index is initialized.'
-      );
-    }
-    if (message.includes('fts5') || message.includes('syntax error')) {
-      throw new Error(
-        'Invalid search query syntax. Check for unbalanced quotes or special characters. ' +
-          `Details: ${message}`
-      );
+    const mappedError = toSearchError(err);
+    if (mappedError) {
+      throw mappedError;
     }
     throw err;
   }
@@ -169,8 +104,42 @@ const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
 const buildHash = (content: string): string =>
   crypto.createHash('md5').update(content).digest('hex');
 
-const uniqueTags = (tags: readonly string[]): readonly string[] =>
-  tags.length > 0 ? [...new Set(tags)] : [];
+const assertValidTag = (tag: string): void => {
+  if (tag.length === 0) {
+    throw new Error('Tag must be at least 1 character');
+  }
+  if (tag.length > 50) {
+    throw new Error('Tag exceeds 50 characters');
+  }
+};
+
+const normalizeTags = (
+  tags: readonly string[],
+  maxTags: number
+): readonly string[] => {
+  if (tags.length === 0) return [];
+  if (tags.length > maxTags) {
+    throw new Error('Too many tags (max ' + String(maxTags) + ')');
+  }
+  const seen = new Set<string>();
+  for (const tag of tags) {
+    assertValidTag(tag);
+    seen.add(tag);
+  }
+  return [...seen];
+};
+
+const runInImmediateTransaction = <T>(operation: () => T): T => {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = operation();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+};
 
 const findMemoryIdByHash = (hash: string): number | undefined => {
   const row = executeGet(
@@ -179,6 +148,24 @@ const findMemoryIdByHash = (hash: string): number | undefined => {
   );
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
+};
+
+const requireMemoryId = (hash: string): number => {
+  const id = findMemoryIdByHash(hash);
+  if (id === undefined) {
+    throw new Error('Failed to resolve memory id');
+  }
+  return id;
+};
+
+const insertTags = (memoryId: number, tags: readonly string[]): void => {
+  if (tags.length === 0) return;
+  const insertTag = db.prepare(
+    'INSERT OR IGNORE INTO tags (memory_id, tag) VALUES (?, ?)'
+  );
+  for (const tag of tags) {
+    executeRun(insertTag, memoryId, tag);
+  }
 };
 
 const relationFilter = (
@@ -193,38 +180,19 @@ export const createMemory = (
   tags: readonly string[] = [],
   importance = 0,
   memoryType = 'general'
-): MemoryInsertResult => {
-  const hash = buildHash(content);
-  const normalizedTags = uniqueTags(tags);
-
-  db.exec('BEGIN IMMEDIATE');
-  try {
+): MemoryInsertResult =>
+  runInImmediateTransaction(() => {
+    const hash = buildHash(content);
+    const normalizedTags = normalizeTags(tags, 100);
     const insert = db.prepare(
-      'INSERT OR IGNORE INTO memories (content, importance, memory_type, hash) VALUES (?, ?, ?, ?)'
+      'INSERT OR IGNORE INTO memories (content, importance, ' +
+        'memory_type, hash) VALUES (?, ?, ?, ?)'
     );
     const result = executeRun(insert, content, importance, memoryType, hash);
-
-    const id = findMemoryIdByHash(hash);
-    if (id === undefined) {
-      throw new Error('Failed to resolve memory id');
-    }
-
-    if (normalizedTags.length > 0) {
-      const insertTag = db.prepare(
-        'INSERT OR IGNORE INTO tags (memory_id, tag) VALUES (?, ?)'
-      );
-      for (const tag of normalizedTags) {
-        executeRun(insertTag, id, tag);
-      }
-    }
-
-    db.exec('COMMIT');
+    const id = requireMemoryId(hash);
+    insertTags(id, normalizedTags);
     return { id, hash, isNew: toSafeInteger(result.changes, 'changes') === 1 };
-  } catch (err) {
-    db.exec('ROLLBACK');
-    throw err;
-  }
-};
+  });
 
 export const searchMemories = (
   query: string,
@@ -235,7 +203,7 @@ export const searchMemories = (
   const { sql, params } = buildSearchQuery(
     query,
     limit,
-    uniqueTags(tags),
+    normalizeTags(tags, 50),
     minRelevance
   );
   const rows = executeSearch(sql, params);
@@ -271,7 +239,8 @@ export const linkMemories = (
   }
 
   const insert = db.prepare(
-    'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type) VALUES (?, ?, ?)'
+    'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, ' +
+      'relation_type) VALUES (?, ?, ?)'
   );
   const result = executeRun(insert, fromId, toId, relationType);
   return { changes: toSafeInteger(result.changes, 'changes') };

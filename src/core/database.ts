@@ -4,12 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { config } from '../utils/config.js';
 
-const dbDir = path.dirname(config.dbPath);
-fs.mkdirSync(dbDir, { recursive: true });
-
-export const db = new DatabaseSync(config.dbPath, { timeout: 5000 });
-
-db.exec(`
+const SCHEMA_SQL = `
   PRAGMA foreign_keys = ON;
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
@@ -58,19 +53,28 @@ db.exec(`
 
   CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
     DELETE FROM memories_fts WHERE rowid = old.id;
-    INSERT INTO memories_fts(rowid, content, summary) VALUES (new.id, new.content, new.summary);
+    INSERT INTO memories_fts(rowid, content, summary)
+    VALUES (new.id, new.content, new.summary);
   END;
 
   CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
     DELETE FROM memories_fts WHERE rowid = old.id;
   END;
-`);
+`;
 
-db.exec(`
+const FTS_SYNC_SQL = `
   INSERT INTO memories_fts(rowid, content, summary)
   SELECT id, content, summary FROM memories
   WHERE id NOT IN (SELECT rowid FROM memories_fts);
-`);
+`;
+
+const dbDir = path.dirname(config.dbPath);
+fs.mkdirSync(dbDir, { recursive: true });
+
+export const db = new DatabaseSync(config.dbPath, { timeout: 5000 });
+
+db.exec(SCHEMA_SQL);
+db.exec(FTS_SYNC_SQL);
 
 export const closeDb = (): void => {
   if (!db.isOpen) return;

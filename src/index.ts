@@ -6,18 +6,16 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   type CallToolResult,
-  ErrorCode,
   type InitializeRequest,
   InitializeRequestSchema,
   type InitializeResult,
-  McpError,
-  SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { logger } from './utils/logger.js';
+import { assertSupportedProtocolVersion } from './utils/protocol.js';
 
 const packageJson = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
@@ -52,12 +50,7 @@ const serverCoreWithInitialize: ServerWithInitialize = serverCore;
 
 server.server.setRequestHandler(InitializeRequestSchema, (request) => {
   const requestedVersion = request.params.protocolVersion;
-  if (!SUPPORTED_PROTOCOL_VERSIONS.includes(requestedVersion)) {
-    throw new McpError(
-      ErrorCode.InvalidParams,
-      `Unsupported protocol version: ${requestedVersion}`
-    );
-  }
+  assertSupportedProtocolVersion(requestedVersion);
   return serverCoreWithInitialize._oninitialize(request);
 });
 

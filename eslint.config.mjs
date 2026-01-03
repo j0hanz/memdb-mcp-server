@@ -47,6 +47,16 @@ export default defineConfig([
         { checksVoidReturn: { arguments: false } },
       ],
       '@typescript-eslint/only-throw-error': 'error',
+      complexity: ['error', { max: 5, variant: 'classic' }],
+      'max-depth': ['error', 2],
+      'max-lines': [
+        'error',
+        { max: 300, skipBlankLines: true, skipComments: true },
+      ],
+      'max-lines-per-function': [
+        'error',
+        { max: 40, skipBlankLines: true, skipComments: true },
+      ],
       'prefer-const': 'error',
       'no-var': 'error',
     },

@@ -97,6 +97,18 @@ describe('MemoryService', () => {
       assert.strictEqual(results.length, 1);
       assert.strictEqual(results[0]?.content, 'Tagged memory 1');
     });
+
+    it('should reject too many search tags', () => {
+      assert.throws(
+        () =>
+          searchMemories(
+            'Tagged',
+            10,
+            Array.from({ length: 51 }, () => 'tag')
+          ),
+        /Too many tags/i
+      );
+    });
   });
 
   describe('deleteMemory', () => {
@@ -123,6 +135,25 @@ describe('MemoryService', () => {
       assert.strictEqual(results.length, 1);
       assert.strictEqual(results[0]?.hash, hash);
     });
+
+    it('should reject invalid tag inputs', () => {
+      assert.throws(
+        () =>
+          createMemory(
+            'invalid tags',
+            Array.from({ length: 101 }, () => 't')
+          ),
+        /Too many tags/i
+      );
+      assert.throws(
+        () => createMemory('invalid tag', ['']),
+        /at least 1 character/i
+      );
+      assert.throws(
+        () => createMemory('invalid tag', ['x'.repeat(51)]),
+        /exceeds 50 characters/i
+      );
+    });
   });
 
   describe('relationships', () => {
@@ -138,6 +169,31 @@ describe('MemoryService', () => {
       assert.ok(related.length > 0, 'Should find related memory');
       assert.strictEqual(related[0]?.hash, hash2);
       assert.strictEqual(related[0]?.relation_type, 'related_to');
+    });
+
+    it('should throw when linking missing memories', () => {
+      assert.throws(
+        () => linkMemories('missing_hash_a', 'missing_hash_b', 'related_to'),
+        /not found/i
+      );
+    });
+
+    it('should traverse related memories with depth > 1', () => {
+      const { hash: rootHash } = createMemory('Root memory');
+      const { hash: midHash } = createMemory('Mid memory');
+      const { hash: leafHash } = createMemory('Leaf memory');
+
+      linkMemories(rootHash, midHash, 'related_to');
+      linkMemories(midHash, leafHash, 'related_to');
+
+      const direct = getRelated(rootHash);
+      assert.ok(direct.length > 0, 'Should return direct related memories');
+
+      const recursive = getRelated(rootHash, 'related_to', 2);
+      assert.ok(
+        recursive.some((memory) => memory.hash === leafHash),
+        'Should include depth=2 related memory'
+      );
     });
   });
 

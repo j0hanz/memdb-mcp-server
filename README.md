@@ -10,17 +10,17 @@ A memory-based MCP server using SQLite in-memory database.
 
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=memdb&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovbWVtZGJAbGF0ZXN0Il19)
 
-## ✨ Features
+## Features
 
-| Feature                  | Description                                               |
-| :----------------------- | :-------------------------------------------------------- |
-| 🧠 **Memory Storage**    | Store text-based memories with tags and importance scores |
-| 🔍 **Full-Text Search**  | Search memories using FTS5 with relevance ranking         |
-| 🕸️ **Graph Connections** | Link memories together to create knowledge graphs         |
-| 📊 **Analytics**         | Track memory statistics and database health               |
-| 🔒 **Local Privacy**     | All data stored locally in SQLite (`.memdb/memory.db`)    |
+| Feature           | Description                                               |
+| :---------------- | :-------------------------------------------------------- |
+| Memory Storage    | Store text-based memories with tags and importance scores |
+| Full-Text Search  | Search memories using FTS5 with relevance ranking         |
+| Graph Connections | Link memories together to create knowledge graphs         |
+| Analytics         | Track memory statistics and database health               |
+| Local Privacy     | All data stored locally in SQLite (`.memdb/memory.db`)    |
 
-## 🚀 Quick Start
+## Quick Start
 
 ### VS Code / Cursor
 
@@ -35,7 +35,7 @@ Add this to your `mcpServers` configuration:
 }
 ```
 
-## 📦 Installation
+## Installation
 
 ### NPX (Recommended)
 
@@ -58,7 +58,7 @@ npm install
 npm run build
 ```
 
-## ⚙️ Configuration
+## Configuration
 
 The server uses a local SQLite database located at `.memdb/memory.db` relative to the working directory.
 
@@ -75,7 +75,7 @@ The server uses a local SQLite database located at `.memdb/memory.db` relative t
 
 Precedence: CLI flags > environment variables > defaults.
 
-## 🔧 Tools
+## Tools
 
 ### `store_memory`
 
@@ -83,10 +83,10 @@ Store a new memory with optional tags and metadata.
 
 | Parameter    | Type     | Required | Default | Description                                     |
 | :----------- | :------- | :------- | :------ | :---------------------------------------------- |
-| `content`    | string   | ✅       | -       | The content of the memory                       |
-| `tags`       | string[] | ❌       | -       | Tags to categorize the memory                   |
-| `importance` | number   | ❌       | -       | Importance score (0-10)                         |
-| `memoryType` | string   | ❌       | -       | Type of memory (e.g., conversation, fact, rule) |
+| `content`    | string   | Yes      | -       | The content of the memory                       |
+| `tags`       | string[] | No       | -       | Tags to categorize the memory                   |
+| `importance` | number   | No       | -       | Importance score (0-10)                         |
+| `memoryType` | string   | No       | -       | Type of memory (e.g., conversation, fact, rule) |
 
 **Returns:** The created memory object with its hash.
 
@@ -96,10 +96,10 @@ Full-text search with filters.
 
 | Parameter      | Type     | Required | Default | Description               |
 | :------------- | :------- | :------- | :------ | :------------------------ |
-| `query`        | string   | ✅       | -       | Search query              |
-| `limit`        | number   | ❌       | -       | Maximum number of results |
-| `tags`         | string[] | ❌       | -       | Filter by tags            |
-| `minRelevance` | number   | ❌       | -       | Minimum relevance score   |
+| `query`        | string   | Yes      | -       | Search query              |
+| `limit`        | number   | No       | -       | Maximum number of results |
+| `tags`         | string[] | No       | -       | Filter by tags            |
+| `minRelevance` | number   | No       | -       | Minimum relevance score   |
 
 **Returns:** Array of matching memories.
 
@@ -109,7 +109,7 @@ Retrieve a specific memory by its hash.
 
 | Parameter | Type   | Required | Default | Description            |
 | :-------- | :----- | :------- | :------ | :--------------------- |
-| `hash`    | string | ✅       | -       | MD5 hash of the memory |
+| `hash`    | string | Yes      | -       | MD5 hash of the memory |
 
 **Returns:** The memory object.
 
@@ -119,7 +119,7 @@ Delete a memory by its hash.
 
 | Parameter | Type   | Required | Default | Description            |
 | :-------- | :----- | :------- | :------ | :--------------------- |
-| `hash`    | string | ✅       | -       | MD5 hash of the memory |
+| `hash`    | string | Yes      | -       | MD5 hash of the memory |
 
 **Returns:** Confirmation of deletion.
 
@@ -129,9 +129,9 @@ Create a relationship between two memories.
 
 | Parameter      | Type   | Required | Default | Description               |
 | :------------- | :----- | :------- | :------ | :------------------------ |
-| `fromHash`     | string | ✅       | -       | Hash of the source memory |
-| `toHash`       | string | ✅       | -       | Hash of the target memory |
-| `relationType` | string | ✅       | -       | Type of relationship      |
+| `fromHash`     | string | Yes      | -       | Hash of the source memory |
+| `toHash`       | string | Yes      | -       | Hash of the target memory |
+| `relationType` | string | Yes      | -       | Type of relationship      |
 
 **Returns:** Confirmation of link creation.
 
@@ -141,9 +141,9 @@ Get memories related to a given memory.
 
 | Parameter      | Type   | Required | Default | Description                 |
 | :------------- | :----- | :------- | :------ | :-------------------------- |
-| `hash`         | string | ✅       | -       | Hash of the memory          |
-| `relationType` | string | ❌       | -       | Filter by relationship type |
-| `depth`        | number | ❌       | -       | Traversal depth (1-3)       |
+| `hash`         | string | Yes      | -       | Hash of the memory          |
+| `relationType` | string | No       | -       | Filter by relationship type |
+| `depth`        | number | No       | -       | Traversal depth (1-3)       |
 
 **Returns:** Array of related memories.
 
@@ -155,7 +155,7 @@ _No parameters required._
 
 **Returns:** Database statistics (count, size, etc.).
 
-## 🔌 Client Configuration
+## Client Configuration
 
 <details>
 <summary><b>VS Code</b></summary>
@@ -204,7 +204,7 @@ Add to your `claude_desktop_config.json`:
 
 </details>
 
-## 📋 Limits & Constraints
+## Limits & Constraints
 
 | Constraint                    | Value         | Description                                              |
 | :---------------------------- | :------------ | :------------------------------------------------------- |
@@ -224,7 +224,7 @@ Add to your `claude_desktop_config.json`:
 - **Query timeouts**: The server uses SQLite's synchronous API with a 5-second busy timeout. Individual queries are bounded by result limits rather than execution time.
 - **Local storage**: All data is stored locally in `.memdb/memory.db`. No network requests are made.
 
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
@@ -232,30 +232,33 @@ Add to your `claude_desktop_config.json`:
 
 ### Scripts
 
-| Command                 | Description                        |
-| :---------------------- | :--------------------------------- |
-| `npm run build`         | Compile TypeScript to `dist/`      |
-| `npm run dev`           | Run in development mode with watch |
-| `npm run test`          | Run tests                          |
-| `npm run test:coverage` | Run tests with coverage            |
-| `npm run lint`          | Run ESLint                         |
-| `npm run format`        | Format code with Prettier          |
-| `npm run format:check`  | Check code formatting              |
-| `npm run type-check`    | TypeScript type checking           |
-| `npm run inspector`     | Run MCP inspector                  |
+| Command                   | Description                        |
+| :------------------------ | :--------------------------------- |
+| `npm run build`           | Compile TypeScript to `dist/`      |
+| `npm run dev`             | Run in development mode with watch |
+| `npm run test`            | Run tests                          |
+| `npm run test:coverage`   | Run tests with coverage            |
+| `npm run lint`            | Run ESLint                         |
+| `npm run format`          | Format code with Prettier          |
+| `npm run format:check`    | Check code formatting              |
+| `npm run type-check`      | TypeScript type checking           |
+| `npm run maintainability` | Generate maintainability report    |
+| `npm run duplication`     | Run duplication report (jscpd)     |
+| `npm run bench:memory`    | Run memory-service benchmark       |
+| `npm run inspector`       | Run MCP inspector                  |
 
 ### Project Structure
 
 ```text
 src/
-├── index.ts          # Entry point
-├── core/             # Database and memory service
-├── tools/            # Tool implementations
-├── schemas/          # Zod input/output schemas
-├── lib/              # Utility functions
-└── utils/            # Config and logger
+|-- index.ts          # Entry point
+|-- core/             # Database and memory service
+|-- tools/            # Tool implementations
+|-- schemas/          # Zod input/output schemas
+|-- lib/              # Utility functions
+`-- utils/            # Config and logger
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
