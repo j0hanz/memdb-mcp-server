@@ -1,6 +1,6 @@
 import { config, type LogLevel } from './config.js';
 
-export interface Logger {
+interface Logger {
   info: (msg: string, ...args: unknown[]) => void;
   error: (msg: string, ...args: unknown[]) => void;
   warn: (msg: string, ...args: unknown[]) => void;
