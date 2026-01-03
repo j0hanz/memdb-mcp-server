@@ -4,13 +4,15 @@ import { parseArgs } from 'node:util';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.memdb', 'memory.db');
 const DEFAULT_LOG_LEVEL = 'info';
+const DEFAULT_SHUTDOWN_TIMEOUT = 5000;
+const MIN_SHUTDOWN_TIMEOUT = 1000;
+const MAX_SHUTDOWN_TIMEOUT = 60000;
 
 export type LogLevel = 'error' | 'info' | 'warn';
 
 const normalizePath = (value?: string): string | undefined => {
-  if (!value) return undefined;
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return undefined;
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
   return trimmed;
 };
 
@@ -20,14 +22,21 @@ const validateDbPath = (value: string): void => {
   }
 };
 
-export const resolveDbPath = (
+const resolveNormalizedDbPath = (
   cliDbPath: string | undefined,
   cliMemory: boolean | undefined,
   envPath: string | undefined
 ): string => {
   if (cliMemory === true) return ':memory:';
-  const normalized =
-    normalizePath(cliDbPath) ?? normalizePath(envPath) ?? DEFAULT_DB_PATH;
+  return normalizePath(cliDbPath) ?? normalizePath(envPath) ?? DEFAULT_DB_PATH;
+};
+
+export const resolveDbPath = (
+  cliDbPath: string | undefined,
+  cliMemory: boolean | undefined,
+  envPath: string | undefined
+): string => {
+  const normalized = resolveNormalizedDbPath(cliDbPath, cliMemory, envPath);
   if (normalized === ':memory:') return normalized;
   validateDbPath(normalized);
   return path.resolve(normalized);
@@ -50,12 +59,37 @@ export const resolveLogLevel = (
   return candidate;
 };
 
+const validateShutdownTimeout = (parsed: number, raw: string): void => {
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    throw new Error(
+      `Invalid shutdown timeout: ${raw}. Must be an integer in milliseconds.`
+    );
+  }
+  if (parsed < MIN_SHUTDOWN_TIMEOUT || parsed > MAX_SHUTDOWN_TIMEOUT) {
+    throw new Error(
+      `Shutdown timeout must be between ${String(MIN_SHUTDOWN_TIMEOUT)} and ${String(MAX_SHUTDOWN_TIMEOUT)} ms.`
+    );
+  }
+};
+
+export const resolveShutdownTimeout = (
+  cliValue: string | undefined,
+  envValue: string | undefined
+): number => {
+  const raw = normalizePath(cliValue) ?? normalizePath(envValue);
+  if (!raw) return DEFAULT_SHUTDOWN_TIMEOUT;
+  const parsed = Number(raw);
+  validateShutdownTimeout(parsed, raw);
+  return parsed;
+};
+
 const cli = parseArgs({
   args: process.argv.slice(2),
   options: {
     db: { type: 'string' },
     memory: { type: 'boolean' },
     'log-level': { type: 'string' },
+    'shutdown-timeout': { type: 'string' },
   },
   strict: true,
   allowPositionals: false,
@@ -71,5 +105,9 @@ export const config = {
   logLevel: resolveLogLevel(
     cli.values['log-level'],
     process.env.MEMDB_LOG_LEVEL
+  ),
+  shutdownTimeout: resolveShutdownTimeout(
+    cli.values['shutdown-timeout'],
+    process.env.MEMDB_SHUTDOWN_TIMEOUT
   ),
 };

@@ -3,67 +3,66 @@ import { db } from './database.js';
 import type { SqlParam } from './db-helpers.js';
 import { type DbRow, mapRowToRelatedMemory } from './row-mappers.js';
 
-const executeAll = (sql: string, ...params: SqlParam[]): DbRow[] =>
-  db.prepare(sql).all(...params) as DbRow[];
+const typeFilter = (
+  relationType?: string
+): { clause: string; params: string[] } =>
+  relationType
+    ? { clause: ' AND r.relation_type = ?', params: [relationType] }
+    : { clause: '', params: [] };
 
-const mapRows = (rows: DbRow[]): RelatedMemory[] =>
-  rows.map((row) => mapRowToRelatedMemory(row));
-
-const buildTypeClause = (relationType?: string): string =>
-  relationType ? ' AND r.relation_type = ?' : '';
-
-const buildTypeParams = (relationType?: string): string[] =>
-  relationType ? [relationType] : [];
+const run = (sql: string, params: SqlParam[]): RelatedMemory[] =>
+  (db.prepare(sql).all(...params) as DbRow[]).map((row) =>
+    mapRowToRelatedMemory(row)
+  );
 
 export const queryOutgoingDirect = (
   memoryId: number,
   relationType?: string
 ): RelatedMemory[] => {
+  const { clause, params } = typeFilter(relationType);
   const sql = `
     SELECT m.*, r.relation_type as relation_type, 1 as depth
     FROM memories m
     JOIN relationships r ON m.id = r.to_memory_id
-    WHERE r.from_memory_id = ?${buildTypeClause(relationType)}
+    WHERE r.from_memory_id = ?${clause}
     LIMIT 1000
   `;
-  return mapRows(executeAll(sql, memoryId, ...buildTypeParams(relationType)));
+  return run(sql, [memoryId, ...params]);
 };
 
 export const queryIncomingDirect = (
   memoryId: number,
   relationType?: string
 ): RelatedMemory[] => {
+  const { clause, params } = typeFilter(relationType);
   const sql = `
     SELECT m.*, r.relation_type as relation_type, 1 as depth
     FROM memories m
     JOIN relationships r ON m.id = r.from_memory_id
-    WHERE r.to_memory_id = ?${buildTypeClause(relationType)}
+    WHERE r.to_memory_id = ?${clause}
     LIMIT 1000
   `;
-  return mapRows(executeAll(sql, memoryId, ...buildTypeParams(relationType)));
+  return run(sql, [memoryId, ...params]);
 };
 
 export const queryBothDirect = (
   memoryId: number,
   relationType?: string
 ): RelatedMemory[] => {
-  const typeClause = buildTypeClause(relationType);
-  const typeParams = buildTypeParams(relationType);
+  const { clause, params } = typeFilter(relationType);
   const sql = `
     SELECT m.*, r.relation_type as relation_type, 1 as depth
     FROM memories m
     JOIN relationships r ON m.id = r.to_memory_id
-    WHERE r.from_memory_id = ?${typeClause}
+    WHERE r.from_memory_id = ?${clause}
     UNION
     SELECT m.*, r.relation_type as relation_type, 1 as depth
     FROM memories m
     JOIN relationships r ON m.id = r.from_memory_id
-    WHERE r.to_memory_id = ?${typeClause}
+    WHERE r.to_memory_id = ?${clause}
     LIMIT 1000
   `;
-  return mapRows(
-    executeAll(sql, memoryId, ...typeParams, memoryId, ...typeParams)
-  );
+  return run(sql, [memoryId, ...params, memoryId, ...params]);
 };
 
 export const queryOutgoingRecursive = (
@@ -71,17 +70,17 @@ export const queryOutgoingRecursive = (
   relationType: string | undefined,
   maxDepth: number
 ): RelatedMemory[] => {
-  const typeClause = buildTypeClause(relationType);
+  const { clause, params } = typeFilter(relationType);
   const sql = `
     WITH RECURSIVE rels(depth, from_id, to_id, relation_type) AS (
       SELECT 1, r.from_memory_id, r.to_memory_id, r.relation_type
       FROM relationships r
-      WHERE r.from_memory_id = ?${typeClause}
+      WHERE r.from_memory_id = ?${clause}
       UNION ALL
       SELECT rels.depth + 1, r.from_memory_id, r.to_memory_id, r.relation_type
       FROM relationships r
       JOIN rels ON r.from_memory_id = rels.to_id
-      WHERE rels.depth < ?${typeClause}
+      WHERE rels.depth < ?${clause}
     )
     SELECT m.*, rels.relation_type as relation_type, MIN(rels.depth) as depth
     FROM rels
@@ -90,10 +89,10 @@ export const queryOutgoingRecursive = (
     ORDER BY depth, m.id
     LIMIT 1000
   `;
-  const params: (number | string)[] = relationType
-    ? [memoryId, relationType, maxDepth, relationType]
+  const sqlParams: (number | string)[] = relationType
+    ? [memoryId, ...params, maxDepth, ...params]
     : [memoryId, maxDepth];
-  return mapRows(executeAll(sql, ...params));
+  return run(sql, sqlParams);
 };
 
 export const queryIncomingRecursive = (
@@ -101,17 +100,17 @@ export const queryIncomingRecursive = (
   relationType: string | undefined,
   maxDepth: number
 ): RelatedMemory[] => {
-  const typeClause = buildTypeClause(relationType);
+  const { clause, params } = typeFilter(relationType);
   const sql = `
     WITH RECURSIVE rels(depth, from_id, to_id, relation_type) AS (
       SELECT 1, r.from_memory_id, r.to_memory_id, r.relation_type
       FROM relationships r
-      WHERE r.to_memory_id = ?${typeClause}
+      WHERE r.to_memory_id = ?${clause}
       UNION ALL
       SELECT rels.depth + 1, r.from_memory_id, r.to_memory_id, r.relation_type
       FROM relationships r
       JOIN rels ON r.to_memory_id = rels.from_id
-      WHERE rels.depth < ?${typeClause}
+      WHERE rels.depth < ?${clause}
     )
     SELECT m.*, rels.relation_type as relation_type, MIN(rels.depth) as depth
     FROM rels
@@ -120,10 +119,10 @@ export const queryIncomingRecursive = (
     ORDER BY depth, m.id
     LIMIT 1000
   `;
-  const params: (number | string)[] = relationType
-    ? [memoryId, relationType, maxDepth, relationType]
+  const sqlParams: (number | string)[] = relationType
+    ? [memoryId, ...params, maxDepth, ...params]
     : [memoryId, maxDepth];
-  return mapRows(executeAll(sql, ...params));
+  return run(sql, sqlParams);
 };
 
 export const deduplicateByHash = (

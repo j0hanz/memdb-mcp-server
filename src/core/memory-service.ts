@@ -111,8 +111,15 @@ export const linkMemories = (
 
 type RelationDirection = 'outgoing' | 'incoming' | 'both';
 
-const calcMaxDepth = (depth: number, direction: RelationDirection): number =>
-  direction === 'both' ? Math.min(depth, 2) : Math.max(1, depth);
+const resolveMaxDepth = (
+  depth: number,
+  direction: RelationDirection
+): number => {
+  if (direction === 'both') {
+    return Math.min(depth, 2);
+  }
+  return Math.max(1, depth);
+};
 
 export const getRelated = (
   hash: string,
@@ -123,17 +130,14 @@ export const getRelated = (
   const memoryId = findMemoryIdByHash(hash);
   if (memoryId === undefined) return [];
 
-  const maxDepth = calcMaxDepth(depth, direction);
+  const maxDepth = resolveMaxDepth(depth, direction);
   if (maxDepth === 1) {
     return getRelatedDirect(memoryId, relationType, direction);
   }
   return getRelatedRecursive(memoryId, relationType, maxDepth, direction);
 };
 
-// Re-export getStats from memory-stats module
 export { getStats } from './memory-stats.js';
-
-// Re-export updateMemory from memory-updates module
 export { updateMemory } from './memory-updates.js';
 
 const getRelatedDirect = (
@@ -160,7 +164,6 @@ const getRelatedRecursive = (
   if (direction === 'incoming') {
     return queryIncomingRecursive(memoryId, relationType, maxDepth);
   }
-  // direction === 'both'
   const outgoing = queryOutgoingRecursive(memoryId, relationType, maxDepth);
   const incoming = queryIncomingRecursive(memoryId, relationType, maxDepth);
   return deduplicateByHash([...outgoing, ...incoming]);

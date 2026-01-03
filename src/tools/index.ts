@@ -59,15 +59,6 @@ interface ToolDef {
   handler: (params: Record<string, unknown>) => CallToolResult;
 }
 
-interface UpdateMemoryParams {
-  hash: string;
-  importance?: number;
-  memoryType?: string;
-  tags?: string[];
-  addTags?: string[];
-  removeTags?: string[];
-}
-
 const tools: ToolDef[] = [
   {
     name: 'store_memory',
@@ -225,7 +216,14 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_UPDATE_MEMORY', () => {
-        const { hash, ...options } = params as unknown as UpdateMemoryParams;
+        const { hash, ...options } = params as {
+          hash: string;
+          importance?: number;
+          memoryType?: string;
+          tags?: string[];
+          addTags?: string[];
+          removeTags?: string[];
+        };
         return ok(updateMemory(hash, options));
       }),
   },

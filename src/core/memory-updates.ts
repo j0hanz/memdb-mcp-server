@@ -9,6 +9,8 @@ import {
 import { findMemoryIdByHash, insertTags } from './memory-helpers.js';
 import { normalizeTags } from './tag-helpers.js';
 
+const MAX_TAGS = 100;
+
 const loadTagsForMemory = (memoryId: number): Set<string> => {
   const rows = executeAll(
     db.prepare('SELECT tag FROM tags WHERE memory_id = ?'),
@@ -22,44 +24,6 @@ const loadTagsForMemory = (memoryId: number): Set<string> => {
     tags.add(row.tag);
   }
   return tags;
-};
-
-const removeTagsFromSet = (
-  tags: Set<string>,
-  removeTags: readonly string[]
-): void => {
-  for (const tag of removeTags) {
-    tags.delete(tag);
-  }
-};
-
-const enforceTagLimit = (
-  existingTags: Set<string>,
-  addTags: readonly string[],
-  maxTags: number
-): void => {
-  let projectedCount = existingTags.size;
-  for (const tag of addTags) {
-    if (existingTags.has(tag)) continue;
-    projectedCount += 1;
-    if (projectedCount > maxTags) {
-      throw new Error('Too many tags (max ' + String(maxTags) + ')');
-    }
-    existingTags.add(tag);
-  }
-};
-
-const assertTagCapacity = (
-  memoryId: number,
-  addTags: readonly string[],
-  removeTags: readonly string[]
-): void => {
-  if (addTags.length === 0) return;
-  const existingTags = loadTagsForMemory(memoryId);
-  if (removeTags.length > 0) {
-    removeTagsFromSet(existingTags, removeTags);
-  }
-  enforceTagLimit(existingTags, addTags, 100);
 };
 
 interface UpdateMemoryOptions {
@@ -96,7 +60,41 @@ const updateMetadataFields = (
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
   executeRun(db.prepare('DELETE FROM tags WHERE memory_id = ?'), memoryId);
-  insertTags(memoryId, normalizeTags(tags, 100));
+  insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
+};
+
+const filterTagsToInsert = (
+  tags: readonly string[],
+  removeTags: readonly string[]
+): string[] => {
+  if (removeTags.length === 0) return [...tags];
+  const removeSet = new Set(removeTags);
+  return tags.filter((tag) => !removeSet.has(tag));
+};
+
+const removeTagsFromSet = (
+  tags: readonly string[],
+  tagSet: Set<string>
+): void => {
+  for (const tag of tags) {
+    tagSet.delete(tag);
+  }
+};
+
+const enforceTagLimit = (
+  existingTags: Set<string>,
+  tagsToInsert: readonly string[],
+  maxTags: number
+): void => {
+  let projectedCount = existingTags.size;
+  for (const tag of tagsToInsert) {
+    if (existingTags.has(tag)) continue;
+    projectedCount += 1;
+    if (projectedCount > maxTags) {
+      throw new Error('Too many tags (max ' + String(maxTags) + ')');
+    }
+    existingTags.add(tag);
+  }
 };
 
 const addTagsToMemory = (
@@ -105,14 +103,12 @@ const addTagsToMemory = (
   removeTags: readonly string[] = []
 ): void => {
   if (tags.length === 0) return;
-  const normalizedTags = normalizeTags(tags, 100);
-  const removeSet = new Set(removeTags);
-  const tagsToInsert =
-    removeSet.size === 0
-      ? normalizedTags
-      : normalizedTags.filter((tag) => !removeSet.has(tag));
+  const normalizedTags = normalizeTags(tags, MAX_TAGS);
+  const tagsToInsert = filterTagsToInsert(normalizedTags, removeTags);
   if (tagsToInsert.length === 0) return;
-  assertTagCapacity(memoryId, tagsToInsert, removeTags);
+  const existingTags = loadTagsForMemory(memoryId);
+  removeTagsFromSet(removeTags, existingTags);
+  enforceTagLimit(existingTags, tagsToInsert, MAX_TAGS);
   insertTags(memoryId, tagsToInsert);
 };
 

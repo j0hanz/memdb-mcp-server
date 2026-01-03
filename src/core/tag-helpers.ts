@@ -1,4 +1,4 @@
-const assertValidTag = (tag: string): void => {
+const validateTag = (tag: string): void => {
   if (tag.length === 0) {
     throw new Error('Tag must be at least 1 character');
   }
@@ -17,7 +17,7 @@ export const normalizeTags = (
   }
   const seen = new Set<string>();
   for (const tag of tags) {
-    assertValidTag(tag);
+    validateTag(tag);
     seen.add(tag);
   }
   return [...seen];

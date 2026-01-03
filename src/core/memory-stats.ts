@@ -1,18 +1,7 @@
 import type { MemoryStats } from '../types/index.js';
 import { db } from './database.js';
+import { executeAll, executeGet } from './db-helpers.js';
 import { type DbRow, toSafeInteger } from './row-mappers.js';
-
-type SqlParam = string | number | bigint | null | Uint8Array;
-
-const executeAll = (
-  stmt: ReturnType<typeof db.prepare>,
-  ...params: SqlParam[]
-): DbRow[] => stmt.all(...params) as DbRow[];
-
-const executeGet = (
-  stmt: ReturnType<typeof db.prepare>,
-  ...params: SqlParam[]
-): DbRow | undefined => stmt.get(...params) as DbRow | undefined;
 
 const buildMemoryTypes = (typeRows: DbRow[]): Record<string, number> => {
   const memoryTypes: Record<string, number> = {};

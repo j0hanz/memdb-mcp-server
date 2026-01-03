@@ -13,12 +13,13 @@ import {
   type InitializeResult,
   isJSONRPCRequest,
   type JSONRPCMessage,
-  type MessageExtraInfo,
+  type JSONRPCRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
+import { config } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { assertSupportedProtocolVersion } from './utils/protocol.js';
 
@@ -36,81 +37,77 @@ const server = new McpServer(
 
 let hasInitialized = false;
 
-class InitGuardTransport implements Transport {
-  public onclose?: () => void;
-  public onerror?: (error: Error) => void;
-  public onmessage: (
-    message: JSONRPCMessage,
-    extra?: MessageExtraInfo
-  ) => void = () => undefined;
+const sendInitRequiredError = (
+  inner: StdioServerTransport,
+  message: JSONRPCRequest,
+  guarded: Transport
+): void => {
+  void inner
+    .send({
+      jsonrpc: '2.0',
+      id: message.id,
+      error: {
+        code: ErrorCode.InvalidRequest,
+        message: 'Initialize must be the first request.',
+      },
+    })
+    .catch((error: unknown) => {
+      const err = error instanceof Error ? error : new Error(String(error));
+      guarded.onerror?.(err);
+    });
+};
 
-  public constructor(
-    private readonly inner: StdioServerTransport,
-    private readonly isInitialized: () => boolean
-  ) {
-    inner.onmessage = (message) => {
-      this.handleMessage(message);
-    };
-    inner.onerror = (error) => {
-      this.onerror?.(error);
-    };
-    inner.onclose = () => {
-      this.onclose?.();
-    };
-  }
-
-  public async start(): Promise<void> {
-    await this.inner.start();
-  }
-
-  public async send(message: JSONRPCMessage): Promise<void> {
-    await this.inner.send(message);
-  }
-
-  public async close(): Promise<void> {
-    await this.inner.close();
-  }
-
-  private handleMessage(
-    message: JSONRPCMessage,
-    extra?: MessageExtraInfo
-  ): void {
-    if (!this.isInitialized() && isJSONRPCRequest(message)) {
-      if (message.method !== 'initialize') {
-        void this.inner
-          .send({
-            jsonrpc: '2.0',
-            id: message.id,
-            error: {
-              code: ErrorCode.InvalidRequest,
-              message: 'Initialize must be the first request.',
-            },
-          })
-          .catch((error: unknown) => {
-            const err =
-              error instanceof Error ? error : new Error(String(error));
-            this.onerror?.(err);
-          });
-        return;
-      }
+const handleInitGuardMessage = (
+  message: JSONRPCMessage,
+  isInitialized: () => boolean,
+  inner: StdioServerTransport,
+  guarded: Transport
+): void => {
+  if (!isInitialized() && isJSONRPCRequest(message)) {
+    if (message.method !== 'initialize') {
+      sendInitRequiredError(inner, message, guarded);
+      return;
     }
-
-    this.onmessage(message, extra);
   }
-}
+
+  guarded.onmessage?.(message);
+};
+
+const createInitGuardTransport = (
+  inner: StdioServerTransport,
+  isInitialized: () => boolean
+): Transport => {
+  const guarded: Transport = {
+    onmessage: () => undefined,
+    start: async (): Promise<void> => inner.start(),
+    send: async (message: JSONRPCMessage): Promise<void> => inner.send(message),
+    close: async (): Promise<void> => inner.close(),
+  };
+
+  inner.onmessage = (message: JSONRPCMessage) => {
+    handleInitGuardMessage(message, isInitialized, inner, guarded);
+  };
+  inner.onerror = (error) => {
+    guarded.onerror?.(error);
+  };
+  inner.onclose = () => {
+    guarded.onclose?.();
+  };
+
+  return guarded;
+};
 
 const serverCore = server.server as unknown as {
   _oninitialize?: (request: InitializeRequest) => Promise<InitializeResult>;
 };
-if (!serverCore._oninitialize) {
+const onInitialize = serverCore._oninitialize;
+if (!onInitialize) {
   throw new Error('MCP SDK server initialize handler is unavailable');
 }
-const onInitialize = serverCore._oninitialize.bind(server.server);
 
 server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
   assertSupportedProtocolVersion(request.params.protocolVersion);
-  // Preserve "this" binding for the MCP SDK's private handler.
-  const result = await onInitialize(request);
+  const result = await onInitialize.call(server.server, request);
   hasInitialized = true;
   return result;
 });
@@ -135,7 +132,7 @@ async function shutdown(signal: string): Promise<void> {
   const forceExitTimer = setTimeout(() => {
     logger.warn('Shutdown timeout exceeded, forcing exit');
     process.exit(1);
-  }, 5000);
+  }, config.shutdownTimeout);
 
   const exit = (code: number): void => {
     clearTimeout(forceExitTimer);
@@ -157,7 +154,7 @@ async function shutdown(signal: string): Promise<void> {
 async function main(): Promise<void> {
   try {
     const stdio = new StdioServerTransport();
-    const guardedTransport = new InitGuardTransport(
+    const guardedTransport = createInitGuardTransport(
       stdio,
       () => hasInitialized
     );

@@ -1,6 +1,6 @@
 import { config, type LogLevel } from './config.js';
 
-interface Logger {
+export interface Logger {
   info: (msg: string, ...args: unknown[]) => void;
   error: (msg: string, ...args: unknown[]) => void;
   warn: (msg: string, ...args: unknown[]) => void;
@@ -12,24 +12,22 @@ const levels: Record<LogLevel, number> = {
   info: 2,
 };
 
-export const createLogger = (logLevel: LogLevel): Logger => {
-  const threshold = levels[logLevel];
-  const log = (level: LogLevel, msg: string, ...args: unknown[]): void => {
-    if (levels[level] > threshold) return;
-    console.error(`[${level.toUpperCase()}] ${msg}`, ...args);
-  };
+const buildLogger = (threshold: number): Logger => {
+  const write =
+    (level: LogLevel) =>
+    (msg: string, ...args: unknown[]): void => {
+      if (levels[level] > threshold) return;
+      console.error(`[${level.toUpperCase()}] ${msg}`, ...args);
+    };
 
   return {
-    info: (msg: string, ...args: unknown[]): void => {
-      log('info', msg, ...args);
-    },
-    error: (msg: string, ...args: unknown[]): void => {
-      log('error', msg, ...args);
-    },
-    warn: (msg: string, ...args: unknown[]): void => {
-      log('warn', msg, ...args);
-    },
+    info: write('info'),
+    error: write('error'),
+    warn: write('warn'),
   };
 };
+
+export const createLogger = (logLevel: LogLevel): Logger =>
+  buildLogger(levels[logLevel]);
 
 export const logger = createLogger(config.logLevel);
