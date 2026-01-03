@@ -14,7 +14,7 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { closeDb } from './core/database.js';
+import { closeDbWorker } from './core/db-worker-client.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { logger } from './utils/logger.js';
@@ -31,9 +31,23 @@ const server = new McpServer(
   }
 );
 
-const serverCore = server.server as unknown as {
+interface ServerWithInitialize {
   _oninitialize: (request: InitializeRequest) => Promise<InitializeResult>;
-};
+}
+
+const isServerWithInitialize = (
+  value: unknown
+): value is ServerWithInitialize =>
+  typeof value === 'object' &&
+  value !== null &&
+  '_oninitialize' in value &&
+  typeof (value as { _oninitialize?: unknown })._oninitialize === 'function';
+
+const serverCore = server.server;
+if (!isServerWithInitialize(serverCore)) {
+  throw new Error('MCP SDK server initialize handler is unavailable');
+}
+const serverCoreWithInitialize: ServerWithInitialize = serverCore;
 
 server.server.setRequestHandler(InitializeRequestSchema, (request) => {
   const requestedVersion = request.params.protocolVersion;
@@ -43,15 +57,14 @@ server.server.setRequestHandler(InitializeRequestSchema, (request) => {
       `Unsupported protocol version: ${requestedVersion}`
     );
   }
-  return serverCore._oninitialize(request);
+  return serverCoreWithInitialize._oninitialize(request);
 });
 
 // Ensure tool errors always include structuredContent (matches DefaultOutputSchema).
-(
-  server as unknown as {
-    createToolError: (message: string) => CallToolResult;
-  }
-).createToolError = (message: string): CallToolResult =>
+const serverWithToolError = server as unknown as {
+  createToolError: (message: string) => CallToolResult;
+};
+serverWithToolError.createToolError = (message: string): CallToolResult =>
   createErrorResponse('E_TOOL_ERROR', message);
 
 registerAllTools(server);
@@ -71,7 +84,7 @@ async function shutdown(signal: string): Promise<void> {
   }, 5000);
 
   try {
-    closeDb();
+    await closeDbWorker();
     if (transport) {
       await transport.close();
     }

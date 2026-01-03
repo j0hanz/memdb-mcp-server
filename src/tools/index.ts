@@ -38,11 +38,11 @@ export function registerAllTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { content, tags, importance, memoryType } = params;
         return ok(
-          createMemory(
+          await createMemory(
             content,
             tags ?? [],
             importance ?? 0,
@@ -66,10 +66,12 @@ export function registerAllTools(server: McpServer): void {
         readOnlyHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { query, limit, tags, minRelevance } = params;
-        return ok(searchMemories(query, limit ?? 10, tags ?? [], minRelevance));
+        return ok(
+          await searchMemories(query, limit ?? 10, tags ?? [], minRelevance)
+        );
       } catch (err) {
         return createErrorResponse('E_SEARCH_MEMORIES', getErrorMessage(err));
       }
@@ -87,10 +89,10 @@ export function registerAllTools(server: McpServer): void {
         readOnlyHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { hash } = params;
-        const result = getMemory(hash);
+        const result = await getMemory(hash);
         if (!result) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
@@ -112,10 +114,10 @@ export function registerAllTools(server: McpServer): void {
         destructiveHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { hash } = params;
-        const result = deleteMemory(hash);
+        const result = await deleteMemory(hash);
         if (result.changes === 0) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
@@ -137,10 +139,10 @@ export function registerAllTools(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { fromHash, toHash, relationType } = params;
-        linkMemories(fromHash, toHash, relationType);
+        await linkMemories(fromHash, toHash, relationType);
         return ok({ linked: true });
       } catch (err) {
         return createErrorResponse('E_LINK_MEMORIES', getErrorMessage(err));
@@ -159,10 +161,10 @@ export function registerAllTools(server: McpServer): void {
         readOnlyHint: true,
       },
     },
-    (params) => {
+    async (params) => {
       try {
         const { hash, relationType, depth } = params;
-        return ok(getRelated(hash, relationType, depth ?? 1));
+        return ok(await getRelated(hash, relationType, depth ?? 1));
       } catch (err) {
         return createErrorResponse('E_GET_RELATED', getErrorMessage(err));
       }
@@ -180,9 +182,9 @@ export function registerAllTools(server: McpServer): void {
         readOnlyHint: true,
       },
     },
-    () => {
+    async () => {
       try {
-        return ok(getStats());
+        return ok(await getStats());
       } catch (err) {
         return createErrorResponse('E_MEMORY_STATS', getErrorMessage(err));
       }

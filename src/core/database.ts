@@ -32,6 +32,8 @@ db.exec(`
     FOREIGN KEY (memory_id) REFERENCES memories(id) ON DELETE CASCADE
   ) STRICT;
 
+  CREATE INDEX IF NOT EXISTS idx_tags_tag_memory_id ON tags(tag, memory_id);
+
   CREATE TABLE IF NOT EXISTS relationships (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     from_memory_id INTEGER NOT NULL,
