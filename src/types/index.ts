@@ -1,43 +1,34 @@
 export interface Memory {
-  id: number;
-  content: string;
-  summary: string | undefined;
-  importance: number;
-  memory_type: string;
-  created_at: string;
-  accessed_at: string;
-  hash: string;
-}
-
-export interface Relationship {
-  id: number;
-  from_memory_id: number;
-  to_memory_id: number;
-  relation_type: string;
-  created_at: string;
+  readonly id: number;
+  readonly content: string;
+  readonly summary: string | undefined;
+  readonly importance: number;
+  readonly memory_type: string;
+  readonly created_at: string;
+  readonly accessed_at: string;
+  readonly hash: string;
 }
 
 export interface SearchResult extends Memory {
-  relevance: number | undefined;
-  matchedTags?: string[];
+  readonly relevance: number | undefined;
 }
 
 export interface RelatedMemory extends Memory {
-  relation_type: string;
-  depth: number;
+  readonly relation_type: string;
+  readonly depth: number;
 }
 
 export interface StatementResult {
-  changes: number;
+  readonly changes: number;
 }
 
 export interface MemoryInsertResult {
-  id: number;
-  hash: string;
-  isNew: boolean;
+  readonly id: number;
+  readonly hash: string;
+  readonly isNew: boolean;
 }
 
 export interface MemoryStats {
-  memoryCount: number;
-  relationshipCount: number;
+  readonly memoryCount: number;
+  readonly relationshipCount: number;
 }

@@ -89,7 +89,7 @@ const sanitizeFts5Query = (query: string): string => {
 const buildSearchQuery = (
   query: string,
   limit: number,
-  tags: string[],
+  tags: readonly string[],
   minRelevance?: number
 ): SearchQuery => {
   const sanitizedQuery = sanitizeFts5Query(query);
@@ -155,7 +155,7 @@ const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
 const buildHash = (content: string): string =>
   crypto.createHash('md5').update(content).digest('hex');
 
-const uniqueTags = (tags: string[]): string[] =>
+const uniqueTags = (tags: readonly string[]): readonly string[] =>
   tags.length > 0 ? [...new Set(tags)] : [];
 
 const findMemoryIdByHash = (hash: string): number | undefined => {
@@ -175,7 +175,7 @@ const relationFilter = (
 
 export const createMemory = (
   content: string,
-  tags: string[] = [],
+  tags: readonly string[] = [],
   importance = 0,
   memoryType = 'general'
 ): MemoryInsertResult => {
@@ -219,7 +219,7 @@ export const createMemory = (
 export const searchMemories = (
   query: string,
   limit = 10,
-  tags: string[] = [],
+  tags: readonly string[] = [],
   minRelevance?: number
 ): SearchResult[] => {
   const { sql, params } = buildSearchQuery(
