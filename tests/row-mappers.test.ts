@@ -29,7 +29,7 @@ describe('row-mappers', () => {
       ...baseRow,
       relevance: null,
     });
-    assert.strictEqual(searchResult.relevance, undefined);
+    assert.strictEqual(searchResult.relevance, 0); // defaults to 0 when null
   });
 
   it('maps related rows', () => {

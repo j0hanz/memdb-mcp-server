@@ -40,6 +40,8 @@ const SCHEMA_SQL = `
     UNIQUE(from_memory_id, to_memory_id, relation_type)
   ) STRICT;
 
+  CREATE INDEX IF NOT EXISTS idx_relationships_to_memory_id ON relationships(to_memory_id);
+
   CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
     content,
     summary,

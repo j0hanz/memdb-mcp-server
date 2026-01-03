@@ -174,12 +174,15 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_GET_RELATED', () => {
-        const { hash, relationType, depth } = params as {
+        const { hash, relationType, depth, direction } = params as {
           hash: string;
           relationType?: string;
           depth?: number;
+          direction?: 'outgoing' | 'incoming' | 'both';
         };
-        return ok(getRelated(hash, relationType, depth ?? 1));
+        return ok(
+          getRelated(hash, relationType, depth ?? 1, direction ?? 'outgoing')
+        );
       }),
   },
   {

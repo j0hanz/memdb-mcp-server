@@ -195,6 +195,79 @@ describe('MemoryService', () => {
         'Should include depth=2 related memory'
       );
     });
+
+    it('should find incoming relationships', () => {
+      const { hash: sourceHash } = createMemory('Incoming source memory');
+      const { hash: targetHash } = createMemory('Incoming target memory');
+
+      linkMemories(sourceHash, targetHash, 'points_to');
+
+      // Query from target perspective (incoming direction)
+      const incoming = getRelated(targetHash, 'points_to', 1, 'incoming');
+      assert.ok(incoming.length > 0, 'Should find incoming relationship');
+      assert.strictEqual(incoming[0]?.hash, sourceHash);
+    });
+
+    it('should find bidirectional relationships', () => {
+      const { hash: centerHash } = createMemory(
+        'Center memory for bidirectional'
+      );
+      const { hash: outHash } = createMemory('Outgoing target memory');
+      const { hash: inHash } = createMemory('Incoming source memory');
+
+      linkMemories(centerHash, outHash, 'links_out');
+      linkMemories(inHash, centerHash, 'links_in');
+
+      // Query both directions
+      const both = getRelated(centerHash, undefined, 1, 'both');
+      assert.ok(both.length >= 2, 'Should find both incoming and outgoing');
+      assert.ok(
+        both.some((m) => m.hash === outHash),
+        'Should include outgoing target'
+      );
+      assert.ok(
+        both.some((m) => m.hash === inHash),
+        'Should include incoming source'
+      );
+    });
+
+    it('should cap depth at 2 for bidirectional queries', () => {
+      const { hash: h1 } = createMemory('Depth cap test 1');
+      const { hash: h2 } = createMemory('Depth cap test 2');
+      const { hash: h3 } = createMemory('Depth cap test 3');
+      const { hash: h4 } = createMemory('Depth cap test 4');
+
+      linkMemories(h1, h2, 'chain');
+      linkMemories(h2, h3, 'chain');
+      linkMemories(h3, h4, 'chain');
+
+      // Request depth 3 with 'both' should be capped at 2
+      const results = getRelated(h1, 'chain', 3, 'both');
+      // Should find h2 (depth 1) and h3 (depth 2) but not h4 (depth 3)
+      assert.ok(
+        results.some((m) => m.hash === h2),
+        'Should find depth 1'
+      );
+      assert.ok(
+        results.some((m) => m.hash === h3),
+        'Should find depth 2'
+      );
+      assert.ok(
+        !results.some((m) => m.hash === h4),
+        'Should NOT find depth 3 (capped)'
+      );
+    });
+
+    it('should handle unicode in relationship types', () => {
+      const { hash: h1 } = createMemory('Unicode relation source');
+      const { hash: h2 } = createMemory('Unicode relation target');
+
+      linkMemories(h1, h2, '関連する');
+
+      const related = getRelated(h1, '関連する');
+      assert.ok(related.length > 0, 'Should find unicode relationship');
+      assert.strictEqual(related[0]?.relation_type, '関連する');
+    });
   });
 
   describe('stats', () => {

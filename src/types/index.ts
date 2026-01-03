@@ -10,7 +10,7 @@ export interface Memory {
 }
 
 export interface SearchResult extends Memory {
-  readonly relevance: number | undefined;
+  readonly relevance: number;
 }
 
 export interface RelatedMemory extends Memory {

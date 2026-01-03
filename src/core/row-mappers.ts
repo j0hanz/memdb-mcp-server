@@ -53,7 +53,7 @@ export const mapRowToMemory = (row: DbRow): Memory => ({
 
 export const mapRowToSearchResult = (row: DbRow): SearchResult => ({
   ...mapRowToMemory(row),
-  relevance: toOptionalNumber(row.relevance, 'relevance'),
+  relevance: toOptionalNumber(row.relevance, 'relevance') ?? 0,
 });
 
 export const mapRowToRelatedMemory = (row: DbRow): RelatedMemory => ({

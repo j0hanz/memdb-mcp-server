@@ -93,6 +93,10 @@ export const GetRelatedInputSchema = z.strictObject({
     .max(3)
     .optional()
     .meta({ description: 'Traversal depth (1-3)' }),
+  direction: z.enum(['outgoing', 'incoming', 'both']).optional().meta({
+    description:
+      'Relationship direction: outgoing (default), incoming, or both',
+  }),
 });
 
 export const MemoryStatsInputSchema = z.strictObject({});

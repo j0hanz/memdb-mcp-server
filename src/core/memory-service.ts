@@ -11,9 +11,16 @@ import type {
 } from '../types/index.js';
 import { db } from './database.js';
 import {
+  deduplicateByHash,
+  queryBothDirect,
+  queryIncomingDirect,
+  queryIncomingRecursive,
+  queryOutgoingDirect,
+  queryOutgoingRecursive,
+} from './relation-queries.js';
+import {
   type DbRow,
   mapRowToMemory,
-  mapRowToRelatedMemory,
   mapRowToSearchResult,
   toSafeInteger,
 } from './row-mappers.js';
@@ -226,20 +233,25 @@ export const linkMemories = (
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
 
+export type RelationDirection = 'outgoing' | 'incoming' | 'both';
+
+const calcMaxDepth = (depth: number, direction: RelationDirection): number =>
+  direction === 'both' ? Math.min(depth, 2) : Math.max(1, depth);
+
 export const getRelated = (
   hash: string,
   relationType?: string,
-  depth = 1
+  depth = 1,
+  direction: RelationDirection = 'outgoing'
 ): RelatedMemory[] => {
   const memoryId = findMemoryIdByHash(hash);
   if (memoryId === undefined) return [];
 
-  const maxDepth = Math.max(1, depth);
+  const maxDepth = calcMaxDepth(depth, direction);
   if (maxDepth === 1) {
-    return getRelatedDirect(memoryId, relationType);
+    return getRelatedDirect(memoryId, relationType, direction);
   }
-
-  return getRelatedRecursive(memoryId, relationType, maxDepth);
+  return getRelatedRecursive(memoryId, relationType, maxDepth, direction);
 };
 
 export const getStats = (): MemoryStats => {
@@ -263,48 +275,30 @@ export const getStats = (): MemoryStats => {
 
 const getRelatedDirect = (
   memoryId: number,
-  relationType?: string
+  relationType?: string,
+  direction: RelationDirection = 'outgoing'
 ): RelatedMemory[] => {
-  const clause = relationType ? ' AND r.relation_type = ?' : '';
-  const params = relationType ? [relationType] : [];
-  const sql = `
-    SELECT m.*, r.relation_type as relation_type, 1 as depth
-    FROM memories m
-    JOIN relationships r ON m.id = r.to_memory_id
-    WHERE r.from_memory_id = ?${clause}
-    LIMIT 1000
-  `;
-  const rows = executeAll(db.prepare(sql), memoryId, ...params);
-  return rows.map((row) => mapRowToRelatedMemory(row));
+  if (direction === 'outgoing')
+    return queryOutgoingDirect(memoryId, relationType);
+  if (direction === 'incoming')
+    return queryIncomingDirect(memoryId, relationType);
+  return queryBothDirect(memoryId, relationType);
 };
 
 const getRelatedRecursive = (
   memoryId: number,
   relationType: string | undefined,
-  maxDepth: number
+  maxDepth: number,
+  direction: RelationDirection = 'outgoing'
 ): RelatedMemory[] => {
-  const clause = relationType ? ' AND r.relation_type = ?' : '';
-  const sql = `
-    WITH RECURSIVE rels(depth, from_id, to_id, relation_type) AS (
-      SELECT 1, r.from_memory_id, r.to_memory_id, r.relation_type
-      FROM relationships r
-      WHERE r.from_memory_id = ?${clause}
-      UNION ALL
-      SELECT rels.depth + 1, r.from_memory_id, r.to_memory_id, r.relation_type
-      FROM relationships r
-      JOIN rels ON r.from_memory_id = rels.to_id
-      WHERE rels.depth < ?${clause}
-    )
-    SELECT m.*, rels.relation_type as relation_type, MIN(rels.depth) as depth
-    FROM rels
-    JOIN memories m ON m.id = rels.to_id
-    GROUP BY m.id, rels.relation_type
-    ORDER BY depth, m.id
-    LIMIT 1000
-  `;
-  const queryParams: (number | string)[] = relationType
-    ? [memoryId, relationType, maxDepth, relationType]
-    : [memoryId, maxDepth];
-  const rows = executeAll(db.prepare(sql), ...queryParams);
-  return rows.map((row) => mapRowToRelatedMemory(row));
+  if (direction === 'outgoing') {
+    return queryOutgoingRecursive(memoryId, relationType, maxDepth);
+  }
+  if (direction === 'incoming') {
+    return queryIncomingRecursive(memoryId, relationType, maxDepth);
+  }
+  // direction === 'both'
+  const outgoing = queryOutgoingRecursive(memoryId, relationType, maxDepth);
+  const incoming = queryIncomingRecursive(memoryId, relationType, maxDepth);
+  return deduplicateByHash([...outgoing, ...incoming]);
 };
