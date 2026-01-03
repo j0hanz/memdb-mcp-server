@@ -7,14 +7,14 @@ const DEFAULT_LOG_LEVEL = 'info';
 
 export type LogLevel = 'error' | 'info' | 'warn';
 
-export const normalizePath = (value?: string): string | undefined => {
+const normalizePath = (value?: string): string | undefined => {
   if (!value) return undefined;
   const trimmed = value.trim();
   if (trimmed.length === 0) return undefined;
   return trimmed;
 };
 
-export const validateDbPath = (value: string): void => {
+const validateDbPath = (value: string): void => {
   if (value.includes('\0')) {
     throw new Error('Invalid MEMDB_PATH: null byte detected');
   }
@@ -33,7 +33,7 @@ export const resolveDbPath = (
   return path.resolve(normalized);
 };
 
-export const isLogLevel = (value: string): value is LogLevel =>
+const isLogLevel = (value: string): value is LogLevel =>
   value === 'info' || value === 'warn' || value === 'error';
 
 export const resolveLogLevel = (

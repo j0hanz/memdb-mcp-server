@@ -1,5 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type {
+  AnySchema,
+  ZodRawShapeCompat,
+} from '@modelcontextprotocol/sdk/server/zod-compat.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 
 import {
   createMemory,
@@ -11,7 +16,6 @@ import {
   searchMemories,
 } from '../core/memory-service.js';
 import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
-import { createToolResponse } from '../lib/tool_response.js';
 import {
   DeleteMemoryInputSchema,
   GetMemoryInputSchema,
@@ -23,25 +27,54 @@ import {
 } from '../schemas/inputs.js';
 import { DefaultOutputSchema } from '../schemas/outputs.js';
 
-const ok = (result: unknown): CallToolResult =>
-  createToolResponse({ ok: true, result });
+const ok = (result: unknown): CallToolResult => {
+  const structured = { ok: true as const, result };
+  return {
+    content: [{ type: 'text', text: JSON.stringify(structured) }],
+    structuredContent: structured,
+  };
+};
 
-const registerStoreMemoryTool = (server: McpServer): void => {
-  server.registerTool(
-    'store_memory',
-    {
+const withError = (code: string, fn: () => CallToolResult): CallToolResult => {
+  try {
+    return fn();
+  } catch (err) {
+    return createErrorResponse(code, getErrorMessage(err));
+  }
+};
+
+type ToolSchema = ZodRawShapeCompat | AnySchema;
+
+interface ToolDef {
+  name: string;
+  options: {
+    title: string;
+    description: string;
+    inputSchema: ToolSchema;
+    outputSchema: ToolSchema;
+    annotations?: ToolAnnotations;
+  };
+  handler: (params: Record<string, unknown>) => CallToolResult;
+}
+
+const tools: ToolDef[] = [
+  {
+    name: 'store_memory',
+    options: {
       title: 'Store Memory',
       description: 'Store a new memory with optional tags',
       inputSchema: StoreMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        idempotentHint: true,
-      },
+      annotations: { idempotentHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { content, tags, importance, memoryType } = params;
+    handler: (params) =>
+      withError('E_STORE_MEMORY', () => {
+        const { content, tags, importance, memoryType } = params as {
+          content: string;
+          tags?: string[];
+          importance?: number;
+          memoryType?: string;
+        };
         return ok(
           createMemory(
             content,
@@ -50,171 +83,127 @@ const registerStoreMemoryTool = (server: McpServer): void => {
             memoryType ?? 'general'
           )
         );
-      } catch (err) {
-        return createErrorResponse('E_STORE_MEMORY', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerSearchMemoriesTool = (server: McpServer): void => {
-  server.registerTool(
-    'search_memories',
-    {
+      }),
+  },
+  {
+    name: 'search_memories',
+    options: {
       title: 'Search Memories',
       description: 'Full-text search with filters',
       inputSchema: SearchMemoriesInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
+      annotations: { readOnlyHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { query, limit, tags, minRelevance } = params;
+    handler: (params) =>
+      withError('E_SEARCH_MEMORIES', () => {
+        const { query, limit, tags, minRelevance } = params as {
+          query: string;
+          limit?: number;
+          tags?: string[];
+          minRelevance?: number;
+        };
         return ok(searchMemories(query, limit ?? 10, tags ?? [], minRelevance));
-      } catch (err) {
-        return createErrorResponse('E_SEARCH_MEMORIES', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerGetMemoryTool = (server: McpServer): void => {
-  server.registerTool(
-    'get_memory',
-    {
+      }),
+  },
+  {
+    name: 'get_memory',
+    options: {
       title: 'Get Memory',
       description: 'Retrieve memory by hash',
       inputSchema: GetMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
+      annotations: { readOnlyHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { hash } = params;
+    handler: (params) =>
+      withError('E_GET_MEMORY', () => {
+        const { hash } = params as { hash: string };
         const result = getMemory(hash);
         if (!result) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
         return ok(result);
-      } catch (err) {
-        return createErrorResponse('E_GET_MEMORY', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerDeleteMemoryTool = (server: McpServer): void => {
-  server.registerTool(
-    'delete_memory',
-    {
+      }),
+  },
+  {
+    name: 'delete_memory',
+    options: {
       title: 'Delete Memory',
       description: 'Delete by hash',
       inputSchema: DeleteMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        destructiveHint: true,
-      },
+      annotations: { destructiveHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { hash } = params;
+    handler: (params) =>
+      withError('E_DELETE_MEMORY', () => {
+        const { hash } = params as { hash: string };
         const result = deleteMemory(hash);
         if (result.changes === 0) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
         return ok({ deleted: true });
-      } catch (err) {
-        return createErrorResponse('E_DELETE_MEMORY', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerLinkMemoriesTool = (server: McpServer): void => {
-  server.registerTool(
-    'link_memories',
-    {
+      }),
+  },
+  {
+    name: 'link_memories',
+    options: {
       title: 'Link Memories',
       description: 'Create relationship between memories',
       inputSchema: LinkMemoriesInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        idempotentHint: true,
-      },
+      annotations: { idempotentHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { fromHash, toHash, relationType } = params;
+    handler: (params) =>
+      withError('E_LINK_MEMORIES', () => {
+        const { fromHash, toHash, relationType } = params as {
+          fromHash: string;
+          toHash: string;
+          relationType: string;
+        };
         linkMemories(fromHash, toHash, relationType);
         return ok({ linked: true });
-      } catch (err) {
-        return createErrorResponse('E_LINK_MEMORIES', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerGetRelatedTool = (server: McpServer): void => {
-  server.registerTool(
-    'get_related',
-    {
+      }),
+  },
+  {
+    name: 'get_related',
+    options: {
       title: 'Get Related Memories',
       description: 'Get memories related to a given memory',
       inputSchema: GetRelatedInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
+      annotations: { readOnlyHint: true },
     },
-    async (params) => {
-      await Promise.resolve();
-      try {
-        const { hash, relationType, depth } = params;
+    handler: (params) =>
+      withError('E_GET_RELATED', () => {
+        const { hash, relationType, depth } = params as {
+          hash: string;
+          relationType?: string;
+          depth?: number;
+        };
         return ok(getRelated(hash, relationType, depth ?? 1));
-      } catch (err) {
-        return createErrorResponse('E_GET_RELATED', getErrorMessage(err));
-      }
-    }
-  );
-};
-
-const registerMemoryStatsTool = (server: McpServer): void => {
-  server.registerTool(
-    'memory_stats',
-    {
+      }),
+  },
+  {
+    name: 'memory_stats',
+    options: {
       title: 'Memory Stats',
       description: 'Database statistics and health',
       inputSchema: MemoryStatsInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: {
-        readOnlyHint: true,
-      },
+      annotations: { readOnlyHint: true },
     },
-    async () => {
-      await Promise.resolve();
-      try {
+    handler: () =>
+      withError('E_MEMORY_STATS', () => {
         return ok(getStats());
-      } catch (err) {
-        return createErrorResponse('E_MEMORY_STATS', getErrorMessage(err));
-      }
-    }
-  );
-};
+      }),
+  },
+];
 
 export function registerAllTools(server: McpServer): void {
-  registerStoreMemoryTool(server);
-  registerSearchMemoriesTool(server);
-  registerGetMemoryTool(server);
-  registerDeleteMemoryTool(server);
-  registerLinkMemoriesTool(server);
-  registerGetRelatedTool(server);
-  registerMemoryStatsTool(server);
+  for (const tool of tools) {
+    server.registerTool(
+      tool.name,
+      tool.options,
+      (params: Record<string, unknown>) => Promise.resolve(tool.handler(params))
+    );
+  }
 }

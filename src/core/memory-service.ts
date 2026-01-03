@@ -21,31 +21,26 @@ import { toSearchError } from './search-errors.js';
 
 type SqlParam = string | number | bigint | null | Uint8Array;
 
-interface RunResult {
-  changes: number | bigint;
-}
-
 interface SearchQuery {
   sql: string;
   params: (number | string)[];
 }
 
-const executeAll = (stmt: StatementSync, ...params: unknown[]): DbRow[] =>
-  stmt.all(...(params as SqlParam[])) as DbRow[];
+const executeAll = (stmt: StatementSync, ...params: SqlParam[]): DbRow[] =>
+  stmt.all(...params) as DbRow[];
 
 const executeGet = (
   stmt: StatementSync,
-  ...params: unknown[]
-): DbRow | undefined =>
-  stmt.get(...(params as SqlParam[])) as DbRow | undefined;
+  ...params: SqlParam[]
+): DbRow | undefined => stmt.get(...params) as DbRow | undefined;
 
-const executeRun = (stmt: StatementSync, ...params: unknown[]): RunResult =>
-  stmt.run(...(params as SqlParam[])) as RunResult;
-
-const sanitizeFts5Query = (query: string): string => {
-  const escaped = query.replace(/"/g, '""');
-  return `"${escaped}"`;
-};
+const executeRun = (
+  stmt: StatementSync,
+  ...params: SqlParam[]
+): { changes: number | bigint } =>
+  stmt.run(...params) as {
+    changes: number | bigint;
+  };
 
 const buildSearchQuery = (
   query: string,
@@ -53,7 +48,7 @@ const buildSearchQuery = (
   tags: readonly string[],
   minRelevance?: number
 ): SearchQuery => {
-  const sanitizedQuery = sanitizeFts5Query(query);
+  const sanitizedQuery = `"${query.replace(/"/g, '""')}"`;
   const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
   const whereParts: string[] = ['memories_fts MATCH ?'];
   const params: (number | string)[] = [sanitizedQuery];
@@ -113,10 +108,7 @@ const assertValidTag = (tag: string): void => {
   }
 };
 
-const normalizeTags = (
-  tags: readonly string[],
-  maxTags: number
-): readonly string[] => {
+const normalizeTags = (tags: readonly string[], maxTags: number): string[] => {
   if (tags.length === 0) return [];
   if (tags.length > maxTags) {
     throw new Error('Too many tags (max ' + String(maxTags) + ')');
@@ -129,7 +121,7 @@ const normalizeTags = (
   return [...seen];
 };
 
-const runInImmediateTransaction = <T>(operation: () => T): T => {
+const withImmediateTransaction = <T>(operation: () => T): T => {
   db.exec('BEGIN IMMEDIATE');
   try {
     const result = operation();
@@ -150,14 +142,6 @@ const findMemoryIdByHash = (hash: string): number | undefined => {
   return toSafeInteger(row.id, 'id');
 };
 
-const requireMemoryId = (hash: string): number => {
-  const id = findMemoryIdByHash(hash);
-  if (id === undefined) {
-    throw new Error('Failed to resolve memory id');
-  }
-  return id;
-};
-
 const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
   const insertTag = db.prepare(
@@ -168,20 +152,13 @@ const insertTags = (memoryId: number, tags: readonly string[]): void => {
   }
 };
 
-const relationFilter = (
-  relationType?: string
-): { clause: string; params: string[] } => {
-  if (!relationType) return { clause: '', params: [] };
-  return { clause: ' AND r.relation_type = ?', params: [relationType] };
-};
-
 export const createMemory = (
   content: string,
   tags: readonly string[] = [],
   importance = 0,
   memoryType = 'general'
 ): MemoryInsertResult =>
-  runInImmediateTransaction(() => {
+  withImmediateTransaction(() => {
     const hash = buildHash(content);
     const normalizedTags = normalizeTags(tags, 100);
     const insert = db.prepare(
@@ -189,7 +166,10 @@ export const createMemory = (
         'memory_type, hash) VALUES (?, ?, ?, ?)'
     );
     const result = executeRun(insert, content, importance, memoryType, hash);
-    const id = requireMemoryId(hash);
+    const id = findMemoryIdByHash(hash);
+    if (id === undefined) {
+      throw new Error('Failed to resolve memory id');
+    }
     insertTags(id, normalizedTags);
     return { id, hash, isNew: toSafeInteger(result.changes, 'changes') === 1 };
   });
@@ -285,7 +265,8 @@ const getRelatedDirect = (
   memoryId: number,
   relationType?: string
 ): RelatedMemory[] => {
-  const { clause, params } = relationFilter(relationType);
+  const clause = relationType ? ' AND r.relation_type = ?' : '';
+  const params = relationType ? [relationType] : [];
   const sql = `
     SELECT m.*, r.relation_type as relation_type, 1 as depth
     FROM memories m
@@ -302,7 +283,7 @@ const getRelatedRecursive = (
   relationType: string | undefined,
   maxDepth: number
 ): RelatedMemory[] => {
-  const { clause, params } = relationFilter(relationType);
+  const clause = relationType ? ' AND r.relation_type = ?' : '';
   const sql = `
     WITH RECURSIVE rels(depth, from_id, to_id, relation_type) AS (
       SELECT 1, r.from_memory_id, r.to_memory_id, r.relation_type
@@ -321,9 +302,9 @@ const getRelatedRecursive = (
     ORDER BY depth, m.id
     LIMIT 1000
   `;
-  const baseParams: (number | string)[] = [memoryId, ...params, maxDepth];
-  const recursiveParams =
-    params.length > 0 ? [...baseParams, ...params] : baseParams;
-  const rows = executeAll(db.prepare(sql), ...recursiveParams);
+  const queryParams: (number | string)[] = relationType
+    ? [memoryId, relationType, maxDepth, relationType]
+    : [memoryId, maxDepth];
+  const rows = executeAll(db.prepare(sql), ...queryParams);
   return rows.map((row) => mapRowToRelatedMemory(row));
 };

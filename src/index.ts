@@ -20,41 +20,28 @@ import { assertSupportedProtocolVersion } from './utils/protocol.js';
 const packageJson = JSON.parse(
   readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
 ) as { version?: string };
-const SERVER_VERSION = packageJson.version ?? '0.0.0';
 
 const server = new McpServer(
-  { name: 'memdb', version: SERVER_VERSION },
+  { name: 'memdb', version: packageJson.version ?? '0.0.0' },
   {
     instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
     capabilities: { logging: {} },
   }
 );
 
-interface ServerWithInitialize {
-  _oninitialize: (request: InitializeRequest) => Promise<InitializeResult>;
-}
-
-const isServerWithInitialize = (
-  value: unknown
-): value is ServerWithInitialize =>
-  typeof value === 'object' &&
-  value !== null &&
-  '_oninitialize' in value &&
-  typeof (value as { _oninitialize?: unknown })._oninitialize === 'function';
-
-const serverCore = server.server;
-if (!isServerWithInitialize(serverCore)) {
+const serverCore = server.server as unknown as {
+  _oninitialize?: (request: InitializeRequest) => Promise<InitializeResult>;
+};
+if (!serverCore._oninitialize) {
   throw new Error('MCP SDK server initialize handler is unavailable');
 }
-const serverCoreWithInitialize: ServerWithInitialize = serverCore;
+const onInitialize = serverCore._oninitialize;
 
 server.server.setRequestHandler(InitializeRequestSchema, (request) => {
-  const requestedVersion = request.params.protocolVersion;
-  assertSupportedProtocolVersion(requestedVersion);
-  return serverCoreWithInitialize._oninitialize(request);
+  assertSupportedProtocolVersion(request.params.protocolVersion);
+  return onInitialize(request);
 });
 
-// Ensure tool errors always include structuredContent (matches DefaultOutputSchema).
 const serverWithToolError = server as unknown as {
   createToolError: (message: string) => CallToolResult;
 };
@@ -64,11 +51,11 @@ serverWithToolError.createToolError = (message: string): CallToolResult =>
 registerAllTools(server);
 
 let transport: StdioServerTransport | undefined;
-let shutdownInProgress = false;
+let shuttingDown = false;
 
 async function shutdown(signal: string): Promise<void> {
-  if (shutdownInProgress) return;
-  shutdownInProgress = true;
+  if (shuttingDown) return;
+  shuttingDown = true;
 
   logger.info(`Received ${signal}, shutting down gracefully...`);
 
@@ -77,17 +64,20 @@ async function shutdown(signal: string): Promise<void> {
     process.exit(1);
   }, 5000);
 
+  const exit = (code: number): void => {
+    clearTimeout(forceExitTimer);
+    process.exit(code);
+  };
+
   try {
     closeDb();
     if (transport) {
       await transport.close();
     }
-    clearTimeout(forceExitTimer);
-    process.exit(0);
+    exit(0);
   } catch (err) {
     logger.error('Error during shutdown:', err);
-    clearTimeout(forceExitTimer);
-    process.exit(1);
+    exit(1);
   }
 }
 
@@ -104,12 +94,10 @@ async function main(): Promise<void> {
 
 void main();
 
-// Graceful shutdown handlers
 process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 process.on('SIGBREAK', () => void shutdown('SIGBREAK'));
 
-// Uncaught error handlers
 process.on('uncaughtException', (err, origin) => {
   logger.error(`Uncaught exception (${origin}):`, err);
   process.exit(1);

@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-export interface ErrorResponse extends CallToolResult {
+type ErrorResponse = CallToolResult & {
   content: { type: 'text'; text: string }[];
   structuredContent: {
     ok: false;
@@ -8,7 +8,7 @@ export interface ErrorResponse extends CallToolResult {
     result?: unknown;
   };
   isError: true;
-}
+};
 
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -27,7 +27,7 @@ export function createErrorResponse(
     ...(result !== undefined && { result }),
   };
   return {
-    content: [{ type: 'text' as const, text: JSON.stringify(structured) }],
+    content: [{ type: 'text', text: JSON.stringify(structured) }],
     structuredContent: structured,
     isError: true as const,
   };

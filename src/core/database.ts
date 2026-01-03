@@ -68,8 +68,9 @@ const FTS_SYNC_SQL = `
   WHERE id NOT IN (SELECT rowid FROM memories_fts);
 `;
 
-const dbDir = path.dirname(config.dbPath);
-fs.mkdirSync(dbDir, { recursive: true });
+if (config.dbPath !== ':memory:') {
+  fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
+}
 
 export const db = new DatabaseSync(config.dbPath, { timeout: 5000 });
 
