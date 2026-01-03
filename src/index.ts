@@ -4,11 +4,16 @@ import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   type CallToolResult,
+  ErrorCode,
   type InitializeRequest,
   InitializeRequestSchema,
   type InitializeResult,
+  isJSONRPCRequest,
+  type JSONRPCMessage,
+  type MessageExtraInfo,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/database.js';
@@ -29,6 +34,71 @@ const server = new McpServer(
   }
 );
 
+let hasInitialized = false;
+
+class InitGuardTransport implements Transport {
+  public onclose?: () => void;
+  public onerror?: (error: Error) => void;
+  public onmessage: (
+    message: JSONRPCMessage,
+    extra?: MessageExtraInfo
+  ) => void = () => undefined;
+
+  public constructor(
+    private readonly inner: StdioServerTransport,
+    private readonly isInitialized: () => boolean
+  ) {
+    inner.onmessage = (message) => {
+      this.handleMessage(message);
+    };
+    inner.onerror = (error) => {
+      this.onerror?.(error);
+    };
+    inner.onclose = () => {
+      this.onclose?.();
+    };
+  }
+
+  public async start(): Promise<void> {
+    await this.inner.start();
+  }
+
+  public async send(message: JSONRPCMessage): Promise<void> {
+    await this.inner.send(message);
+  }
+
+  public async close(): Promise<void> {
+    await this.inner.close();
+  }
+
+  private handleMessage(
+    message: JSONRPCMessage,
+    extra?: MessageExtraInfo
+  ): void {
+    if (!this.isInitialized() && isJSONRPCRequest(message)) {
+      if (message.method !== 'initialize') {
+        void this.inner
+          .send({
+            jsonrpc: '2.0',
+            id: message.id,
+            error: {
+              code: ErrorCode.InvalidRequest,
+              message: 'Initialize must be the first request.',
+            },
+          })
+          .catch((error: unknown) => {
+            const err =
+              error instanceof Error ? error : new Error(String(error));
+            this.onerror?.(err);
+          });
+        return;
+      }
+    }
+
+    this.onmessage(message, extra);
+  }
+}
+
 const serverCore = server.server as unknown as {
   _oninitialize?: (request: InitializeRequest) => Promise<InitializeResult>;
 };
@@ -37,9 +107,11 @@ if (!serverCore._oninitialize) {
 }
 const onInitialize = serverCore._oninitialize;
 
-server.server.setRequestHandler(InitializeRequestSchema, (request) => {
+server.server.setRequestHandler(InitializeRequestSchema, async (request) => {
   assertSupportedProtocolVersion(request.params.protocolVersion);
-  return onInitialize(request);
+  const result = await onInitialize(request);
+  hasInitialized = true;
+  return result;
 });
 
 const serverWithToolError = server as unknown as {
@@ -50,7 +122,7 @@ serverWithToolError.createToolError = (message: string): CallToolResult =>
 
 registerAllTools(server);
 
-let transport: StdioServerTransport | undefined;
+let transport: Transport | undefined;
 let shuttingDown = false;
 
 async function shutdown(signal: string): Promise<void> {
@@ -83,8 +155,13 @@ async function shutdown(signal: string): Promise<void> {
 
 async function main(): Promise<void> {
   try {
-    transport = new StdioServerTransport();
-    await server.connect(transport);
+    const stdio = new StdioServerTransport();
+    const guardedTransport = new InitGuardTransport(
+      stdio,
+      () => hasInitialized
+    );
+    transport = guardedTransport;
+    await server.connect(guardedTransport);
     logger.info('Memory MCP Server running on stdio');
   } catch (error) {
     logger.error('Failed to start server', error);
