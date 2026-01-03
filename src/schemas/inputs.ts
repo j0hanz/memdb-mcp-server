@@ -6,14 +6,10 @@ export const StoreMemoryInputSchema = z.strictObject({
     .min(1)
     .max(100000)
     .meta({ description: 'The content of the memory' }),
-  tags: z
-    .array(z.string().min(1).max(50))
-    .max(100)
-    .optional()
-    .meta({
-      description:
-        'Tags to categorize the memory (max 100 tags, each max 50 chars)',
-    }),
+  tags: z.array(z.string().min(1).max(50)).max(100).optional().meta({
+    description:
+      'Tags to categorize the memory (max 100 tags, each max 50 chars)',
+  }),
   importance: z
     .number()
     .min(0)
@@ -99,4 +95,4 @@ export const GetRelatedInputSchema = z.strictObject({
     .meta({ description: 'Traversal depth (1-3)' }),
 });
 
-export const MemoryStatsInputSchema = z.strictObject({});
+export const MemoryStatsInputSchema = z.strictObject({}).optional();
