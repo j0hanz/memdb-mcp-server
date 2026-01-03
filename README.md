@@ -204,16 +204,19 @@ Add to your `claude_desktop_config.json`:
 
 </details>
 
-## � Limits & Constraints
+## 📋 Limits & Constraints
 
-| Constraint                    | Value    | Description                                              |
-| :---------------------------- | :------- | :------------------------------------------------------- |
-| **Max tags per memory**       | 100      | Maximum number of tags when storing a memory             |
-| **Max tag length**            | 50 chars | Maximum characters per tag                               |
-| **Max tags in search filter** | 50       | Maximum tags when filtering search results               |
-| **Max related memories**      | 1000     | Maximum results from `get_related` queries               |
-| **Max traversal depth**       | 3        | Maximum depth for relationship traversal                 |
-| **Search mode**               | Phrase   | Search uses phrase matching (FTS5 operators are escaped) |
+| Constraint                    | Value         | Description                                              |
+| :---------------------------- | :------------ | :------------------------------------------------------- |
+| **Max content length**        | 100,000 chars | Maximum characters in memory content                     |
+| **Max query length**          | 1,000 chars   | Maximum characters in search query                       |
+| **Max search results**        | 100           | Maximum results returned from `search_memories`          |
+| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory             |
+| **Max tag length**            | 50 chars      | Maximum characters per tag                               |
+| **Max tags in search filter** | 50            | Maximum tags when filtering search results               |
+| **Max related memories**      | 1,000         | Maximum results from `get_related` queries               |
+| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                 |
+| **Search mode**               | Phrase        | Search uses phrase matching (FTS5 operators are escaped) |
 
 ### Notes
 
@@ -221,7 +224,7 @@ Add to your `claude_desktop_config.json`:
 - **Query timeouts**: The server uses SQLite's synchronous API with a 5-second busy timeout. Individual queries are bounded by result limits rather than execution time.
 - **Local storage**: All data is stored locally in `data/memory.db`. No network requests are made.
 
-## �🛠️ Development
+## 🛠️ Development
 
 ### Prerequisites
 
@@ -229,12 +232,17 @@ Add to your `claude_desktop_config.json`:
 
 ### Scripts
 
-| Command         | Description                        |
-| :-------------- | :--------------------------------- |
-| `npm run build` | Compile TypeScript to `dist/`      |
-| `npm run dev`   | Run in development mode with watch |
-| `npm run test`  | Run tests                          |
-| `npm run lint`  | Run ESLint                         |
+| Command                  | Description                        |
+| :----------------------- | :--------------------------------- |
+| `npm run build`          | Compile TypeScript to `dist/`      |
+| `npm run dev`            | Run in development mode with watch |
+| `npm run test`           | Run tests                          |
+| `npm run test:coverage`  | Run tests with coverage            |
+| `npm run lint`           | Run ESLint                         |
+| `npm run format`         | Format code with Prettier          |
+| `npm run format:check`   | Check code formatting              |
+| `npm run type-check`     | TypeScript type checking           |
+| `npm run inspector`      | Run MCP inspector                  |
 
 ### Project Structure
 
