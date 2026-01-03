@@ -15,9 +15,9 @@ A SQLite-backed MCP memory server (on-disk by default, in-memory optional).
 | Feature           | Description                                                       |
 | :---------------- | :---------------------------------------------------------------- |
 | Memory Storage    | Store text memories with tags, importance, and type               |
-| Full-Text Search  | FTS5-backed phrase search with relevance ranking                  |
+| Full-Text Search  | FTS5-backed tokenized search with relevance ranking               |
 | Graph Connections | Link memories and traverse relationships                          |
-| Stats             | Memory and relationship counts                                    |
+| Stats             | Memory, tag, and relationship counts + activity range             |
 | Local Privacy     | All data stored locally in SQLite (`.memdb/memory.db` by default) |
 
 ## Quick Start
@@ -67,12 +67,14 @@ The path is resolved to an absolute path unless you use `:memory:`.
 
 - `MEMDB_PATH`: Override the database path (`:memory:` for in-memory).
 - `MEMDB_LOG_LEVEL`: `info`, `warn`, or `error` (default: `info`).
+- `MEMDB_SHUTDOWN_TIMEOUT`: Shutdown timeout in ms (1000-60000, default: `5000`).
 
 ### CLI Flags
 
 - `--db <path>`: Override the database path.
 - `--memory`: Use in-memory database (`:memory:`).
 - `--log-level <level>`: `info`, `warn`, or `error`.
+- `--shutdown-timeout <ms>`: Shutdown timeout in ms (1000-60000).
 
 Precedence: CLI flags > environment variables > defaults.
 
@@ -128,6 +130,7 @@ Full-text search with filters.
 | :------------- | :------- | :------- | :------ | :-------------------------------- |
 | `query`        | string   | Yes      | -       | Search query (1-1000 chars)       |
 | `limit`        | number   | No       | `10`    | Maximum number of results (1-100) |
+| `offset`       | number   | No       | `0`     | Pagination offset (0-1000)        |
 | `tags`         | string[] | No       | -       | Filter by tags (max 50)           |
 | `minRelevance` | number   | No       | -       | Minimum relevance score (0-1)     |
 
@@ -169,21 +172,37 @@ Create a relationship between two memories.
 
 Get memories related to a given memory.
 
-| Parameter      | Type   | Required | Default | Description                   |
-| :------------- | :----- | :------- | :------ | :---------------------------- |
-| `hash`         | string | Yes      | -       | Hash of the memory (32 chars) |
-| `relationType` | string | No       | -       | Filter by relationship type   |
-| `depth`        | number | No       | `1`     | Traversal depth (1-3)         |
+| Parameter      | Type   | Required | Default    | Description                    |
+| :------------- | :----- | :------- | :--------- | :----------------------------- |
+| `hash`         | string | Yes      | -          | Hash of the memory (32 chars)  |
+| `relationType` | string | No       | -          | Filter by relationship type    |
+| `depth`        | number | No       | `1`        | Traversal depth (1-3)          |
+| `direction`    | string | No       | `outgoing` | `outgoing`, `incoming`, `both` |
 
 **Returns:** Array of related memories (`Memory` + `relation_type`, `depth`).
 
 ### `memory_stats`
 
-Get database statistics.
+Get database statistics and memory type breakdown.
 
 _No parameters required._
 
-**Returns:** `{ memoryCount, relationshipCount }`.
+**Returns:** `{ memoryCount, relationshipCount, tagCount, memoryTypes, oldestMemory, newestMemory }`.
+
+### `update_memory`
+
+Update memory metadata (content cannot be changed).
+
+| Parameter    | Type     | Required | Default | Description                                 |
+| :----------- | :------- | :------- | :------ | :------------------------------------------ |
+| `hash`       | string   | Yes      | -       | MD5 hash (32 chars)                         |
+| `importance` | number   | No       | -       | New importance score (0-10)                 |
+| `memoryType` | string   | No       | -       | New memory type (1-50 chars)                |
+| `tags`       | string[] | No       | -       | Replace all tags (max 100, each 1-50 chars) |
+| `addTags`    | string[] | No       | -       | Tags to add (max 100, each 1-50 chars)      |
+| `removeTags` | string[] | No       | -       | Tags to remove (max 100, each 1-50 chars)   |
+
+**Returns:** `{ updated: true, hash }`.
 
 ### Memory Fields
 
@@ -249,26 +268,29 @@ Add to your `claude_desktop_config.json`:
 
 ## Limits & Constraints
 
-| Constraint                    | Value         | Description                                              |
-| :---------------------------- | :------------ | :------------------------------------------------------- |
-| **Max content length**        | 100,000 chars | Maximum characters in memory content                     |
-| **Max query length**          | 1,000 chars   | Maximum characters in search query                       |
-| **Max search results**        | 100           | Maximum results returned from `search_memories`          |
-| **Default search limit**      | 10            | Default `limit` for `search_memories`                    |
-| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory             |
-| **Max tag length**            | 50 chars      | Maximum characters per tag                               |
-| **Max tags in search filter** | 50            | Maximum tags when filtering search results               |
-| **Max related memories**      | 1,000         | Maximum results from `get_related` queries               |
-| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                 |
-| **Importance range**          | 0-10          | Allowed range for `importance`                           |
-| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                         |
-| **Hash length**               | 32 chars      | MD5 hash length                                          |
-| **Search mode**               | Phrase        | Search uses phrase matching (FTS5 operators are escaped) |
+| Constraint                    | Value         | Description                                               |
+| :---------------------------- | :------------ | :-------------------------------------------------------- |
+| **Max content length**        | 100,000 chars | Maximum characters in memory content                      |
+| **Max query length**          | 1,000 chars   | Maximum characters in search query                        |
+| **Max search results**        | 100           | Maximum results returned from `search_memories`           |
+| **Default search limit**      | 10            | Default `limit` for `search_memories`                     |
+| **Max search offset**         | 1,000         | Maximum `offset` for `search_memories`                    |
+| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory              |
+| **Max tag length**            | 50 chars      | Maximum characters per tag                                |
+| **Max tags in search filter** | 50            | Maximum tags when filtering search results                |
+| **Max related memories**      | 1,000         | Maximum results from `get_related` queries                |
+| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                  |
+| **Importance range**          | 0-10          | Allowed range for `importance`                            |
+| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                          |
+| **Hash length**               | 32 chars      | MD5 hash length                                           |
+| **Search mode**               | Tokenized OR  | Each term is quoted and OR'ed; FTS5 operators are escaped |
 
 ### Notes
 
 - **Content deduplication**: Memories are deduplicated using MD5 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
+- **Tag behavior**: Tags are de-duplicated per memory; exceeding tag limits throws an error.
+- **Bidirectional depth**: `get_related` with `direction: "both"` caps traversal depth at 2.
 - **Local storage**: All data is stored locally in `.memdb/memory.db` unless `:memory:` is used.
 
 ## Development

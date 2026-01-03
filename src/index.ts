@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -24,7 +24,7 @@ import { logger } from './utils/logger.js';
 import { assertSupportedProtocolVersion } from './utils/protocol.js';
 
 const packageJson = JSON.parse(
-  readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+  await readFile(new URL('../package.json', import.meta.url), 'utf-8')
 ) as { version?: string };
 
 const server = new McpServer(

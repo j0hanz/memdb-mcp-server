@@ -1,4 +1,4 @@
-import fs from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
@@ -71,10 +71,15 @@ const FTS_SYNC_SQL = `
 `;
 
 if (config.dbPath !== ':memory:') {
-  fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
+  await mkdir(path.dirname(config.dbPath), { recursive: true });
 }
 
 export const db = new DatabaseSync(config.dbPath, { timeout: 5000 });
+(
+  db as DatabaseSync & {
+    enableDefensive?: (active: boolean) => void;
+  }
+).enableDefensive?.(true);
 
 db.exec(SCHEMA_SQL);
 db.exec(FTS_SYNC_SQL);
