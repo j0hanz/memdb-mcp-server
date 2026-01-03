@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
 import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -14,13 +14,14 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { closeDbWorker } from './core/db-worker-client.js';
+import { closeDb } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { logger } from './utils/logger.js';
 
-const require = createRequire(import.meta.url);
-const packageJson = require('../package.json') as { version?: string };
+const packageJson = JSON.parse(
+  readFileSync(new URL('../package.json', import.meta.url), 'utf-8')
+) as { version?: string };
 const SERVER_VERSION = packageJson.version ?? '0.0.0';
 
 const server = new McpServer(
@@ -84,7 +85,7 @@ async function shutdown(signal: string): Promise<void> {
   }, 5000);
 
   try {
-    await closeDbWorker();
+    closeDb();
     if (transport) {
       await transport.close();
     }

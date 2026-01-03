@@ -39,10 +39,11 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { content, tags, importance, memoryType } = params;
         return ok(
-          await createMemory(
+          createMemory(
             content,
             tags ?? [],
             importance ?? 0,
@@ -67,11 +68,10 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { query, limit, tags, minRelevance } = params;
-        return ok(
-          await searchMemories(query, limit ?? 10, tags ?? [], minRelevance)
-        );
+        return ok(searchMemories(query, limit ?? 10, tags ?? [], minRelevance));
       } catch (err) {
         return createErrorResponse('E_SEARCH_MEMORIES', getErrorMessage(err));
       }
@@ -90,9 +90,10 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { hash } = params;
-        const result = await getMemory(hash);
+        const result = getMemory(hash);
         if (!result) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
@@ -115,9 +116,10 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { hash } = params;
-        const result = await deleteMemory(hash);
+        const result = deleteMemory(hash);
         if (result.changes === 0) {
           return createErrorResponse('E_NOT_FOUND', 'Memory not found');
         }
@@ -140,9 +142,10 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { fromHash, toHash, relationType } = params;
-        await linkMemories(fromHash, toHash, relationType);
+        linkMemories(fromHash, toHash, relationType);
         return ok({ linked: true });
       } catch (err) {
         return createErrorResponse('E_LINK_MEMORIES', getErrorMessage(err));
@@ -162,9 +165,10 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async (params) => {
+      await Promise.resolve();
       try {
         const { hash, relationType, depth } = params;
-        return ok(await getRelated(hash, relationType, depth ?? 1));
+        return ok(getRelated(hash, relationType, depth ?? 1));
       } catch (err) {
         return createErrorResponse('E_GET_RELATED', getErrorMessage(err));
       }
@@ -183,8 +187,9 @@ export function registerAllTools(server: McpServer): void {
       },
     },
     async () => {
+      await Promise.resolve();
       try {
-        return ok(await getStats());
+        return ok(getStats());
       } catch (err) {
         return createErrorResponse('E_MEMORY_STATS', getErrorMessage(err));
       }
