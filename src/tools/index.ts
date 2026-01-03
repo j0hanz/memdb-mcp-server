@@ -14,6 +14,7 @@ import {
   getStats,
   linkMemories,
   searchMemories,
+  updateMemory,
 } from '../core/memory-service.js';
 import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
 import {
@@ -24,6 +25,7 @@ import {
   MemoryStatsInputSchema,
   SearchMemoriesInputSchema,
   StoreMemoryInputSchema,
+  UpdateMemoryInputSchema,
 } from '../schemas/inputs.js';
 import { DefaultOutputSchema } from '../schemas/outputs.js';
 
@@ -55,6 +57,15 @@ interface ToolDef {
     annotations?: ToolAnnotations;
   };
   handler: (params: Record<string, unknown>) => CallToolResult;
+}
+
+interface UpdateMemoryParams {
+  hash: string;
+  importance?: number;
+  memoryType?: string;
+  tags?: string[];
+  addTags?: string[];
+  removeTags?: string[];
 }
 
 const tools: ToolDef[] = [
@@ -96,13 +107,16 @@ const tools: ToolDef[] = [
     },
     handler: (params) =>
       withError('E_SEARCH_MEMORIES', () => {
-        const { query, limit, tags, minRelevance } = params as {
+        const { query, limit, offset, tags, minRelevance } = params as {
           query: string;
           limit?: number;
+          offset?: number;
           tags?: string[];
           minRelevance?: number;
         };
-        return ok(searchMemories(query, limit ?? 10, tags ?? [], minRelevance));
+        return ok(
+          searchMemories(query, limit ?? 10, tags ?? [], minRelevance, offset)
+        );
       }),
   },
   {
@@ -197,6 +211,22 @@ const tools: ToolDef[] = [
     handler: () =>
       withError('E_MEMORY_STATS', () => {
         return ok(getStats());
+      }),
+  },
+  {
+    name: 'update_memory',
+    options: {
+      title: 'Update Memory',
+      description:
+        'Update memory metadata (importance, type, tags). Content cannot be changed.',
+      inputSchema: UpdateMemoryInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { idempotentHint: true },
+    },
+    handler: (params) =>
+      withError('E_UPDATE_MEMORY', () => {
+        const { hash, ...options } = params as unknown as UpdateMemoryParams;
+        return ok(updateMemory(hash, options));
       }),
   },
 ];

@@ -32,6 +32,12 @@ export const SearchMemoriesInputSchema = z.strictObject({
     .max(100)
     .optional()
     .meta({ description: 'Maximum number of results' }),
+  offset: z
+    .number()
+    .min(0)
+    .max(1000)
+    .optional()
+    .meta({ description: 'Pagination offset (skip N results)' }),
   tags: z
     .array(z.string().min(1).max(50))
     .max(50)
@@ -97,6 +103,41 @@ export const GetRelatedInputSchema = z.strictObject({
     description:
       'Relationship direction: outgoing (default), incoming, or both',
   }),
+});
+
+export const UpdateMemoryInputSchema = z.strictObject({
+  hash: z
+    .string()
+    .min(32)
+    .max(32)
+    .meta({ description: 'MD5 hash of the memory to update' }),
+  importance: z
+    .number()
+    .min(0)
+    .max(10)
+    .optional()
+    .meta({ description: 'New importance score (0-10)' }),
+  memoryType: z
+    .string()
+    .min(1)
+    .max(50)
+    .optional()
+    .meta({ description: 'New memory type' }),
+  tags: z
+    .array(z.string().min(1).max(50))
+    .max(100)
+    .optional()
+    .meta({ description: 'Replace all tags with these (max 100 tags)' }),
+  addTags: z
+    .array(z.string().min(1).max(50))
+    .max(100)
+    .optional()
+    .meta({ description: 'Tags to add (max 100 tags)' }),
+  removeTags: z
+    .array(z.string().min(1).max(50))
+    .max(100)
+    .optional()
+    .meta({ description: 'Tags to remove (max 100 tags)' }),
 });
 
 export const MemoryStatsInputSchema = z.strictObject({});

@@ -1,8 +1,7 @@
 import type { RelatedMemory } from '../types/index.js';
 import { db } from './database.js';
+import type { SqlParam } from './db-helpers.js';
 import { type DbRow, mapRowToRelatedMemory } from './row-mappers.js';
-
-type SqlParam = string | number | bigint | null | Uint8Array;
 
 const executeAll = (sql: string, ...params: SqlParam[]): DbRow[] =>
   db.prepare(sql).all(...params) as DbRow[];

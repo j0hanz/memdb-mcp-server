@@ -53,6 +53,7 @@ describe('tools', () => {
       'memory_stats',
       'search_memories',
       'store_memory',
+      'update_memory',
     ]);
   });
 

@@ -28,7 +28,16 @@ export interface MemoryInsertResult {
   readonly isNew: boolean;
 }
 
+export interface MemoryUpdateResult {
+  readonly updated: boolean;
+  readonly hash: string;
+}
+
 export interface MemoryStats {
   readonly memoryCount: number;
   readonly relationshipCount: number;
+  readonly tagCount: number;
+  readonly memoryTypes: Record<string, number>;
+  readonly oldestMemory: string | null;
+  readonly newestMemory: string | null;
 }

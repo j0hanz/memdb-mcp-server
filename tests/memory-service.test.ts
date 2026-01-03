@@ -13,6 +13,7 @@ const {
   getStats,
   linkMemories,
   searchMemories,
+  updateMemory,
 } = await import('../src/core/memory-service.js');
 
 describe('MemoryService', () => {
@@ -152,6 +153,25 @@ describe('MemoryService', () => {
       assert.throws(
         () => createMemory('invalid tag', ['x'.repeat(51)]),
         /exceeds 50 characters/i
+      );
+    });
+
+    it('should enforce tag cap when adding tags via updateMemory', () => {
+      const tags = Array.from({ length: 100 }, (_, i) => `tag-${i}`);
+      const { hash } = createMemory('Tag limit memory add', tags);
+
+      assert.throws(
+        () => updateMemory(hash, { addTags: ['extra'] }),
+        /Too many tags/i
+      );
+    });
+
+    it('should allow add/remove to stay within tag cap', () => {
+      const tags = Array.from({ length: 100 }, (_, i) => `cap-${i}`);
+      const { hash } = createMemory('Tag limit memory swap', tags);
+
+      assert.doesNotThrow(() =>
+        updateMemory(hash, { addTags: ['extra'], removeTags: ['cap-0'] })
       );
     });
   });
