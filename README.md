@@ -1,6 +1,6 @@
 # memdb
 
-A memory-based MCP server using SQLite in-memory database.
+A SQLite-backed MCP memory server (on-disk by default, in-memory optional).
 
 [![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb)
 
@@ -12,13 +12,13 @@ A memory-based MCP server using SQLite in-memory database.
 
 ## Features
 
-| Feature           | Description                                               |
-| :---------------- | :-------------------------------------------------------- |
-| Memory Storage    | Store text-based memories with tags and importance scores |
-| Full-Text Search  | Search memories using FTS5 with relevance ranking         |
-| Graph Connections | Link memories together to create knowledge graphs         |
-| Analytics         | Track memory statistics and database health               |
-| Local Privacy     | All data stored locally in SQLite (`.memdb/memory.db`)    |
+| Feature           | Description                                                       |
+| :---------------- | :---------------------------------------------------------------- |
+| Memory Storage    | Store text memories with tags, importance, and type               |
+| Full-Text Search  | FTS5-backed phrase search with relevance ranking                  |
+| Graph Connections | Link memories and traverse relationships                          |
+| Stats             | Memory and relationship counts                                    |
+| Local Privacy     | All data stored locally in SQLite (`.memdb/memory.db` by default) |
 
 ## Quick Start
 
@@ -60,7 +60,8 @@ npm run build
 
 ## Configuration
 
-The server uses a local SQLite database located at `.memdb/memory.db` relative to the working directory.
+The server uses a local SQLite database at `<cwd>/.memdb/memory.db` by default.
+The path is resolved to an absolute path unless you use `:memory:`.
 
 ### Environment Variables
 
@@ -75,85 +76,127 @@ The server uses a local SQLite database located at `.memdb/memory.db` relative t
 
 Precedence: CLI flags > environment variables > defaults.
 
+## Tool Response Format
+
+All tools return structured JSON in both `content` and `structuredContent`.
+
+Success:
+
+```json
+{
+  "ok": true,
+  "result": { "...": "..." }
+}
+```
+
+Error:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "E_CODE",
+    "message": "Human-readable message"
+  }
+}
+```
+
 ## Tools
 
 ### `store_memory`
 
 Store a new memory with optional tags and metadata.
 
-| Parameter    | Type     | Required | Default | Description                                     |
-| :----------- | :------- | :------- | :------ | :---------------------------------------------- |
-| `content`    | string   | Yes      | -       | The content of the memory                       |
-| `tags`       | string[] | No       | -       | Tags to categorize the memory                   |
-| `importance` | number   | No       | -       | Importance score (0-10)                         |
-| `memoryType` | string   | No       | -       | Type of memory (e.g., conversation, fact, rule) |
+| Parameter    | Type     | Required | Default   | Description                                |
+| :----------- | :------- | :------- | :-------- | :----------------------------------------- |
+| `content`    | string   | Yes      | -         | The content of the memory (1-100000 chars) |
+| `tags`       | string[] | No       | -         | Tags (max 100, each 1-50 chars)            |
+| `importance` | number   | No       | `0`       | Importance score (0-10)                    |
+| `memoryType` | string   | No       | `general` | Type of memory (1-50 chars)                |
 
-**Returns:** The created memory object with its hash.
+**Returns:** `{ id, hash, isNew }`
+
+Notes:
+
+- Content is deduplicated by MD5 hash. Storing the same content again returns the same hash with `isNew: false`.
 
 ### `search_memories`
 
 Full-text search with filters.
 
-| Parameter      | Type     | Required | Default | Description               |
-| :------------- | :------- | :------- | :------ | :------------------------ |
-| `query`        | string   | Yes      | -       | Search query              |
-| `limit`        | number   | No       | -       | Maximum number of results |
-| `tags`         | string[] | No       | -       | Filter by tags            |
-| `minRelevance` | number   | No       | -       | Minimum relevance score   |
+| Parameter      | Type     | Required | Default | Description                       |
+| :------------- | :------- | :------- | :------ | :-------------------------------- |
+| `query`        | string   | Yes      | -       | Search query (1-1000 chars)       |
+| `limit`        | number   | No       | `10`    | Maximum number of results (1-100) |
+| `tags`         | string[] | No       | -       | Filter by tags (max 50)           |
+| `minRelevance` | number   | No       | -       | Minimum relevance score (0-1)     |
 
-**Returns:** Array of matching memories.
+**Returns:** Array of search results (`Memory` + `relevance`).
 
 ### `get_memory`
 
 Retrieve a specific memory by its hash.
 
-| Parameter | Type   | Required | Default | Description            |
-| :-------- | :----- | :------- | :------ | :--------------------- |
-| `hash`    | string | Yes      | -       | MD5 hash of the memory |
+| Parameter | Type   | Required | Default | Description         |
+| :-------- | :----- | :------- | :------ | :------------------ |
+| `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
 
-**Returns:** The memory object.
+**Returns:** `Memory`.
 
 ### `delete_memory`
 
 Delete a memory by its hash.
 
-| Parameter | Type   | Required | Default | Description            |
-| :-------- | :----- | :------- | :------ | :--------------------- |
-| `hash`    | string | Yes      | -       | MD5 hash of the memory |
+| Parameter | Type   | Required | Default | Description         |
+| :-------- | :----- | :------- | :------ | :------------------ |
+| `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
 
-**Returns:** Confirmation of deletion.
+**Returns:** `{ deleted: true }`.
 
 ### `link_memories`
 
 Create a relationship between two memories.
 
-| Parameter      | Type   | Required | Default | Description               |
-| :------------- | :----- | :------- | :------ | :------------------------ |
-| `fromHash`     | string | Yes      | -       | Hash of the source memory |
-| `toHash`       | string | Yes      | -       | Hash of the target memory |
-| `relationType` | string | Yes      | -       | Type of relationship      |
+| Parameter      | Type   | Required | Default | Description                          |
+| :------------- | :----- | :------- | :------ | :----------------------------------- |
+| `fromHash`     | string | Yes      | -       | Hash of the source memory (32 chars) |
+| `toHash`       | string | Yes      | -       | Hash of the target memory (32 chars) |
+| `relationType` | string | Yes      | -       | Type of relationship (1-50 chars)    |
 
-**Returns:** Confirmation of link creation.
+**Returns:** `{ linked: true }`.
 
 ### `get_related`
 
 Get memories related to a given memory.
 
-| Parameter      | Type   | Required | Default | Description                 |
-| :------------- | :----- | :------- | :------ | :-------------------------- |
-| `hash`         | string | Yes      | -       | Hash of the memory          |
-| `relationType` | string | No       | -       | Filter by relationship type |
-| `depth`        | number | No       | -       | Traversal depth (1-3)       |
+| Parameter      | Type   | Required | Default | Description                   |
+| :------------- | :----- | :------- | :------ | :---------------------------- |
+| `hash`         | string | Yes      | -       | Hash of the memory (32 chars) |
+| `relationType` | string | No       | -       | Filter by relationship type   |
+| `depth`        | number | No       | `1`     | Traversal depth (1-3)         |
 
-**Returns:** Array of related memories.
+**Returns:** Array of related memories (`Memory` + `relation_type`, `depth`).
 
 ### `memory_stats`
 
-Get database statistics and health information.
+Get database statistics.
 
 _No parameters required._
 
-**Returns:** Database statistics (count, size, etc.).
+**Returns:** `{ memoryCount, relationshipCount }`.
+
+### Memory Fields
+
+All memory-shaped responses include:
+
+- `id`: integer ID
+- `content`: original content string
+- `summary`: optional summary (currently unset by tools)
+- `importance`: integer 0-10
+- `memory_type`: string
+- `created_at`: timestamp string
+- `accessed_at`: timestamp string
+- `hash`: MD5 hash
 
 ## Client Configuration
 
@@ -211,41 +254,48 @@ Add to your `claude_desktop_config.json`:
 | **Max content length**        | 100,000 chars | Maximum characters in memory content                     |
 | **Max query length**          | 1,000 chars   | Maximum characters in search query                       |
 | **Max search results**        | 100           | Maximum results returned from `search_memories`          |
+| **Default search limit**      | 10            | Default `limit` for `search_memories`                    |
 | **Max tags per memory**       | 100           | Maximum number of tags when storing a memory             |
 | **Max tag length**            | 50 chars      | Maximum characters per tag                               |
 | **Max tags in search filter** | 50            | Maximum tags when filtering search results               |
 | **Max related memories**      | 1,000         | Maximum results from `get_related` queries               |
 | **Max traversal depth**       | 3             | Maximum depth for relationship traversal                 |
+| **Importance range**          | 0-10          | Allowed range for `importance`                           |
+| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                         |
+| **Hash length**               | 32 chars      | MD5 hash length                                          |
 | **Search mode**               | Phrase        | Search uses phrase matching (FTS5 operators are escaped) |
 
 ### Notes
 
-- **Content deduplication**: Memories are deduplicated using MD5 hashes. Storing the same content twice returns the existing memory.
-- **Query timeouts**: The server uses SQLite's synchronous API with a 5-second busy timeout. Individual queries are bounded by result limits rather than execution time.
-- **Local storage**: All data is stored locally in `.memdb/memory.db`. No network requests are made.
+- **Content deduplication**: Memories are deduplicated using MD5 hashes.
+- **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
+- **Local storage**: All data is stored locally in `.memdb/memory.db` unless `:memory:` is used.
 
 ## Development
 
 ### Prerequisites
 
-- Node.js >= 22.0.0
+- Node.js >= 22.0.0 (required for `node:sqlite`)
 
 ### Scripts
 
-| Command                   | Description                        |
-| :------------------------ | :--------------------------------- |
-| `npm run build`           | Compile TypeScript to `dist/`      |
-| `npm run dev`             | Run in development mode with watch |
-| `npm run test`            | Run tests                          |
-| `npm run test:coverage`   | Run tests with coverage            |
-| `npm run lint`            | Run ESLint                         |
-| `npm run format`          | Format code with Prettier          |
-| `npm run format:check`    | Check code formatting              |
-| `npm run type-check`      | TypeScript type checking           |
-| `npm run maintainability` | Generate maintainability report    |
-| `npm run duplication`     | Run duplication report (jscpd)     |
-| `npm run bench:memory`    | Run memory-service benchmark       |
-| `npm run inspector`       | Run MCP inspector                  |
+| Command                   | Description                                |
+| :------------------------ | :----------------------------------------- |
+| `npm run clean`           | Remove `dist/`                             |
+| `npm run build`           | Compile TypeScript to `dist/`              |
+| `npm run dev`             | Run in development mode with watch         |
+| `npm run start`           | Run compiled server (`node dist/index.js`) |
+| `npm run test`            | Run tests                                  |
+| `npm run test:coverage`   | Run tests with coverage                    |
+| `npm run lint`            | Run ESLint                                 |
+| `npm run format`          | Format code with Prettier                  |
+| `npm run format:check`    | Check code formatting                      |
+| `npm run type-check`      | TypeScript type checking                   |
+| `npm run type-check:test` | Type-check tests only                      |
+| `npm run maintainability` | Generate maintainability report            |
+| `npm run duplication`     | Run duplication report (jscpd)             |
+| `npm run bench:memory`    | Run memory-service benchmark               |
+| `npm run inspector`       | Run MCP inspector                          |
 
 ### Project Structure
 
@@ -255,7 +305,7 @@ src/
 |-- core/             # Database and memory service
 |-- tools/            # Tool implementations
 |-- schemas/          # Zod input/output schemas
-|-- lib/              # Utility functions
+|-- lib/              # Error helpers
 `-- utils/            # Config and logger
 ```
 
