@@ -105,6 +105,8 @@ Error (`structuredContent`):
 }
 ```
 
+Error responses also set `isError: true` on the top-level tool result.
+
 Example `content[0].text`:
 
 ```text
@@ -175,6 +177,11 @@ Create a relationship between two memories.
 | `relationType` | string | Yes      | -       | Type of relationship (1-50 chars)    |
 
 **Returns:** `{ linked: true }`.
+
+Notes:
+
+- Linking the same relation again is a no-op (idempotent).
+- Returns an error if either memory hash does not exist.
 
 ### `get_related`
 
@@ -276,27 +283,29 @@ Add to your `claude_desktop_config.json`:
 
 ## Limits & Constraints
 
-| Constraint                    | Value         | Description                                               |
-| :---------------------------- | :------------ | :-------------------------------------------------------- |
-| **Max content length**        | 100,000 chars | Maximum characters in memory content                      |
-| **Max query length**          | 1,000 chars   | Maximum characters in search query                        |
-| **Max search results**        | 100           | Maximum results returned from `search_memories`           |
-| **Default search limit**      | 10            | Default `limit` for `search_memories`                     |
-| **Max search offset**         | 1,000         | Maximum `offset` for `search_memories`                    |
-| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory              |
-| **Max tag length**            | 50 chars      | Maximum characters per tag                                |
-| **Max tags in search filter** | 50            | Maximum tags when filtering search results                |
-| **Max related memories**      | 1,000         | Maximum results from `get_related` queries                |
-| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                  |
-| **Importance range**          | 0-10          | Allowed range for `importance`                            |
-| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                          |
-| **Hash length**               | 32 chars      | MD5 hash length                                           |
-| **Search mode**               | Tokenized OR  | Each term is quoted and OR'ed; FTS5 operators are escaped |
+| Constraint                    | Value         | Description                                                                   |
+| :---------------------------- | :------------ | :---------------------------------------------------------------------------- |
+| **Max content length**        | 100,000 chars | Maximum characters in memory content                                          |
+| **Max query length**          | 1,000 chars   | Maximum characters in search query                                            |
+| **Max search terms**          | 50            | Maximum whitespace-separated terms per query                                  |
+| **Max search results**        | 100           | Maximum results returned from `search_memories`                               |
+| **Default search limit**      | 10            | Default `limit` for `search_memories`                                         |
+| **Max search offset**         | 1,000         | Maximum `offset` for `search_memories`                                        |
+| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory                                  |
+| **Max tag length**            | 50 chars      | Maximum characters per tag                                                    |
+| **Max tags in search filter** | 50            | Maximum tags when filtering search results                                    |
+| **Max related memories**      | 1,000         | Maximum results from `get_related` queries                                    |
+| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                                      |
+| **Importance range**          | 0-10          | Allowed range for `importance`                                                |
+| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                                              |
+| **Hash length**               | 32 chars      | MD5 hash length                                                               |
+| **Search mode**               | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 
 ### Notes
 
 - **Content deduplication**: Memories are deduplicated using MD5 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
+- **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
 - **Tag behavior**: Tags are de-duplicated per memory; exceeding tag limits throws an error.
 - **Bidirectional depth**: `get_related` with `direction: "both"` caps traversal depth at 2.
 - **Local storage**: All data is stored locally in `.memdb/memory.db` unless `:memory:` is used.
@@ -329,12 +338,26 @@ Add to your `claude_desktop_config.json`:
 
 ```text
 src/
-|-- index.ts          # Entry point
-|-- core/             # Database and memory service
-|-- tools/            # Tool implementations
+|-- index.ts          # Server entry point (stdio transport)
+|-- core/             # SQLite setup + memory CRUD/search/relations
+|   |-- database.ts   # DB init + schema sync
+|   |-- memory-create.ts
+|   |-- memory-read.ts
+|   |-- memory-search.ts
+|   |-- memory-relations.ts
+|   |-- memory-updates.ts
+|   |-- memory-stats.ts
+|-- tools/            # Tool registration + handlers
+|   |-- definitions/  # Tool metadata + handlers
 |-- schemas/          # Zod input/output schemas
-|-- lib/              # Error helpers
-`-- utils/            # Config and logger
+|   |-- inputs.ts
+|   |-- outputs.ts
+|-- lib/              # Error/response helpers
+|-- types/            # TypeScript types
+`-- utils/            # Config + logger
+
+tests/
+`-- *.test.ts         # Node.js test runner tests
 ```
 
 ## Contributing
