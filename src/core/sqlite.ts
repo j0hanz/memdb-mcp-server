@@ -9,8 +9,6 @@ const MAX_CACHED_STATEMENTS = 200;
 const statementCache = new Map<string, StatementSync>();
 const statementCacheOrder: string[] = [];
 
-type FinalizableStatement = StatementSync & { finalize?: () => void };
-
 const enforceStatementCacheLimit = (): void => {
   if (statementCacheOrder.length <= MAX_CACHED_STATEMENTS) return;
   const oldestSql = statementCacheOrder.shift();
@@ -18,7 +16,44 @@ const enforceStatementCacheLimit = (): void => {
 
   const toEvict = statementCache.get(oldestSql);
   statementCache.delete(oldestSql);
-  (toEvict as FinalizableStatement | undefined)?.finalize?.();
+  void toEvict;
+};
+
+const isDbRow = (value: unknown): value is DbRow => {
+  return typeof value === 'object' && value !== null;
+};
+
+const toDbRowArray = (value: unknown): DbRow[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('Expected rows array');
+  }
+  const rows: DbRow[] = [];
+  for (const row of value) {
+    if (!isDbRow(row)) {
+      throw new Error('Invalid row');
+    }
+    rows.push(row);
+  }
+  return rows;
+};
+
+const toDbRowOrUndefined = (value: unknown): DbRow | undefined => {
+  if (value === undefined) return undefined;
+  if (!isDbRow(value)) {
+    throw new Error('Invalid row');
+  }
+  return value;
+};
+
+const toRunResult = (value: unknown): { changes: number | bigint } => {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Invalid run result');
+  }
+  const changes: unknown = Reflect.get(value, 'changes');
+  if (typeof changes !== 'number' && typeof changes !== 'bigint') {
+    throw new Error('Invalid run result');
+  }
+  return { changes };
 };
 
 export const prepareCached = (sql: string): StatementSync => {
@@ -37,20 +72,17 @@ export const prepareCached = (sql: string): StatementSync => {
 export const executeAll = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow[] => stmt.all(...params) as DbRow[];
+): DbRow[] => toDbRowArray(stmt.all(...params));
 
 export const executeGet = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow | undefined => stmt.get(...params) as DbRow | undefined;
+): DbRow | undefined => toDbRowOrUndefined(stmt.get(...params));
 
 export const executeRun = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): { changes: number | bigint } =>
-  stmt.run(...params) as {
-    changes: number | bigint;
-  };
+): { changes: number | bigint } => toRunResult(stmt.run(...params));
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
   db.exec('BEGIN IMMEDIATE');

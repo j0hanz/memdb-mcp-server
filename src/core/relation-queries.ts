@@ -1,6 +1,6 @@
 import type { RelatedMemory } from '../types/index.js';
-import { executeAll, prepareCached, type SqlParam } from './db-helpers.js';
 import { type DbRow, mapRowToRelatedMemory } from './row-mappers.js';
+import { executeAll, prepareCached, type SqlParam } from './sqlite.js';
 
 type Direction = 'outgoing' | 'incoming';
 

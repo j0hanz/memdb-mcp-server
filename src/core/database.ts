@@ -10,12 +10,16 @@ const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   await mkdir(path.dirname(dbPath), { recursive: true });
 };
 
+const isEnableDefensive = (
+  value: unknown
+): value is (active: boolean) => void => {
+  return typeof value === 'function';
+};
+
 const enableDefensiveMode = (database: DatabaseSync): void => {
-  (
-    database as DatabaseSync & {
-      enableDefensive?: (active: boolean) => void;
-    }
-  ).enableDefensive?.(true);
+  const enableDefensive: unknown = Reflect.get(database, 'enableDefensive');
+  if (!isEnableDefensive(enableDefensive)) return;
+  enableDefensive(true);
 };
 
 const initializeSchema = (database: DatabaseSync): void => {

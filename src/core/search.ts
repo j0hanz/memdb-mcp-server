@@ -1,6 +1,6 @@
-import { executeAll, prepareCached } from './db-helpers.js';
 import type { DbRow } from './row-mappers.js';
 import { toSearchError } from './search-errors.js';
+import { executeAll, prepareCached } from './sqlite.js';
 
 interface SearchQuery {
   sql: string;

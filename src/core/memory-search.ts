@@ -1,7 +1,7 @@
 import type { SearchResult } from '../types/index.js';
 import { mapRowToSearchResult } from './row-mappers.js';
 import { buildSearchQuery, executeSearch } from './search.js';
-import { normalizeTags } from './tag-helpers.js';
+import { normalizeTags } from './tags.js';
 
 interface SearchMemoriesInput {
   query: string;

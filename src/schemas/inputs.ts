@@ -104,12 +104,3 @@ export const UpdateMemoryInputSchema = z.strictObject({
 });
 
 export const MemoryStatsInputSchema = z.strictObject({});
-
-// Type inference exports for schema-handler type sync
-export type StoreMemoryInput = z.infer<typeof StoreMemoryInputSchema>;
-export type SearchMemoriesInput = z.infer<typeof SearchMemoriesInputSchema>;
-export type GetMemoryInput = z.infer<typeof GetMemoryInputSchema>;
-export type DeleteMemoryInput = z.infer<typeof DeleteMemoryInputSchema>;
-export type LinkMemoriesInput = z.infer<typeof LinkMemoriesInputSchema>;
-export type GetRelatedInput = z.infer<typeof GetRelatedInputSchema>;
-export type UpdateMemoryInput = z.infer<typeof UpdateMemoryInputSchema>;

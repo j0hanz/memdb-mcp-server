@@ -1,7 +1,6 @@
 import type { RelatedMemory, StatementResult } from '../types/index.js';
 import { db } from './database.js';
-import { executeRun } from './db-helpers.js';
-import { findMemoryIdByHash } from './memory-helpers.js';
+import { findMemoryIdByHash } from './memory-db.js';
 import {
   deduplicateByHash,
   queryBothDirect,
@@ -11,6 +10,7 @@ import {
   queryOutgoingRecursive,
 } from './relation-queries.js';
 import { toSafeInteger } from './row-mappers.js';
+import { executeRun } from './sqlite.js';
 
 type RelationDirection = 'outgoing' | 'incoming' | 'both';
 

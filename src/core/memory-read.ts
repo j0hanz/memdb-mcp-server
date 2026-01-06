@@ -1,7 +1,7 @@
 import type { Memory, StatementResult } from '../types/index.js';
 import { db } from './database.js';
-import { executeGet, executeRun } from './db-helpers.js';
 import { mapRowToMemory, toSafeInteger } from './row-mappers.js';
+import { executeGet, executeRun } from './sqlite.js';
 
 const stmtGetMemoryByHash = db.prepare('SELECT * FROM memories WHERE hash = ?');
 const stmtDeleteMemoryByHash = db.prepare(

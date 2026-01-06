@@ -2,14 +2,14 @@ import type { StatementSync } from 'node:sqlite';
 
 import type { MemoryUpdateResult } from '../types/index.js';
 import { db } from './database.js';
+import { findMemoryIdByHash, insertTags } from './memory-db.js';
 import {
   executeAll,
   executeRun,
   type SqlParam,
   withImmediateTransaction,
-} from './db-helpers.js';
-import { findMemoryIdByHash, insertTags } from './memory-helpers.js';
-import { normalizeTags } from './tag-helpers.js';
+} from './sqlite.js';
+import { normalizeTags } from './tags.js';
 
 const MAX_TAGS = 100;
 const stmtLoadTagsForMemory = db.prepare(

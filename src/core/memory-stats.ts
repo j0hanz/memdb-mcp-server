@@ -1,7 +1,7 @@
 import type { MemoryStats } from '../types/index.js';
 import { db } from './database.js';
-import { executeAll, executeGet } from './db-helpers.js';
 import { type DbRow, toSafeInteger } from './row-mappers.js';
+import { executeAll, executeGet } from './sqlite.js';
 
 const stmtMemoryCount = db.prepare('SELECT COUNT(*) as count FROM memories');
 const stmtRelationshipCount = db.prepare(

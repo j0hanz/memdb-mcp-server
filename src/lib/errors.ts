@@ -25,14 +25,14 @@ export function createErrorResponse(
   message: string,
   result?: unknown
 ): ErrorResponse {
-  const structured = {
-    ok: false as const,
+  const structured: ErrorResponse['structuredContent'] = {
+    ok: false,
     error: { code, message },
-    ...(result !== undefined && { result }),
+    ...(result !== undefined ? { result } : {}),
   };
   return {
     content: [{ type: 'text', text: JSON.stringify(structured) }],
     structuredContent: structured,
-    isError: true as const,
+    isError: true,
   };
 }

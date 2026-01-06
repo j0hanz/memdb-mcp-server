@@ -9,7 +9,7 @@ import {
   UpdateMemoryInputSchema,
 } from '../../schemas/inputs.js';
 import { DefaultOutputSchema } from '../../schemas/outputs.js';
-import { ok, wrapHandler } from '../tool-helpers.js';
+import { ok, wrapHandler } from '../tool-handlers.js';
 import type { ToolDef } from '../tool-types.js';
 
 export const coreTools: ToolDef[] = [

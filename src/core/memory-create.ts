@@ -2,10 +2,10 @@ import crypto from 'node:crypto';
 
 import type { MemoryInsertResult } from '../types/index.js';
 import { db } from './database.js';
-import { executeGet, withImmediateTransaction } from './db-helpers.js';
-import { findMemoryIdByHash, insertTags } from './memory-helpers.js';
+import { findMemoryIdByHash, insertTags } from './memory-db.js';
 import { toSafeInteger } from './row-mappers.js';
-import { normalizeTags } from './tag-helpers.js';
+import { executeGet, withImmediateTransaction } from './sqlite.js';
+import { normalizeTags } from './tags.js';
 
 const buildHash = (content: string): string =>
   crypto.createHash('md5').update(content).digest('hex');

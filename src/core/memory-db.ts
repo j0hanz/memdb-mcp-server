@@ -1,8 +1,8 @@
 import type { StatementSync } from 'node:sqlite';
 
 import { db } from './database.js';
-import { executeGet, executeRun, type SqlParam } from './db-helpers.js';
 import { toSafeInteger } from './row-mappers.js';
+import { executeGet, executeRun, type SqlParam } from './sqlite.js';
 
 const stmtFindMemoryIdByHash = db.prepare(
   'SELECT id FROM memories WHERE hash = ?'

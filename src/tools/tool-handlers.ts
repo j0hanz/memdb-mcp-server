@@ -3,7 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
 
 export const ok = (result: unknown): CallToolResult => {
-  const structured = { ok: true as const, result };
+  const structured = { ok: true, result };
   return {
     content: [{ type: 'text', text: JSON.stringify(structured) }],
     structuredContent: structured,
