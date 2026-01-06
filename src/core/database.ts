@@ -34,7 +34,13 @@ const createDatabase = (dbPath: string): DatabaseSync => {
   return database;
 };
 
-await ensureDbDirectory(config.dbPath);
+try {
+  await ensureDbDirectory(config.dbPath);
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`[ERROR] Failed to create database directory: ${message}`);
+  throw err;
+}
 
 export const db = createDatabase(config.dbPath);
 

@@ -28,7 +28,7 @@ const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
-    capabilities: { logging: {} },
+    capabilities: { logging: {}, tools: {} },
   }
 );
 

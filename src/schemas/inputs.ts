@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-const hashSchema = z.string().min(32).max(32);
+const hashSchema = z.string().regex(/^[a-f0-9]{32}$/i);
 const tagSchema = z.string().min(1).max(50);
 const tagsSchema = z.array(tagSchema);
 const contentSchema = z.string().min(1).max(100000);
 const querySchema = z.string().trim().min(1).max(1000);
-const importanceSchema = z.number().min(0).max(10);
+const importanceSchema = z.number().int().min(0).max(10);
 const memoryTypeSchema = z.string().min(1).max(50);
 
 export const StoreMemoryInputSchema = z.strictObject({
@@ -103,4 +103,6 @@ export const UpdateMemoryInputSchema = z.strictObject({
     .meta({ description: 'Tags to remove (max 100 tags)' }),
 });
 
-export const MemoryStatsInputSchema = z.strictObject({});
+export const MemoryStatsInputSchema = z
+  .strictObject({})
+  .meta({ description: 'No parameters required' });
