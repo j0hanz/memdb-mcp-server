@@ -5,7 +5,7 @@ import { createErrorResponse, getErrorMessage } from '../lib/errors.js';
 export const ok = (result: unknown): CallToolResult => {
   const structured = { ok: true as const, result };
   return {
-    content: [{ type: 'text', text: 'ok' }],
+    content: [{ type: 'text', text: JSON.stringify(structured) }],
     structuredContent: structured,
   };
 };

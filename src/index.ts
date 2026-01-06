@@ -11,7 +11,10 @@ import { config } from './utils/config.js';
 import { logger } from './utils/logger.js';
 
 const packageJson = JSON.parse(
-  await readFile(new URL('../package.json', import.meta.url), 'utf-8')
+  await readFile(new URL('../package.json', import.meta.url), {
+    encoding: 'utf-8',
+    signal: AbortSignal.timeout(5000),
+  })
 ) as { version?: string };
 
 const server = new McpServer(
