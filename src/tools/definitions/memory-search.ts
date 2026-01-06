@@ -1,8 +1,5 @@
 import { searchMemories } from '../../core/memory-search.js';
-import {
-  type SearchMemoriesInput,
-  SearchMemoriesInputSchema,
-} from '../../schemas/inputs.js';
+import { SearchMemoriesInputSchema } from '../../schemas/inputs.js';
 import { DefaultOutputSchema } from '../../schemas/outputs.js';
 import { ok, wrapHandler } from '../tool-helpers.js';
 import type { ToolDef } from '../tool-types.js';
@@ -18,7 +15,7 @@ export const searchTools: ToolDef[] = [
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_SEARCH_MEMORIES', (params) => {
-      const input = params as SearchMemoriesInput;
+      const input = SearchMemoriesInputSchema.parse(params);
       const searchInput = {
         query: input.query,
         limit: input.limit ?? 10,

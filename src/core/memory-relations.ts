@@ -14,6 +14,11 @@ import { toSafeInteger } from './row-mappers.js';
 
 type RelationDirection = 'outgoing' | 'incoming' | 'both';
 
+const stmtInsertRelation = db.prepare(
+  'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, ' +
+    'relation_type) VALUES (?, ?, ?)'
+);
+
 const resolveMaxDepth = (
   depth: number,
   direction: RelationDirection
@@ -36,11 +41,7 @@ export const linkMemories = (
     throw new Error('One or both memories not found');
   }
 
-  const insert = db.prepare(
-    'INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, ' +
-      'relation_type) VALUES (?, ?, ?)'
-  );
-  const result = executeRun(insert, fromId, toId, relationType);
+  const result = executeRun(stmtInsertRelation, fromId, toId, relationType);
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
 

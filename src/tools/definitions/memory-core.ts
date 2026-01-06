@@ -3,13 +3,9 @@ import { deleteMemory, getMemory } from '../../core/memory-read.js';
 import { updateMemory } from '../../core/memory-updates.js';
 import { createErrorResponse } from '../../lib/errors.js';
 import {
-  type DeleteMemoryInput,
   DeleteMemoryInputSchema,
-  type GetMemoryInput,
   GetMemoryInputSchema,
-  type StoreMemoryInput,
   StoreMemoryInputSchema,
-  type UpdateMemoryInput,
   UpdateMemoryInputSchema,
 } from '../../schemas/inputs.js';
 import { DefaultOutputSchema } from '../../schemas/outputs.js';
@@ -27,7 +23,7 @@ export const coreTools: ToolDef[] = [
       annotations: { idempotentHint: true },
     },
     handler: wrapHandler('E_STORE_MEMORY', (params) => {
-      const input = params as StoreMemoryInput;
+      const input = StoreMemoryInputSchema.parse(params);
       return ok(
         createMemory({
           content: input.content,
@@ -48,7 +44,7 @@ export const coreTools: ToolDef[] = [
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_GET_MEMORY', (params) => {
-      const input = params as GetMemoryInput;
+      const input = GetMemoryInputSchema.parse(params);
       const result = getMemory(input.hash);
       if (!result) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
@@ -66,7 +62,7 @@ export const coreTools: ToolDef[] = [
       annotations: { destructiveHint: true },
     },
     handler: wrapHandler('E_DELETE_MEMORY', (params) => {
-      const input = params as DeleteMemoryInput;
+      const input = DeleteMemoryInputSchema.parse(params);
       const result = deleteMemory(input.hash);
       if (result.changes === 0) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
@@ -85,7 +81,7 @@ export const coreTools: ToolDef[] = [
       annotations: { idempotentHint: true },
     },
     handler: wrapHandler('E_UPDATE_MEMORY', (params) => {
-      const input = params as UpdateMemoryInput;
+      const input = UpdateMemoryInputSchema.parse(params);
       const { hash, ...options } = input;
       return ok(updateMemory(hash, options));
     }),

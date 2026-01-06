@@ -80,9 +80,10 @@ Precedence: CLI flags > environment variables > defaults.
 
 ## Tool Response Format
 
-All tools return structured JSON in both `content` and `structuredContent`.
+All tools return structured JSON in `structuredContent`. The `content` field
+contains a short human-readable summary to reduce payload size.
 
-Success:
+Success (`structuredContent`):
 
 ```json
 {
@@ -91,7 +92,7 @@ Success:
 }
 ```
 
-Error:
+Error (`structuredContent`):
 
 ```json
 {
@@ -101,6 +102,13 @@ Error:
     "message": "Human-readable message"
   }
 }
+```
+
+Content summary examples:
+
+```text
+ok
+error: E_CODE Human-readable message
 ```
 
 ## Tools

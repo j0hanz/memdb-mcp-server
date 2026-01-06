@@ -2,13 +2,42 @@ import crypto from 'node:crypto';
 
 import type { MemoryInsertResult } from '../types/index.js';
 import { db } from './database.js';
-import { executeRun, withImmediateTransaction } from './db-helpers.js';
+import { executeGet, withImmediateTransaction } from './db-helpers.js';
 import { findMemoryIdByHash, insertTags } from './memory-helpers.js';
 import { toSafeInteger } from './row-mappers.js';
 import { normalizeTags } from './tag-helpers.js';
 
 const buildHash = (content: string): string =>
   crypto.createHash('md5').update(content).digest('hex');
+
+const stmtInsertMemory = db.prepare(
+  'INSERT OR IGNORE INTO memories (content, importance, memory_type, hash) ' +
+    'VALUES (?, ?, ?, ?) RETURNING id'
+);
+
+const resolveMemoryId = (input: {
+  content: string;
+  importance: number;
+  memoryType: string;
+  hash: string;
+}): { id: number; isNew: boolean } => {
+  const inserted = executeGet(
+    stmtInsertMemory,
+    input.content,
+    input.importance,
+    input.memoryType,
+    input.hash
+  );
+  if (inserted) {
+    return { id: toSafeInteger(inserted.id, 'id'), isNew: true };
+  }
+
+  const id = findMemoryIdByHash(input.hash);
+  if (id === undefined) {
+    throw new Error('Failed to resolve memory id');
+  }
+  return { id, isNew: false };
+};
 
 interface CreateMemoryInput {
   content: string;
@@ -27,15 +56,12 @@ export const createMemory = (input: CreateMemoryInput): MemoryInsertResult =>
     } = input;
     const hash = buildHash(content);
     const normalizedTags = normalizeTags(tags, 100);
-    const insert = db.prepare(
-      'INSERT OR IGNORE INTO memories (content, importance, ' +
-        'memory_type, hash) VALUES (?, ?, ?, ?)'
-    );
-    const result = executeRun(insert, content, importance, memoryType, hash);
-    const id = findMemoryIdByHash(hash);
-    if (id === undefined) {
-      throw new Error('Failed to resolve memory id');
-    }
+    const { id, isNew } = resolveMemoryId({
+      content,
+      importance,
+      memoryType,
+      hash,
+    });
     insertTags(id, normalizedTags);
-    return { id, hash, isNew: toSafeInteger(result.changes, 'changes') === 1 };
+    return { id, hash, isNew };
   });

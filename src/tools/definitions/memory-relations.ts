@@ -1,8 +1,6 @@
 import { getRelated, linkMemories } from '../../core/memory-relations.js';
 import {
-  type GetRelatedInput,
   GetRelatedInputSchema,
-  type LinkMemoriesInput,
   LinkMemoriesInputSchema,
 } from '../../schemas/inputs.js';
 import { DefaultOutputSchema } from '../../schemas/outputs.js';
@@ -20,7 +18,7 @@ export const relationTools: ToolDef[] = [
       annotations: { idempotentHint: true },
     },
     handler: wrapHandler('E_LINK_MEMORIES', (params) => {
-      const input = params as LinkMemoriesInput;
+      const input = LinkMemoriesInputSchema.parse(params);
       linkMemories(input.fromHash, input.toHash, input.relationType);
       return ok({ linked: true });
     }),
@@ -35,7 +33,7 @@ export const relationTools: ToolDef[] = [
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_GET_RELATED', (params) => {
-      const input = params as GetRelatedInput;
+      const input = GetRelatedInputSchema.parse(params);
       const relatedInput = {
         hash: input.hash,
         depth: input.depth ?? 1,

@@ -2,6 +2,10 @@ import { db } from './database.js';
 import { executeGet, executeRun, type SqlParam } from './db-helpers.js';
 import { toSafeInteger } from './row-mappers.js';
 
+const stmtFindMemoryIdByHash = db.prepare(
+  'SELECT id FROM memories WHERE hash = ?'
+);
+
 const buildTagInsert = (
   memoryId: number,
   tags: readonly string[]
@@ -12,10 +16,7 @@ const buildTagInsert = (
 };
 
 export const findMemoryIdByHash = (hash: string): number | undefined => {
-  const row = executeGet(
-    db.prepare('SELECT id FROM memories WHERE hash = ?'),
-    hash
-  );
+  const row = executeGet(stmtFindMemoryIdByHash, hash);
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
 };

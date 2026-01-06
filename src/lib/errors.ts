@@ -31,7 +31,7 @@ export function createErrorResponse(
     ...(result !== undefined && { result }),
   };
   return {
-    content: [{ type: 'text', text: JSON.stringify(structured) }],
+    content: [{ type: 'text', text: `error: ${code} ${message}` }],
     structuredContent: structured,
     isError: true as const,
   };

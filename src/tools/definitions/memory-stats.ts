@@ -14,7 +14,8 @@ export const statsTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_MEMORY_STATS', () => {
+    handler: wrapHandler('E_MEMORY_STATS', (params) => {
+      MemoryStatsInputSchema.parse(params);
       return ok(getStats());
     }),
   },

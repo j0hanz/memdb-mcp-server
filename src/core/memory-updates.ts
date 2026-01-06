@@ -10,12 +10,15 @@ import { findMemoryIdByHash, insertTags } from './memory-helpers.js';
 import { normalizeTags } from './tag-helpers.js';
 
 const MAX_TAGS = 100;
+const stmtLoadTagsForMemory = db.prepare(
+  'SELECT tag FROM tags WHERE memory_id = ?'
+);
+const stmtDeleteTagsForMemory = db.prepare(
+  'DELETE FROM tags WHERE memory_id = ?'
+);
 
 const loadTagsForMemory = (memoryId: number): Set<string> => {
-  const rows = executeAll(
-    db.prepare('SELECT tag FROM tags WHERE memory_id = ?'),
-    memoryId
-  );
+  const rows = executeAll(stmtLoadTagsForMemory, memoryId);
   const tags = new Set<string>();
   for (const row of rows) {
     if (typeof row.tag !== 'string') {
@@ -64,7 +67,7 @@ const updateMetadataFields = (
 };
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
-  executeRun(db.prepare('DELETE FROM tags WHERE memory_id = ?'), memoryId);
+  executeRun(stmtDeleteTagsForMemory, memoryId);
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
 
