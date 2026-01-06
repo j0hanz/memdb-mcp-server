@@ -7,16 +7,19 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   type CallToolResult,
+  ErrorCode,
   type InitializeRequest,
   InitializeRequestSchema,
   type InitializeResult,
+  isJSONRPCRequest,
+  type JSONRPCMessage,
+  type JSONRPCRequest,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/database.js';
 import { createErrorResponse } from './lib/errors.js';
 import { registerAllTools } from './tools/index.js';
 import { config } from './utils/config.js';
-import { createInitGuardTransport } from './utils/init-guard.js';
 import { logger } from './utils/logger.js';
 import { assertSupportedProtocolVersion } from './utils/protocol.js';
 
@@ -33,6 +36,74 @@ const server = new McpServer(
 );
 
 let hasInitialized = false;
+
+const sendInitRequiredError = (input: {
+  inner: StdioServerTransport;
+  message: JSONRPCRequest;
+  guarded: Transport;
+}): void => {
+  const { inner, message, guarded } = input;
+  void inner
+    .send({
+      jsonrpc: '2.0',
+      id: message.id,
+      error: {
+        code: ErrorCode.InvalidRequest,
+        message: 'Initialize must be the first request.',
+      },
+    })
+    .catch((error: unknown) => {
+      const err = error instanceof Error ? error : new Error(String(error));
+      guarded.onerror?.(err);
+    });
+};
+
+const handleInitGuardMessage = (input: {
+  message: JSONRPCMessage;
+  isInitialized: () => boolean;
+  inner: StdioServerTransport;
+  guarded: Transport;
+}): void => {
+  const { message, isInitialized, inner, guarded } = input;
+  if (!isInitialized() && isJSONRPCRequest(message)) {
+    if (message.method !== 'initialize') {
+      sendInitRequiredError({ inner, message, guarded });
+      return;
+    }
+  }
+
+  guarded.onmessage?.(message);
+};
+
+const createInitGuardTransport = (input: {
+  inner: StdioServerTransport;
+  isInitialized: () => boolean;
+}): Transport => {
+  const { inner, isInitialized } = input;
+  const guarded: Transport = {
+    onmessage: () => undefined,
+    start: async (): Promise<void> => inner.start(),
+    send: async (message: JSONRPCMessage): Promise<void> => inner.send(message),
+    close: async (): Promise<void> => inner.close(),
+  };
+
+  inner.onmessage = (message: JSONRPCMessage) => {
+    handleInitGuardMessage({
+      message,
+      isInitialized,
+      inner,
+      guarded,
+    });
+  };
+  inner.onerror = (error) => {
+    guarded.onerror?.(error);
+  };
+  inner.onclose = () => {
+    guarded.onclose?.();
+  };
+
+  return guarded;
+};
 
 // HACK: Accessing internal _oninitialize to intercept protocol version validation.
 // This is necessary because the MCP SDK doesn't expose a public hook for this.

@@ -1,9 +1,6 @@
-import {
-  createMemory,
-  deleteMemory,
-  getMemory,
-  updateMemory,
-} from '../../core/memory-service.js';
+import { createMemory } from '../../core/memory-create.js';
+import { deleteMemory, getMemory } from '../../core/memory-read.js';
+import { updateMemory } from '../../core/memory-updates.js';
 import { createErrorResponse } from '../../lib/errors.js';
 import {
   type DeleteMemoryInput,

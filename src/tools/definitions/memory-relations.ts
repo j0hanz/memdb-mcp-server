@@ -1,4 +1,4 @@
-import { getRelated, linkMemories } from '../../core/memory-service.js';
+import { getRelated, linkMemories } from '../../core/memory-relations.js';
 import {
   type GetRelatedInput,
   GetRelatedInputSchema,

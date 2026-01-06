@@ -4,8 +4,9 @@ import { after, describe, it } from 'node:test';
 process.env.MEMDB_PATH = ':memory:';
 
 const { closeDb } = await import('../src/core/database.js');
-const { createMemory, getRelated, linkMemories } =
-  await import('../src/core/memory-service.js');
+const { createMemory } = await import('../src/core/memory-create.js');
+const { getRelated, linkMemories } =
+  await import('../src/core/memory-relations.js');
 
 const describeTest = (title: string, fn: () => void): void => {
   void describe(title, fn);

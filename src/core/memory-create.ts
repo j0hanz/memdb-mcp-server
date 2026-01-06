@@ -10,7 +10,7 @@ import { normalizeTags } from './tag-helpers.js';
 const buildHash = (content: string): string =>
   crypto.createHash('md5').update(content).digest('hex');
 
-export interface CreateMemoryInput {
+interface CreateMemoryInput {
   content: string;
   tags?: readonly string[];
   importance?: number;

@@ -1,4 +1,4 @@
-import { searchMemories } from '../../core/memory-service.js';
+import { searchMemories } from '../../core/memory-search.js';
 import {
   type SearchMemoriesInput,
   SearchMemoriesInputSchema,

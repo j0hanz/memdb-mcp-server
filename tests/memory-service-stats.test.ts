@@ -4,7 +4,7 @@ import { after, describe, it } from 'node:test';
 process.env.MEMDB_PATH = ':memory:';
 
 const { closeDb } = await import('../src/core/database.js');
-const { getStats } = await import('../src/core/memory-service.js');
+const { getStats } = await import('../src/core/memory-stats.js');
 
 const describeTest = (title: string, fn: () => void): void => {
   void describe(title, fn);

@@ -3,7 +3,7 @@ import { mapRowToSearchResult } from './row-mappers.js';
 import { buildSearchQuery, executeSearch } from './search.js';
 import { normalizeTags } from './tag-helpers.js';
 
-export interface SearchMemoriesInput {
+interface SearchMemoriesInput {
   query: string;
   limit?: number;
   tags?: readonly string[];
