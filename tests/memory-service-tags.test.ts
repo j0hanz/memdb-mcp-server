@@ -9,18 +9,6 @@ const { getMemory } = await import('../src/core/memory-read.js');
 const { searchMemories } = await import('../src/core/memory-search.js');
 const { updateMemory } = await import('../src/core/memory-updates.js');
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
-const afterTest = (fn: () => void): void => {
-  after(fn);
-};
-
 interface CreateInput {
   content: string;
   tags?: readonly string[];
@@ -53,12 +41,12 @@ const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
     offset: input.offset,
   });
 
-afterTest(() => {
+after(() => {
   closeDb();
 });
 
-describeTest('MemoryService tags association', () => {
-  itTest('should associate tags with memories', () => {
+void describe('MemoryService tags association', () => {
+  void it('should associate tags with memories', () => {
     const content = 'Tagged content';
     const { hash } = create({ content, tags: ['important', 'work'] });
 
@@ -70,8 +58,8 @@ describeTest('MemoryService tags association', () => {
   });
 });
 
-describeTest('MemoryService tags validation', () => {
-  itTest('should reject invalid tag inputs', () => {
+void describe('MemoryService tags validation', () => {
+  void it('should reject invalid tag inputs', () => {
     assert.throws(
       () =>
         create({
@@ -91,8 +79,8 @@ describeTest('MemoryService tags validation', () => {
   });
 });
 
-describeTest('MemoryService updateMemory metadata', () => {
-  itTest('updates importance and memory type', () => {
+void describe('MemoryService updateMemory metadata', () => {
+  void it('updates importance and memory type', () => {
     const { hash } = create({ content: 'Metadata update target' });
 
     updateMemory(hash, { importance: 7, memoryType: 'note' });
@@ -104,8 +92,8 @@ describeTest('MemoryService updateMemory metadata', () => {
   });
 });
 
-describeTest('MemoryService updateMemory tags', () => {
-  itTest('replaces tags when tags are provided', () => {
+void describe('MemoryService updateMemory tags', () => {
+  void it('replaces tags when tags are provided', () => {
     const { hash } = create({ content: 'Replace tags', tags: ['old'] });
 
     updateMemory(hash, { tags: ['new'] });
@@ -117,7 +105,7 @@ describeTest('MemoryService updateMemory tags', () => {
     assert.strictEqual(first.hash, hash);
   });
 
-  itTest('removes tags when removeTags is provided', () => {
+  void it('removes tags when removeTags is provided', () => {
     const { hash } = create({ content: 'Remove tags', tags: ['gone'] });
 
     updateMemory(hash, { removeTags: ['gone'] });
@@ -127,8 +115,8 @@ describeTest('MemoryService updateMemory tags', () => {
   });
 });
 
-describeTest('MemoryService updateMemory tag limits', () => {
-  itTest('enforces tag cap when adding tags via updateMemory', () => {
+void describe('MemoryService updateMemory tag limits', () => {
+  void it('enforces tag cap when adding tags via updateMemory', () => {
     const tags = Array.from(
       { length: 100 },
       (_, index) => `tag-${String(index)}`
@@ -141,7 +129,7 @@ describeTest('MemoryService updateMemory tag limits', () => {
     );
   });
 
-  itTest('allows add/remove to stay within tag cap', () => {
+  void it('allows add/remove to stay within tag cap', () => {
     const tags = Array.from(
       { length: 100 },
       (_, index) => `cap-${String(index)}`

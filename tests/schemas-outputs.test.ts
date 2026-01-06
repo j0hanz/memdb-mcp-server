@@ -3,14 +3,6 @@ import { describe, it } from 'node:test';
 
 import { DefaultOutputSchema } from '../src/schemas/outputs.js';
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
 const parse = (
   input: unknown
 ): ReturnType<typeof DefaultOutputSchema.safeParse> =>
@@ -24,24 +16,24 @@ const assertFailure = (input: unknown): void => {
   assert.strictEqual(parse(input).success, false);
 };
 
-describeTest('DefaultOutputSchema success responses', () => {
-  itTest('accepts valid success response with result', () => {
+void describe('DefaultOutputSchema success responses', () => {
+  void it('accepts valid success response with result', () => {
     assertSuccess({ ok: true, result: { data: 'test' } });
   });
 
-  itTest('accepts success response with null result', () => {
+  void it('accepts success response with null result', () => {
     assertSuccess({ ok: true, result: null });
   });
 
-  itTest('accepts success response with undefined result', () => {
+  void it('accepts success response with undefined result', () => {
     assertSuccess({ ok: true, result: undefined });
   });
 
-  itTest('accepts success response without explicit result key', () => {
+  void it('accepts success response without explicit result key', () => {
     assertSuccess({ ok: true });
   });
 
-  itTest('rejects success response with error field', () => {
+  void it('rejects success response with error field', () => {
     assertFailure({
       ok: true,
       result: 'data',
@@ -50,15 +42,15 @@ describeTest('DefaultOutputSchema success responses', () => {
   });
 });
 
-describeTest('DefaultOutputSchema error responses', () => {
-  itTest('accepts valid error response', () => {
+void describe('DefaultOutputSchema error responses', () => {
+  void it('accepts valid error response', () => {
     assertSuccess({
       ok: false,
       error: { code: 'E_FAILED', message: 'Something went wrong' },
     });
   });
 
-  itTest('accepts error response with optional result for context', () => {
+  void it('accepts error response with optional result for context', () => {
     assertSuccess({
       ok: false,
       error: { code: 'E_PARTIAL', message: 'Partial failure' },
@@ -66,31 +58,31 @@ describeTest('DefaultOutputSchema error responses', () => {
     });
   });
 
-  itTest('rejects error response without error field', () => {
+  void it('rejects error response without error field', () => {
     assertFailure({ ok: false });
   });
 
-  itTest('rejects error response with missing error code', () => {
+  void it('rejects error response with missing error code', () => {
     assertFailure({ ok: false, error: { message: 'Missing code' } });
   });
 
-  itTest('rejects error response with missing error message', () => {
+  void it('rejects error response with missing error message', () => {
     assertFailure({ ok: false, error: { code: 'E_TEST' } });
   });
 });
 
-describeTest('DefaultOutputSchema invalid ok field', () => {
-  itTest('rejects response with non-boolean ok', () => {
+void describe('DefaultOutputSchema invalid ok field', () => {
+  void it('rejects response with non-boolean ok', () => {
     assertFailure({ ok: 'true', result: 'data' });
   });
 });
 
-describeTest('DefaultOutputSchema invalid extras', () => {
-  itTest('rejects response with unknown extra fields on success', () => {
+void describe('DefaultOutputSchema invalid extras', () => {
+  void it('rejects response with unknown extra fields on success', () => {
     assertFailure({ ok: true, result: 'data', extra: 'field' });
   });
 
-  itTest('rejects response with unknown extra fields on error', () => {
+  void it('rejects response with unknown extra fields on error', () => {
     assertFailure({
       ok: false,
       error: { code: 'E_TEST', message: 'test' },
@@ -99,16 +91,16 @@ describeTest('DefaultOutputSchema invalid extras', () => {
   });
 });
 
-describeTest('DefaultOutputSchema invalid nullish', () => {
-  itTest('rejects null', () => {
+void describe('DefaultOutputSchema invalid nullish', () => {
+  void it('rejects null', () => {
     assertFailure(null);
   });
 
-  itTest('rejects undefined', () => {
+  void it('rejects undefined', () => {
     assertFailure(undefined);
   });
 
-  itTest('rejects empty object', () => {
+  void it('rejects empty object', () => {
     assertFailure({});
   });
 });

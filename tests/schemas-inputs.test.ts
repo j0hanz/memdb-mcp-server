@@ -10,18 +10,10 @@ import {
   StoreMemoryInputSchema,
 } from '../src/schemas/inputs.js';
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
 const repeat = (length: number): string => 'a'.repeat(length);
 
-describeTest('input schema store_memory content length', () => {
-  itTest('validates content length', () => {
+void describe('input schema store_memory content length', () => {
+  void it('validates content length', () => {
     assert.ok(
       StoreMemoryInputSchema.safeParse({ content: repeat(100000) }).success
     );
@@ -31,8 +23,8 @@ describeTest('input schema store_memory content length', () => {
   });
 });
 
-describeTest('input schema store_memory tag limits', () => {
-  itTest('validates tag limits', () => {
+void describe('input schema store_memory tag limits', () => {
+  void it('validates tag limits', () => {
     assert.ok(
       StoreMemoryInputSchema.safeParse({ content: 'ok', tags: ['tag'] }).success
     );
@@ -51,8 +43,8 @@ describeTest('input schema store_memory tag limits', () => {
   });
 });
 
-describeTest('input schema search constraints', () => {
-  itTest('validates search constraints', () => {
+void describe('input schema search constraints', () => {
+  void it('validates search constraints', () => {
     assert.ok(
       SearchMemoriesInputSchema.safeParse({
         query: repeat(1000),
@@ -81,8 +73,8 @@ describeTest('input schema search constraints', () => {
   });
 });
 
-describeTest('input schema hash length constraints', () => {
-  itTest('validates hash length constraints', () => {
+void describe('input schema hash length constraints', () => {
+  void it('validates hash length constraints', () => {
     const hash = repeat(32);
     assert.ok(GetMemoryInputSchema.safeParse({ hash }).success);
     assert.ok(DeleteMemoryInputSchema.safeParse({ hash }).success);
@@ -92,8 +84,8 @@ describeTest('input schema hash length constraints', () => {
   });
 });
 
-describeTest('input schema relationship constraints', () => {
-  itTest('validates relationship constraints', () => {
+void describe('input schema relationship constraints', () => {
+  void it('validates relationship constraints', () => {
     assert.ok(
       LinkMemoriesInputSchema.safeParse({
         fromHash: repeat(32),

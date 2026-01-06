@@ -20,18 +20,6 @@ interface ToolRegistration {
   };
 }
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void | Promise<void>): void => {
-  void it(title, fn);
-};
-
-const afterTest = (fn: () => void): void => {
-  after(fn);
-};
-
 const createServerStub = (): {
   server: McpServer;
   registrations: ToolRegistration[];
@@ -75,8 +63,8 @@ const setupRegistrations = (): ToolRegistration[] => {
   return registrations;
 };
 
-describeTest('tools registration', () => {
-  itTest('registers all tools', () => {
+void describe('tools registration', () => {
+  void it('registers all tools', () => {
     const { server, registrations } = createServerStub();
     registerAllTools(server);
 
@@ -94,8 +82,8 @@ describeTest('tools registration', () => {
   });
 });
 
-describeTest('tools responses store/get/delete', () => {
-  itTest('returns structured content for store/get/delete', async () => {
+void describe('tools responses store/get/delete', () => {
+  void it('returns structured content for store/get/delete', async () => {
     const registrations = setupRegistrations();
 
     const store = getTool(registrations, 'store_memory');
@@ -119,8 +107,8 @@ describeTest('tools responses store/get/delete', () => {
   });
 });
 
-describeTest('tools responses search/update', () => {
-  itTest('supports search and update', async () => {
+void describe('tools responses search/update', () => {
+  void it('supports search and update', async () => {
     const registrations = setupRegistrations();
 
     const store = getTool(registrations, 'store_memory');
@@ -142,8 +130,8 @@ describeTest('tools responses search/update', () => {
   });
 });
 
-describeTest('tools responses relationships/stats', () => {
-  itTest('supports linking and related', async () => {
+void describe('tools responses relationships/stats', () => {
+  void it('supports linking and related', async () => {
     const registrations = setupRegistrations();
 
     const store = getTool(registrations, 'store_memory');
@@ -172,7 +160,7 @@ describeTest('tools responses relationships/stats', () => {
     assertOk(relatedResult);
   });
 
-  itTest('returns stats response', async () => {
+  void it('returns stats response', async () => {
     const registrations = setupRegistrations();
 
     const stats = getTool(registrations, 'memory_stats');
@@ -181,6 +169,6 @@ describeTest('tools responses relationships/stats', () => {
   });
 });
 
-afterTest(() => {
+after(() => {
   closeDb();
 });

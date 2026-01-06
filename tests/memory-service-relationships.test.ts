@@ -8,18 +8,6 @@ const { createMemory } = await import('../src/core/memory-create.js');
 const { getRelated, linkMemories } =
   await import('../src/core/memory-relations.js');
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
-const afterTest = (fn: () => void): void => {
-  after(fn);
-};
-
 interface CreateInput {
   content: string;
   tags?: readonly string[];
@@ -50,12 +38,12 @@ const related = (input: RelatedInput): ReturnType<typeof getRelated> =>
     direction: input.direction ?? 'outgoing',
   });
 
-afterTest(() => {
+after(() => {
   closeDb();
 });
 
-describeTest('MemoryService relationships linking', () => {
-  itTest('should link two memories', () => {
+void describe('MemoryService relationships linking', () => {
+  void it('should link two memories', () => {
     const content1 = 'Source memory for relationship';
     const content2 = 'Target memory for relationship';
     const { hash: hash1 } = create({ content: content1 });
@@ -74,7 +62,7 @@ describeTest('MemoryService relationships linking', () => {
     assert.strictEqual(first.relation_type, 'related_to');
   });
 
-  itTest('should throw when linking missing memories', () => {
+  void it('should throw when linking missing memories', () => {
     assert.throws(
       () => linkMemories('missing_hash_a', 'missing_hash_b', 'related_to'),
       /not found/i
@@ -82,8 +70,8 @@ describeTest('MemoryService relationships linking', () => {
   });
 });
 
-describeTest('MemoryService relationships traversal', () => {
-  itTest('should traverse related memories with depth > 1', () => {
+void describe('MemoryService relationships traversal', () => {
+  void it('should traverse related memories with depth > 1', () => {
     const { hash: rootHash } = create({ content: 'Root memory' });
     const { hash: midHash } = create({ content: 'Mid memory' });
     const { hash: leafHash } = create({ content: 'Leaf memory' });
@@ -106,8 +94,8 @@ describeTest('MemoryService relationships traversal', () => {
   });
 });
 
-describeTest('MemoryService relationships incoming', () => {
-  itTest('should find incoming relationships', () => {
+void describe('MemoryService relationships incoming', () => {
+  void it('should find incoming relationships', () => {
     const { hash: sourceHash } = create({ content: 'Incoming source memory' });
     const { hash: targetHash } = create({ content: 'Incoming target memory' });
 
@@ -125,8 +113,8 @@ describeTest('MemoryService relationships incoming', () => {
   });
 });
 
-describeTest('MemoryService relationships bidirectional', () => {
-  itTest('should find bidirectional relationships', () => {
+void describe('MemoryService relationships bidirectional', () => {
+  void it('should find bidirectional relationships', () => {
     const { hash: centerHash } = create({
       content: 'Center memory for bidirectional',
     });
@@ -149,8 +137,8 @@ describeTest('MemoryService relationships bidirectional', () => {
   });
 });
 
-describeTest('MemoryService relationships depth cap', () => {
-  itTest('should cap depth at 2 for bidirectional queries', () => {
+void describe('MemoryService relationships depth cap', () => {
+  void it('should cap depth at 2 for bidirectional queries', () => {
     const { hash: h1 } = create({ content: 'Depth cap test 1' });
     const { hash: h2 } = create({ content: 'Depth cap test 2' });
     const { hash: h3 } = create({ content: 'Depth cap test 3' });
@@ -181,8 +169,8 @@ describeTest('MemoryService relationships depth cap', () => {
   });
 });
 
-describeTest('MemoryService relationships unicode', () => {
-  itTest('should handle unicode in relationship types', () => {
+void describe('MemoryService relationships unicode', () => {
+  void it('should handle unicode in relationship types', () => {
     const { hash: h1 } = create({ content: 'Unicode relation source' });
     const { hash: h2 } = create({ content: 'Unicode relation target' });
 

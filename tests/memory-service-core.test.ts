@@ -8,18 +8,6 @@ const { createMemory } = await import('../src/core/memory-create.js');
 const { deleteMemory, getMemory } = await import('../src/core/memory-read.js');
 const { searchMemories } = await import('../src/core/memory-search.js');
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
-const afterTest = (fn: () => void): void => {
-  after(fn);
-};
-
 interface CreateInput {
   content: string;
   tags?: readonly string[];
@@ -52,12 +40,12 @@ const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
     offset: input.offset,
   });
 
-afterTest(() => {
+after(() => {
   closeDb();
 });
 
-describeTest('MemoryService createMemory', () => {
-  itTest('should create a memory with valid hash', () => {
+void describe('MemoryService createMemory', () => {
+  void it('should create a memory with valid hash', () => {
     const content = 'Test memory content';
     const result = create({
       content,
@@ -75,7 +63,7 @@ describeTest('MemoryService createMemory', () => {
     assert.strictEqual(result.isNew, true, 'Should be new memory');
   });
 
-  itTest('should generate consistent hash for same content', () => {
+  void it('should generate consistent hash for same content', () => {
     const content = 'Reproducible content';
     const result1 = create({ content });
     const result2 = create({ content });
@@ -89,8 +77,8 @@ describeTest('MemoryService createMemory', () => {
   });
 });
 
-describeTest('MemoryService getMemory', () => {
-  itTest('should retrieve memory by hash', () => {
+void describe('MemoryService getMemory', () => {
+  void it('should retrieve memory by hash', () => {
     const content = 'Retrievable content';
     const { hash } = create({ content, importance: 3, memoryType: 'note' });
 
@@ -101,7 +89,7 @@ describeTest('MemoryService getMemory', () => {
     assert.strictEqual(memory.hash, hash);
   });
 
-  itTest('should return undefined for non-existent hash', () => {
+  void it('should return undefined for non-existent hash', () => {
     const memory = getMemory('nonexistent_hash_value');
 
     assert.strictEqual(
@@ -112,8 +100,8 @@ describeTest('MemoryService getMemory', () => {
   });
 });
 
-describeTest('MemoryService searchMemories (FTS5)', () => {
-  itTest('should find memories matching search query', () => {
+void describe('MemoryService searchMemories (FTS5)', () => {
+  void it('should find memories matching search query', () => {
     const content = 'TypeScript programming language guide';
     create({ content, importance: 5, memoryType: 'guide' });
 
@@ -128,7 +116,7 @@ describeTest('MemoryService searchMemories (FTS5)', () => {
     );
   });
 
-  itTest('should filter by tags', () => {
+  void it('should filter by tags', () => {
     create({ content: 'Tagged memory 1', tags: ['tag1'] });
     create({ content: 'Tagged memory 2', tags: ['tag2'] });
 
@@ -139,7 +127,7 @@ describeTest('MemoryService searchMemories (FTS5)', () => {
     assert.strictEqual(first.content, 'Tagged memory 1');
   });
 
-  itTest('should reject too many search tags', () => {
+  void it('should reject too many search tags', () => {
     assert.throws(
       () =>
         search({
@@ -152,8 +140,8 @@ describeTest('MemoryService searchMemories (FTS5)', () => {
   });
 });
 
-describeTest('MemoryService searchMemories minRelevance', () => {
-  itTest('applies minRelevance filter path', () => {
+void describe('MemoryService searchMemories minRelevance', () => {
+  void it('applies minRelevance filter path', () => {
     create({ content: 'Relevance probe alpha', tags: ['relevance'] });
 
     const results = search({
@@ -166,8 +154,8 @@ describeTest('MemoryService searchMemories minRelevance', () => {
   });
 });
 
-describeTest('MemoryService searchMemories offset', () => {
-  itTest('applies offset for pagination', () => {
+void describe('MemoryService searchMemories offset', () => {
+  void it('applies offset for pagination', () => {
     create({ content: 'Offset sample one', tags: ['offset'] });
     create({ content: 'Offset sample two', tags: ['offset'] });
 
@@ -182,8 +170,8 @@ describeTest('MemoryService searchMemories offset', () => {
   });
 });
 
-describeTest('MemoryService deleteMemory', () => {
-  itTest('should delete memory by hash', () => {
+void describe('MemoryService deleteMemory', () => {
+  void it('should delete memory by hash', () => {
     const content = 'Content to delete';
     const { hash } = create({ content });
 

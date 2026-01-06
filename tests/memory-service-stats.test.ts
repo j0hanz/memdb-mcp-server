@@ -6,24 +6,12 @@ process.env.MEMDB_PATH = ':memory:';
 const { closeDb } = await import('../src/core/database.js');
 const { getStats } = await import('../src/core/memory-stats.js');
 
-const describeTest = (title: string, fn: () => void): void => {
-  void describe(title, fn);
-};
-
-const itTest = (title: string, fn: () => void): void => {
-  void it(title, fn);
-};
-
-const afterTest = (fn: () => void): void => {
-  after(fn);
-};
-
-afterTest(() => {
+after(() => {
   closeDb();
 });
 
-describeTest('MemoryService stats', () => {
-  itTest('should return memory and relationship counts', () => {
+void describe('MemoryService stats', () => {
+  void it('should return memory and relationship counts', () => {
     const stats = getStats();
 
     assert.ok(
