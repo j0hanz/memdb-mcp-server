@@ -10,15 +10,22 @@ import { registerAllTools } from './tools/index.js';
 import { config } from './utils/config.js';
 import { logger } from './utils/logger.js';
 
-const packageJson = JSON.parse(
-  await readFile(new URL('../package.json', import.meta.url), {
+const packageJsonText = await readFile(
+  new URL('../package.json', import.meta.url),
+  {
     encoding: 'utf-8',
     signal: AbortSignal.timeout(5000),
-  })
-) as { version?: string };
+  }
+);
+const packageVersion = (() => {
+  const parsed: unknown = JSON.parse(packageJsonText);
+  if (typeof parsed !== 'object' || parsed === null) return undefined;
+  const version: unknown = Reflect.get(parsed, 'version');
+  return typeof version === 'string' ? version : undefined;
+})();
 
 const server = new McpServer(
-  { name: 'memdb', version: packageJson.version ?? '0.0.0' },
+  { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
     capabilities: { logging: {} },

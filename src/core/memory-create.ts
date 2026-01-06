@@ -39,14 +39,12 @@ const resolveMemoryId = (input: {
   return { id, isNew: false };
 };
 
-interface CreateMemoryInput {
+export const createMemory = (input: {
   content: string;
   tags?: readonly string[];
   importance?: number;
   memoryType?: string;
-}
-
-export const createMemory = (input: CreateMemoryInput): MemoryInsertResult =>
+}): MemoryInsertResult =>
   withImmediateTransaction(() => {
     const {
       content,

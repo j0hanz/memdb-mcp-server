@@ -2,19 +2,6 @@ import type { DbRow } from './row-mappers.js';
 import { toSearchError } from './search-errors.js';
 import { executeAll, prepareCached } from './sqlite.js';
 
-interface SearchQuery {
-  sql: string;
-  params: (number | string)[];
-}
-
-interface SearchQueryInput {
-  query: string;
-  limit: number;
-  tags: readonly string[];
-  minRelevance?: number;
-  offset?: number;
-}
-
 const MAX_QUERY_TOKENS = 50;
 
 const tokenizeQuery = (query: string): string => {
@@ -77,7 +64,7 @@ const appendPagination = (input: {
   params: (number | string)[];
   limit: number;
   offset?: number;
-}): SearchQuery => {
+}): { sql: string; params: (number | string)[] } => {
   const params = [...input.params, input.limit];
   let sql = `${input.sql} ORDER BY relevance DESC LIMIT ?`;
   if (input.offset !== undefined && input.offset > 0) {
@@ -87,7 +74,13 @@ const appendPagination = (input: {
   return { sql, params };
 };
 
-export const buildSearchQuery = (input: SearchQueryInput): SearchQuery => {
+export const buildSearchQuery = (input: {
+  query: string;
+  limit: number;
+  tags: readonly string[];
+  minRelevance?: number;
+  offset?: number;
+}): { sql: string; params: (number | string)[] } => {
   const sanitizedQuery = tokenizeQuery(input.query);
   const tagFilter = buildTagFilter(input.tags);
   const baseSql = buildBaseSql(tagFilter.clause);

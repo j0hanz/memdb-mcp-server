@@ -1,11 +1,5 @@
 import { config, type LogLevel } from './config.js';
 
-interface Logger {
-  info: (msg: string, ...args: unknown[]) => void;
-  error: (msg: string, ...args: unknown[]) => void;
-  warn: (msg: string, ...args: unknown[]) => void;
-}
-
 const levels: Record<LogLevel, number> = {
   error: 0,
   warn: 1,
@@ -15,7 +9,13 @@ const levels: Record<LogLevel, number> = {
 const shouldLog = (level: LogLevel, threshold: number): boolean =>
   levels[level] <= threshold;
 
-const buildLogger = (threshold: number): Logger => {
+const buildLogger = (
+  threshold: number
+): {
+  info: (msg: string, ...args: unknown[]) => void;
+  error: (msg: string, ...args: unknown[]) => void;
+  warn: (msg: string, ...args: unknown[]) => void;
+} => {
   const write =
     (level: LogLevel) =>
     (msg: string, ...args: unknown[]): void => {

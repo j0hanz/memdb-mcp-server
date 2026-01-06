@@ -3,15 +3,13 @@ import { mapRowToSearchResult } from './row-mappers.js';
 import { buildSearchQuery, executeSearch } from './search.js';
 import { normalizeTags } from './tags.js';
 
-interface SearchMemoriesInput {
+export const searchMemories = (input: {
   query: string;
   limit?: number;
   tags?: readonly string[];
   minRelevance?: number;
   offset?: number;
-}
-
-export const searchMemories = (input: SearchMemoriesInput): SearchResult[] => {
+}): SearchResult[] => {
   const { query, limit = 10, tags = [], minRelevance, offset } = input;
   const searchInput = {
     query,
