@@ -58,6 +58,48 @@ const sendInitRequiredError = (input: {
     });
 };
 
+const sendAlreadyInitializedError = (input: {
+  inner: StdioServerTransport;
+  message: JSONRPCRequest;
+  guarded: Transport;
+}): void => {
+  const { inner, message, guarded } = input;
+  void inner
+    .send({
+      jsonrpc: '2.0',
+      id: message.id,
+      error: {
+        code: ErrorCode.InvalidRequest,
+        message: 'Initialize was already completed for this session.',
+      },
+    })
+    .catch((error: unknown) => {
+      const err = error instanceof Error ? error : new Error(String(error));
+      guarded.onerror?.(err);
+    });
+};
+
+type InitGuardAction = 'pass' | 'need-init' | 'already-init';
+
+const INIT_GUARD_ACTIONS: Record<string, InitGuardAction> = {
+  '00': 'need-init',
+  '01': 'pass',
+  '10': 'pass',
+  '11': 'already-init',
+};
+
+const resolveInitGuardAction = (input: {
+  message: JSONRPCMessage;
+  isInitialized: () => boolean;
+}): InitGuardAction => {
+  const { message, isInitialized } = input;
+  if (!isJSONRPCRequest(message)) return 'pass';
+  const key =
+    String(Number(isInitialized())) +
+    String(Number(message.method === 'initialize'));
+  return INIT_GUARD_ACTIONS[key] ?? 'pass';
+};
+
 const handleInitGuardMessage = (input: {
   message: JSONRPCMessage;
   isInitialized: () => boolean;
@@ -65,13 +107,23 @@ const handleInitGuardMessage = (input: {
   guarded: Transport;
 }): void => {
   const { message, isInitialized, inner, guarded } = input;
-  if (!isInitialized() && isJSONRPCRequest(message)) {
-    if (message.method !== 'initialize') {
-      sendInitRequiredError({ inner, message, guarded });
-      return;
-    }
+  const action = resolveInitGuardAction({ message, isInitialized });
+  if (action === 'need-init') {
+    sendInitRequiredError({
+      inner,
+      message: message as JSONRPCRequest,
+      guarded,
+    });
+    return;
   }
-
+  if (action === 'already-init') {
+    sendAlreadyInitializedError({
+      inner,
+      message: message as JSONRPCRequest,
+      guarded,
+    });
+    return;
+  }
   guarded.onmessage?.(message);
 };
 
