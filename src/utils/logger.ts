@@ -12,11 +12,14 @@ const levels: Record<LogLevel, number> = {
   info: 2,
 };
 
+const shouldLog = (level: LogLevel, threshold: number): boolean =>
+  levels[level] <= threshold;
+
 const buildLogger = (threshold: number): Logger => {
   const write =
     (level: LogLevel) =>
     (msg: string, ...args: unknown[]): void => {
-      if (levels[level] > threshold) return;
+      if (!shouldLog(level, threshold)) return;
       console.error(`[${level.toUpperCase()}] ${msg}`, ...args);
     };
 

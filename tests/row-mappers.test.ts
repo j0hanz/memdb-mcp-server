@@ -8,8 +8,16 @@ import {
   toSafeInteger,
 } from '../src/core/row-mappers.js';
 
-describe('row-mappers', () => {
-  it('maps rows with optional fields', () => {
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
+
+const itTest = (title: string, fn: () => void): void => {
+  void it(title, fn);
+};
+
+describeTest('row-mappers mapRowToMemory', () => {
+  itTest('maps rows with optional fields', () => {
     const baseRow = {
       id: 1n,
       content: 'content',
@@ -29,10 +37,12 @@ describe('row-mappers', () => {
       ...baseRow,
       relevance: null,
     });
-    assert.strictEqual(searchResult.relevance, 0); // defaults to 0 when null
+    assert.strictEqual(searchResult.relevance, 0);
   });
+});
 
-  it('maps related rows', () => {
+describeTest('row-mappers mapRowToRelatedMemory', () => {
+  itTest('maps related rows', () => {
     const related = mapRowToRelatedMemory({
       id: 2,
       content: 'related',
@@ -49,8 +59,10 @@ describe('row-mappers', () => {
     assert.strictEqual(related.relation_type, 'rel');
     assert.strictEqual(related.depth, 2);
   });
+});
 
-  it('rejects non-integer numbers', () => {
+describeTest('row-mappers toSafeInteger', () => {
+  itTest('rejects non-integer numbers', () => {
     assert.throws(() => toSafeInteger(1.5, 'id'), /Invalid id/);
   });
 });

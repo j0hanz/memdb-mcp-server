@@ -2,26 +2,29 @@ import type { Memory, RelatedMemory, SearchResult } from '../types/index.js';
 
 export type DbRow = Record<string, unknown>;
 
+const createFieldError = (field: string): Error =>
+  new Error(`Invalid ${field}`);
+
 const toNumber = (value: unknown, field: string): number => {
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'bigint') {
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return numeric;
   }
-  throw new Error(`Invalid ${field}`);
+  throw createFieldError(field);
 };
 
 export const toSafeInteger = (value: unknown, field: string): number => {
   const numeric = toNumber(value, field);
   if (!Number.isSafeInteger(numeric)) {
-    throw new Error(`Invalid ${field}`);
+    throw createFieldError(field);
   }
   return numeric;
 };
 
 const toString = (value: unknown, field: string): string => {
   if (typeof value === 'string') return value;
-  throw new Error(`Invalid ${field}`);
+  throw createFieldError(field);
 };
 
 const toOptionalString = (

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { type RefinementCtx, z } from 'zod';
 
 const ErrorSchema = z.strictObject({
   code: z.string(),
@@ -11,25 +11,29 @@ const DefaultOutputSchemaBase = z.strictObject({
   error: ErrorSchema.optional(),
 });
 
+const addIssue = (
+  ctx: RefinementCtx,
+  path: string[],
+  message: string
+): void => {
+  ctx.addIssue({
+    code: 'custom',
+    message,
+    path,
+  });
+};
+
 export const DefaultOutputSchema = DefaultOutputSchemaBase.superRefine(
   (value, ctx) => {
     if (value.ok) {
       if (value.error !== undefined) {
-        ctx.addIssue({
-          code: 'custom',
-          message: 'error must be absent when ok is true',
-          path: ['error'],
-        });
+        addIssue(ctx, ['error'], 'error must be absent when ok is true');
       }
       return;
     }
 
     if (value.error === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'error is required when ok is false',
-        path: ['error'],
-      });
+      addIssue(ctx, ['error'], 'error is required when ok is false');
     }
   }
 );

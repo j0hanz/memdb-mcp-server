@@ -5,17 +5,26 @@ import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
 
 import { assertSupportedProtocolVersion } from '../src/utils/protocol.js';
 
-describe('protocol', () => {
-  it('accepts supported protocol versions', () => {
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
+
+const itTest = (title: string, fn: () => void): void => {
+  void it(title, fn);
+};
+
+describeTest('protocol', () => {
+  itTest('accepts supported protocol versions', () => {
     const version = SUPPORTED_PROTOCOL_VERSIONS[0];
     assert.ok(version);
-    assert.doesNotThrow(() => assertSupportedProtocolVersion(version));
+    assert.doesNotThrow(() => {
+      assertSupportedProtocolVersion(version);
+    });
   });
 
-  it('rejects unsupported protocol versions', () => {
-    assert.throws(
-      () => assertSupportedProtocolVersion('0.0.0'),
-      /Unsupported protocol version/
-    );
+  itTest('rejects unsupported protocol versions', () => {
+    assert.throws(() => {
+      assertSupportedProtocolVersion('0.0.0');
+    }, /Unsupported protocol version/);
   });
 });

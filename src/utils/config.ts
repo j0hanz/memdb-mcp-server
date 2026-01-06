@@ -10,7 +10,7 @@ const MAX_SHUTDOWN_TIMEOUT = 60000;
 
 export type LogLevel = 'error' | 'info' | 'warn';
 
-const normalizePath = (value?: string): string | undefined => {
+const normalizeValue = (value?: string): string | undefined => {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   return trimmed;
@@ -22,34 +22,42 @@ const validateDbPath = (value: string): void => {
   }
 };
 
-const resolveNormalizedDbPath = (
-  cliDbPath: string | undefined,
-  cliMemory: boolean | undefined,
-  envPath: string | undefined
-): string => {
-  if (cliMemory === true) return ':memory:';
-  return normalizePath(cliDbPath) ?? normalizePath(envPath) ?? DEFAULT_DB_PATH;
+const resolveDbPathCandidate = (input: {
+  cliDbPath?: string;
+  cliMemory?: boolean;
+  envPath?: string;
+}): string => {
+  if (input.cliMemory === true) return ':memory:';
+  return (
+    normalizeValue(input.cliDbPath) ??
+    normalizeValue(input.envPath) ??
+    DEFAULT_DB_PATH
+  );
 };
 
-export const resolveDbPath = (
-  cliDbPath: string | undefined,
-  cliMemory: boolean | undefined,
-  envPath: string | undefined
-): string => {
-  const normalized = resolveNormalizedDbPath(cliDbPath, cliMemory, envPath);
-  if (normalized === ':memory:') return normalized;
-  validateDbPath(normalized);
-  return path.resolve(normalized);
+const ensureDbPath = (value: string): string => {
+  if (value === ':memory:') return value;
+  validateDbPath(value);
+  return path.resolve(value);
+};
+
+export const resolveDbPath = (input: {
+  cliDbPath?: string;
+  cliMemory?: boolean;
+  envPath?: string;
+}): string => {
+  return ensureDbPath(resolveDbPathCandidate(input));
 };
 
 const isLogLevel = (value: string): value is LogLevel =>
   value === 'info' || value === 'warn' || value === 'error';
 
-export const resolveLogLevel = (
-  cliValue: string | undefined,
-  envValue: string | undefined
-): LogLevel => {
-  const candidate = normalizePath(cliValue) ?? normalizePath(envValue);
+export const resolveLogLevel = (input: {
+  cliValue?: string;
+  envValue?: string;
+}): LogLevel => {
+  const candidate =
+    normalizeValue(input.cliValue) ?? normalizeValue(input.envValue);
   if (!candidate) return DEFAULT_LOG_LEVEL;
   if (!isLogLevel(candidate)) {
     throw new Error(
@@ -72,42 +80,59 @@ const validateShutdownTimeout = (parsed: number, raw: string): void => {
   }
 };
 
-export const resolveShutdownTimeout = (
-  cliValue: string | undefined,
-  envValue: string | undefined
-): number => {
-  const raw = normalizePath(cliValue) ?? normalizePath(envValue);
+export const resolveShutdownTimeout = (input: {
+  cliValue?: string;
+  envValue?: string;
+}): number => {
+  const raw = normalizeValue(input.cliValue) ?? normalizeValue(input.envValue);
   if (!raw) return DEFAULT_SHUTDOWN_TIMEOUT;
   const parsed = Number(raw);
   validateShutdownTimeout(parsed, raw);
   return parsed;
 };
 
-const cli = parseArgs({
-  args: process.argv.slice(2),
-  options: {
-    db: { type: 'string' },
-    memory: { type: 'boolean' },
-    'log-level': { type: 'string' },
-    'shutdown-timeout': { type: 'string' },
-  },
-  strict: true,
-  allowPositionals: false,
-  allowNegative: true,
-});
+const parseCliValues = (): {
+  db?: string;
+  memory?: boolean;
+  'log-level'?: string;
+  'shutdown-timeout'?: string;
+} => {
+  return parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      db: { type: 'string' },
+      memory: { type: 'boolean' },
+      'log-level': { type: 'string' },
+      'shutdown-timeout': { type: 'string' },
+    },
+    strict: true,
+    allowPositionals: false,
+    allowNegative: true,
+  }).values;
+};
+
+const cli = parseCliValues();
 
 export const config = {
-  dbPath: resolveDbPath(
-    cli.values.db,
-    cli.values.memory,
-    process.env.MEMDB_PATH
-  ),
-  logLevel: resolveLogLevel(
-    cli.values['log-level'],
-    process.env.MEMDB_LOG_LEVEL
-  ),
-  shutdownTimeout: resolveShutdownTimeout(
-    cli.values['shutdown-timeout'],
-    process.env.MEMDB_SHUTDOWN_TIMEOUT
-  ),
+  dbPath: resolveDbPath({
+    ...(cli.db !== undefined ? { cliDbPath: cli.db } : {}),
+    ...(cli.memory !== undefined ? { cliMemory: cli.memory } : {}),
+    ...(process.env.MEMDB_PATH !== undefined
+      ? { envPath: process.env.MEMDB_PATH }
+      : {}),
+  }),
+  logLevel: resolveLogLevel({
+    ...(cli['log-level'] !== undefined ? { cliValue: cli['log-level'] } : {}),
+    ...(process.env.MEMDB_LOG_LEVEL !== undefined
+      ? { envValue: process.env.MEMDB_LOG_LEVEL }
+      : {}),
+  }),
+  shutdownTimeout: resolveShutdownTimeout({
+    ...(cli['shutdown-timeout'] !== undefined
+      ? { cliValue: cli['shutdown-timeout'] }
+      : {}),
+    ...(process.env.MEMDB_SHUTDOWN_TIMEOUT !== undefined
+      ? { envValue: process.env.MEMDB_SHUTDOWN_TIMEOUT }
+      : {}),
+  }),
 };

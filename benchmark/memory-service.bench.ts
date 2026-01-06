@@ -14,7 +14,12 @@ const hashes: string[] = [];
 for (let i = 0; i < totalMemories; i += 1) {
   const tag = tags[i % tags.length] ?? 'tag-0';
   const content = `memory ${i} alpha beta ${i % 7}`;
-  const result = createMemory(content, [tag], i % 5, 'bench');
+  const result = createMemory({
+    content,
+    tags: [tag],
+    importance: i % 5,
+    memoryType: 'bench',
+  });
   hashes.push(result.hash);
 }
 
@@ -45,7 +50,7 @@ const measure = (label: string, fn: () => void, runs: number) => {
 const searchMetrics = measure(
   'searchMemories',
   () => {
-    searchMemories('alpha', 20, ['tag-1']);
+    searchMemories({ query: 'alpha', limit: 20, tags: ['tag-1'] });
   },
   200
 );
@@ -53,7 +58,7 @@ const searchMetrics = measure(
 const relatedMetrics = measure(
   'getRelated',
   () => {
-    getRelated(hashes[0] ?? '', 'related', 2);
+    getRelated({ hash: hashes[0] ?? '', relationType: 'related', depth: 2 });
   },
   200
 );

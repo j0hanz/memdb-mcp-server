@@ -3,124 +3,112 @@ import { describe, it } from 'node:test';
 
 import { DefaultOutputSchema } from '../src/schemas/outputs.js';
 
-describe('DefaultOutputSchema', () => {
-  describe('success responses', () => {
-    it('accepts valid success response with result', () => {
-      const input = { ok: true, result: { data: 'test' } };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
 
-    it('accepts success response with null result', () => {
-      const input = { ok: true, result: null };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
+const itTest = (title: string, fn: () => void): void => {
+  void it(title, fn);
+};
 
-    it('accepts success response with undefined result', () => {
-      const input = { ok: true, result: undefined };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
+const parse = (
+  input: unknown
+): ReturnType<typeof DefaultOutputSchema.safeParse> =>
+  DefaultOutputSchema.safeParse(input);
 
-    it('accepts success response without explicit result key (z.unknown permits this)', () => {
-      const input = { ok: true };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
+const assertSuccess = (input: unknown): void => {
+  assert.strictEqual(parse(input).success, true);
+};
 
-    it('rejects success response with error field', () => {
-      const input = {
-        ok: true,
-        result: 'data',
-        error: { code: 'E_TEST', message: 'test' },
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
+const assertFailure = (input: unknown): void => {
+  assert.strictEqual(parse(input).success, false);
+};
+
+describeTest('DefaultOutputSchema success responses', () => {
+  itTest('accepts valid success response with result', () => {
+    assertSuccess({ ok: true, result: { data: 'test' } });
+  });
+
+  itTest('accepts success response with null result', () => {
+    assertSuccess({ ok: true, result: null });
+  });
+
+  itTest('accepts success response with undefined result', () => {
+    assertSuccess({ ok: true, result: undefined });
+  });
+
+  itTest('accepts success response without explicit result key', () => {
+    assertSuccess({ ok: true });
+  });
+
+  itTest('rejects success response with error field', () => {
+    assertFailure({
+      ok: true,
+      result: 'data',
+      error: { code: 'E_TEST', message: 'test' },
+    });
+  });
+});
+
+describeTest('DefaultOutputSchema error responses', () => {
+  itTest('accepts valid error response', () => {
+    assertSuccess({
+      ok: false,
+      error: { code: 'E_FAILED', message: 'Something went wrong' },
     });
   });
 
-  describe('error responses', () => {
-    it('accepts valid error response', () => {
-      const input = {
-        ok: false,
-        error: { code: 'E_FAILED', message: 'Something went wrong' },
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
-
-    it('accepts error response with optional result for context', () => {
-      const input = {
-        ok: false,
-        error: { code: 'E_PARTIAL', message: 'Partial failure' },
-        result: { partial: 'data' },
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, true);
-    });
-
-    it('rejects error response without error field', () => {
-      const input = { ok: false };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
-    });
-
-    it('rejects error response with missing error code', () => {
-      const input = {
-        ok: false,
-        error: { message: 'Missing code' },
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
-    });
-
-    it('rejects error response with missing error message', () => {
-      const input = {
-        ok: false,
-        error: { code: 'E_TEST' },
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
+  itTest('accepts error response with optional result for context', () => {
+    assertSuccess({
+      ok: false,
+      error: { code: 'E_PARTIAL', message: 'Partial failure' },
+      result: { partial: 'data' },
     });
   });
 
-  describe('invalid responses', () => {
-    it('rejects response with non-boolean ok', () => {
-      const input = { ok: 'true', result: 'data' };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
-    });
+  itTest('rejects error response without error field', () => {
+    assertFailure({ ok: false });
+  });
 
-    it('rejects response with unknown extra fields on success', () => {
-      const input = { ok: true, result: 'data', extra: 'field' };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
-    });
+  itTest('rejects error response with missing error code', () => {
+    assertFailure({ ok: false, error: { message: 'Missing code' } });
+  });
 
-    it('rejects response with unknown extra fields on error', () => {
-      const input = {
-        ok: false,
-        error: { code: 'E_TEST', message: 'test' },
-        extra: 'field',
-      };
-      const result = DefaultOutputSchema.safeParse(input);
-      assert.strictEqual(result.success, false);
-    });
+  itTest('rejects error response with missing error message', () => {
+    assertFailure({ ok: false, error: { code: 'E_TEST' } });
+  });
+});
 
-    it('rejects null', () => {
-      const result = DefaultOutputSchema.safeParse(null);
-      assert.strictEqual(result.success, false);
-    });
+describeTest('DefaultOutputSchema invalid ok field', () => {
+  itTest('rejects response with non-boolean ok', () => {
+    assertFailure({ ok: 'true', result: 'data' });
+  });
+});
 
-    it('rejects undefined', () => {
-      const result = DefaultOutputSchema.safeParse(undefined);
-      assert.strictEqual(result.success, false);
-    });
+describeTest('DefaultOutputSchema invalid extras', () => {
+  itTest('rejects response with unknown extra fields on success', () => {
+    assertFailure({ ok: true, result: 'data', extra: 'field' });
+  });
 
-    it('rejects empty object', () => {
-      const result = DefaultOutputSchema.safeParse({});
-      assert.strictEqual(result.success, false);
+  itTest('rejects response with unknown extra fields on error', () => {
+    assertFailure({
+      ok: false,
+      error: { code: 'E_TEST', message: 'test' },
+      extra: 'field',
     });
+  });
+});
+
+describeTest('DefaultOutputSchema invalid nullish', () => {
+  itTest('rejects null', () => {
+    assertFailure(null);
+  });
+
+  itTest('rejects undefined', () => {
+    assertFailure(undefined);
+  });
+
+  itTest('rejects empty object', () => {
+    assertFailure({});
   });
 });

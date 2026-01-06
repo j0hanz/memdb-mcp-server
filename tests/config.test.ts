@@ -7,98 +7,124 @@ import {
   resolveShutdownTimeout,
 } from '../src/utils/config.js';
 
-describe('config', () => {
-  describe('resolveLogLevel', () => {
-    it('rejects invalid log level', () => {
-      assert.throws(
-        () => resolveLogLevel(undefined, 'debug'),
-        /Invalid log level/i
-      );
-    });
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
 
-    it('accepts default log level when unspecified', () => {
-      assert.strictEqual(resolveLogLevel(undefined, undefined), 'info');
-    });
+const itTest = (title: string, fn: () => void): void => {
+  void it(title, fn);
+};
+
+const resolveLevel = (cliValue?: string, envValue?: string): string =>
+  resolveLogLevel({
+    ...(cliValue !== undefined ? { cliValue } : {}),
+    ...(envValue !== undefined ? { envValue } : {}),
   });
 
-  describe('resolveDbPath', () => {
-    it('rejects database path containing null byte', () => {
-      assert.throws(
-        () => resolveDbPath(undefined, false, 'bad\0path'),
-        /null byte/i
-      );
-    });
-
-    it('allows memory mode regardless of env path', () => {
-      assert.strictEqual(
-        resolveDbPath(undefined, true, 'bad\0path'),
-        ':memory:'
-      );
-    });
+const resolveDb = (
+  cliDbPath?: string,
+  cliMemory?: boolean,
+  envPath?: string
+): string =>
+  resolveDbPath({
+    ...(cliDbPath !== undefined ? { cliDbPath } : {}),
+    ...(cliMemory !== undefined ? { cliMemory } : {}),
+    ...(envPath !== undefined ? { envPath } : {}),
   });
 
-  describe('resolveShutdownTimeout', () => {
-    it('returns default timeout when unspecified', () => {
-      assert.strictEqual(resolveShutdownTimeout(undefined, undefined), 5000);
-    });
+const resolveTimeout = (cliValue?: string, envValue?: string): number =>
+  resolveShutdownTimeout({
+    ...(cliValue !== undefined ? { cliValue } : {}),
+    ...(envValue !== undefined ? { envValue } : {}),
+  });
 
-    it('accepts valid timeout from CLI', () => {
-      assert.strictEqual(resolveShutdownTimeout('10000', undefined), 10000);
-    });
+describeTest('config resolveLogLevel', () => {
+  itTest('rejects invalid log level', () => {
+    assert.throws(() => resolveLevel(undefined, 'debug'), /Invalid log level/i);
+  });
 
-    it('accepts valid timeout from env', () => {
-      assert.strictEqual(resolveShutdownTimeout(undefined, '15000'), 15000);
-    });
+  itTest('accepts default log level when unspecified', () => {
+    assert.strictEqual(resolveLevel(undefined, undefined), 'info');
+  });
+});
 
-    it('CLI takes precedence over env', () => {
-      assert.strictEqual(resolveShutdownTimeout('8000', '12000'), 8000);
-    });
+describeTest('config resolveDbPath', () => {
+  itTest('rejects database path containing null byte', () => {
+    assert.throws(() => resolveDb(undefined, false, 'bad\0path'), /null byte/i);
+  });
 
-    it('accepts minimum timeout (1000ms)', () => {
-      assert.strictEqual(resolveShutdownTimeout('1000', undefined), 1000);
-    });
+  itTest('allows memory mode regardless of env path', () => {
+    assert.strictEqual(resolveDb(undefined, true, 'bad\0path'), ':memory:');
+  });
+});
 
-    it('accepts maximum timeout (60000ms)', () => {
-      assert.strictEqual(resolveShutdownTimeout('60000', undefined), 60000);
-    });
+describeTest('config resolveShutdownTimeout defaults', () => {
+  itTest('returns default timeout when unspecified', () => {
+    assert.strictEqual(resolveTimeout(undefined, undefined), 5000);
+  });
+});
 
-    it('rejects timeout below minimum', () => {
-      assert.throws(
-        () => resolveShutdownTimeout('999', undefined),
-        /between 1000 and 60000/i
-      );
-    });
+describeTest('config resolveShutdownTimeout accepts', () => {
+  itTest('accepts valid timeout from CLI', () => {
+    assert.strictEqual(resolveTimeout('10000', undefined), 10000);
+  });
 
-    it('rejects timeout above maximum', () => {
-      assert.throws(
-        () => resolveShutdownTimeout('60001', undefined),
-        /between 1000 and 60000/i
-      );
-    });
+  itTest('accepts valid timeout from env', () => {
+    assert.strictEqual(resolveTimeout(undefined, '15000'), 15000);
+  });
 
-    it('rejects non-numeric value', () => {
-      assert.throws(
-        () => resolveShutdownTimeout('abc', undefined),
-        /Must be an integer/i
-      );
-    });
+  itTest('CLI takes precedence over env', () => {
+    assert.strictEqual(resolveTimeout('8000', '12000'), 8000);
+  });
 
-    it('rejects floating point value', () => {
-      assert.throws(
-        () => resolveShutdownTimeout('5000.5', undefined),
-        /Must be an integer/i
-      );
-    });
+  itTest('accepts minimum timeout (1000ms)', () => {
+    assert.strictEqual(resolveTimeout('1000', undefined), 1000);
+  });
 
-    it('rejects negative value', () => {
-      assert.throws(
-        () => resolveShutdownTimeout('-1000', undefined),
-        /between 1000 and 60000/i
-      );
-    });
+  itTest('accepts maximum timeout (60000ms)', () => {
+    assert.strictEqual(resolveTimeout('60000', undefined), 60000);
+  });
+});
 
-    it('ignores whitespace-only values', () => {
-      assert.strictEqual(resolveShutdownTimeout('   ', undefined), 5000);
-    });
+describeTest('config resolveShutdownTimeout rejects', () => {
+  itTest('rejects timeout below minimum', () => {
+    assert.throws(
+      () => resolveTimeout('999', undefined),
+      /between 1000 and 60000/i
+    );
+  });
+
+  itTest('rejects timeout above maximum', () => {
+    assert.throws(
+      () => resolveTimeout('60001', undefined),
+      /between 1000 and 60000/i
+    );
+  });
+
+  itTest('rejects non-numeric value', () => {
+    assert.throws(
+      () => resolveTimeout('abc', undefined),
+      /Must be an integer/i
+    );
+  });
+
+  itTest('rejects floating point value', () => {
+    assert.throws(
+      () => resolveTimeout('5000.5', undefined),
+      /Must be an integer/i
+    );
+  });
+
+  itTest('rejects negative value', () => {
+    assert.throws(
+      () => resolveTimeout('-1000', undefined),
+      /between 1000 and 60000/i
+    );
+  });
+});
+
+describeTest('config resolveShutdownTimeout whitespace', () => {
+  itTest('ignores whitespace-only values', () => {
+    assert.strictEqual(resolveTimeout('   ', undefined), 5000);
   });
 });

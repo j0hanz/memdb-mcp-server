@@ -4,13 +4,12 @@ import { after, describe, it } from 'node:test';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
-// Use in-memory DB for tool handlers before module imports
 process.env.MEMDB_PATH = ':memory:';
 
 const { registerAllTools } = await import('../src/tools/index.js');
 const { closeDb } = await import('../src/core/database.js');
 
-type ToolRegistration = {
+interface ToolRegistration {
   name: string;
   handler: (params: unknown) => Promise<CallToolResult>;
   options: {
@@ -19,6 +18,18 @@ type ToolRegistration = {
     inputSchema?: unknown;
     outputSchema?: unknown;
   };
+}
+
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
+
+const itTest = (title: string, fn: () => void | Promise<void>): void => {
+  void it(title, fn);
+};
+
+const afterTest = (fn: () => void): void => {
+  after(fn);
 };
 
 const createServerStub = (): {
@@ -39,8 +50,33 @@ const createServerStub = (): {
   return { server, registrations };
 };
 
-describe('tools', () => {
-  it('registers all tools', () => {
+const getTool = (
+  registrations: ToolRegistration[],
+  name: string
+): ToolRegistration => {
+  const tool = registrations.find((entry) => entry.name === name);
+  assert.ok(tool, `Handler ${name} not registered`);
+  return tool;
+};
+
+const assertOk = (result: CallToolResult): void => {
+  assert.ok(result.structuredContent);
+  assert.strictEqual(result.structuredContent.ok, true);
+};
+
+const getHash = (result: CallToolResult): string => {
+  const structured = result.structuredContent as { result: { hash: string } };
+  return structured.result.hash;
+};
+
+const setupRegistrations = (): ToolRegistration[] => {
+  const { server, registrations } = createServerStub();
+  registerAllTools(server);
+  return registrations;
+};
+
+describeTest('tools registration', () => {
+  itTest('registers all tools', () => {
     const { server, registrations } = createServerStub();
     registerAllTools(server);
 
@@ -56,35 +92,26 @@ describe('tools', () => {
       'update_memory',
     ]);
   });
+});
 
-  it('returns structured content for store/get/delete', async () => {
-    const { server, registrations } = createServerStub();
-    registerAllTools(server);
+describeTest('tools responses store/get/delete', () => {
+  itTest('returns structured content for store/get/delete', async () => {
+    const registrations = setupRegistrations();
 
-    const store = registrations.find((entry) => entry.name === 'store_memory');
-    const getMemory = registrations.find(
-      (entry) => entry.name === 'get_memory'
-    );
-    const deleteMemory = registrations.find(
-      (entry) => entry.name === 'delete_memory'
-    );
-
-    assert.ok(store && getMemory && deleteMemory, 'Handlers not registered');
+    const store = getTool(registrations, 'store_memory');
+    const getMemory = getTool(registrations, 'get_memory');
+    const deleteMemory = getTool(registrations, 'delete_memory');
 
     const stored = await store.handler({ content: 'Tool memory' });
-    assert.ok(stored.structuredContent);
-    assert.strictEqual(stored.structuredContent.ok, true);
+    assertOk(stored);
 
-    const hash = (stored.structuredContent as { result: { hash: string } })
-      .result.hash;
+    const hash = getHash(stored);
 
     const fetched = await getMemory.handler({ hash });
-    assert.ok(fetched.structuredContent);
-    assert.strictEqual(fetched.structuredContent.ok, true);
+    assertOk(fetched);
 
     const deleted = await deleteMemory.handler({ hash });
-    assert.ok(deleted.structuredContent);
-    assert.strictEqual(deleted.structuredContent.ok, true);
+    assertOk(deleted);
 
     const missing = await deleteMemory.handler({ hash });
     assert.strictEqual(missing.isError, true);
@@ -92,6 +119,68 @@ describe('tools', () => {
   });
 });
 
-after(() => {
+describeTest('tools responses search/update', () => {
+  itTest('supports search and update', async () => {
+    const registrations = setupRegistrations();
+
+    const store = getTool(registrations, 'store_memory');
+    const search = getTool(registrations, 'search_memories');
+    const update = getTool(registrations, 'update_memory');
+
+    const stored = await store.handler({
+      content: 'Searchable memory',
+      tags: ['t'],
+    });
+    assertOk(stored);
+    const hash = getHash(stored);
+
+    const searched = await search.handler({ query: 'Searchable', tags: ['t'] });
+    assertOk(searched);
+
+    const updated = await update.handler({ hash, importance: 4 });
+    assertOk(updated);
+  });
+});
+
+describeTest('tools responses relationships/stats', () => {
+  itTest('supports linking and related', async () => {
+    const registrations = setupRegistrations();
+
+    const store = getTool(registrations, 'store_memory');
+    const link = getTool(registrations, 'link_memories');
+    const related = getTool(registrations, 'get_related');
+
+    const storedA = await store.handler({ content: 'Node A' });
+    const storedB = await store.handler({ content: 'Node B' });
+    assertOk(storedA);
+    assertOk(storedB);
+
+    const hashA = getHash(storedA);
+    const hashB = getHash(storedB);
+
+    const linked = await link.handler({
+      fromHash: hashA,
+      toHash: hashB,
+      relationType: 'linked',
+    });
+    assertOk(linked);
+
+    const relatedResult = await related.handler({
+      hash: hashA,
+      relationType: 'linked',
+    });
+    assertOk(relatedResult);
+  });
+
+  itTest('returns stats response', async () => {
+    const registrations = setupRegistrations();
+
+    const stats = getTool(registrations, 'memory_stats');
+    const statsResult = await stats.handler({});
+    assertOk(statsResult);
+  });
+});
+
+afterTest(() => {
   closeDb();
 });

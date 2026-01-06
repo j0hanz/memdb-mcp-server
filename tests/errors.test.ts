@@ -3,15 +3,23 @@ import { describe, it } from 'node:test';
 
 import { createErrorResponse, getErrorMessage } from '../src/lib/errors.js';
 
-describe('errors', () => {
-  it('normalizes error messages', () => {
+const describeTest = (title: string, fn: () => void): void => {
+  void describe(title, fn);
+};
+
+const itTest = (title: string, fn: () => void): void => {
+  void it(title, fn);
+};
+
+describeTest('errors', () => {
+  itTest('normalizes error messages', () => {
     assert.strictEqual(getErrorMessage(new Error('boom')), 'boom');
     assert.strictEqual(getErrorMessage('text'), 'text');
     assert.strictEqual(getErrorMessage(''), 'Unknown error');
     assert.strictEqual(getErrorMessage(42), 'Unknown error');
   });
 
-  it('creates structured error responses', () => {
+  itTest('creates structured error responses', () => {
     const response = createErrorResponse('E_CODE', 'message', { ok: false });
     assert.strictEqual(response.isError, true);
     assert.strictEqual(response.structuredContent.ok, false);

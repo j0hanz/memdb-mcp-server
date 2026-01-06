@@ -10,10 +10,14 @@ type ErrorResponse = CallToolResult & {
   isError: true;
 };
 
+const toNonEmptyString = (value: unknown): string | undefined => {
+  if (typeof value === 'string' && value.length > 0) return value;
+  return undefined;
+};
+
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string' && error.length > 0) return error;
-  return 'Unknown error';
+  return toNonEmptyString(error) ?? 'Unknown error';
 }
 
 export function createErrorResponse(

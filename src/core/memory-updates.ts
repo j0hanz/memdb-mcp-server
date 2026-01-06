@@ -34,13 +34,9 @@ interface UpdateMemoryOptions {
   removeTags?: readonly string[] | undefined;
 }
 
-const updateMetadataFields = (
-  memoryId: number,
+const buildMetadataUpdate = (
   options: UpdateMemoryOptions
-): void => {
-  if (options.importance === undefined && options.memoryType === undefined) {
-    return;
-  }
+): { updates: string[]; params: SqlParam[] } => {
   const updates: string[] = [];
   const params: SqlParam[] = [];
   if (options.importance !== undefined) {
@@ -51,6 +47,15 @@ const updateMetadataFields = (
     updates.push('memory_type = ?');
     params.push(options.memoryType);
   }
+  return { updates, params };
+};
+
+const updateMetadataFields = (
+  memoryId: number,
+  options: UpdateMemoryOptions
+): void => {
+  const { updates, params } = buildMetadataUpdate(options);
+  if (updates.length === 0) return;
   params.push(memoryId);
   executeRun(
     db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE id = ?`),

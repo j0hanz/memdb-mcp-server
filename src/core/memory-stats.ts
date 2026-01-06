@@ -20,23 +20,31 @@ const toDateString = (value: unknown): string | null => {
   return null;
 };
 
+const queryCountRow = (sql: string, label: string): DbRow => {
+  const row = executeGet(db.prepare(sql));
+  if (!row) {
+    throw new Error(`Failed to load ${label} stats`);
+  }
+  return row;
+};
+
 const queryCounts = (): {
   memoryRow: DbRow;
   relationshipRow: DbRow;
   tagRow: DbRow;
 } => {
-  const memoryRow = executeGet(
-    db.prepare('SELECT COUNT(*) as count FROM memories')
+  const memoryRow = queryCountRow(
+    'SELECT COUNT(*) as count FROM memories',
+    'memory'
   );
-  const relationshipRow = executeGet(
-    db.prepare('SELECT COUNT(*) as count FROM relationships')
+  const relationshipRow = queryCountRow(
+    'SELECT COUNT(*) as count FROM relationships',
+    'relationship'
   );
-  const tagRow = executeGet(
-    db.prepare('SELECT COUNT(DISTINCT tag) as count FROM tags')
+  const tagRow = queryCountRow(
+    'SELECT COUNT(DISTINCT tag) as count FROM tags',
+    'tag'
   );
-  if (!memoryRow || !relationshipRow || !tagRow) {
-    throw new Error('Failed to load database stats');
-  }
   return { memoryRow, relationshipRow, tagRow };
 };
 

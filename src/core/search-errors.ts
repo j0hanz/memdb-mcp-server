@@ -10,20 +10,38 @@ const isSearchIndexMissing = (message: string): boolean =>
 const isSearchQueryInvalid = (message: string): boolean =>
   QUERY_INVALID_TOKENS.some((token) => message.includes(token));
 
+const getErrorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+const SEARCH_ERROR_MAP: {
+  matches: (message: string) => boolean;
+  build: (message: string) => Error;
+}[] = [
+  {
+    matches: isSearchIndexMissing,
+    build: () =>
+      new Error(
+        'Search index unavailable. Ensure FTS5 is enabled and the index is ' +
+          'initialized.'
+      ),
+  },
+  {
+    matches: isSearchQueryInvalid,
+    build: (message) =>
+      new Error(
+        'Invalid search query syntax. Check for unbalanced quotes or special ' +
+          'characters. ' +
+          `Details: ${message}`
+      ),
+  },
+];
+
 export const toSearchError = (err: unknown): Error | undefined => {
-  const message = err instanceof Error ? err.message : String(err);
-  if (isSearchIndexMissing(message)) {
-    return new Error(
-      'Search index unavailable. Ensure FTS5 is enabled and the index is ' +
-        'initialized.'
-    );
-  }
-  if (isSearchQueryInvalid(message)) {
-    return new Error(
-      'Invalid search query syntax. Check for unbalanced quotes or special ' +
-        'characters. ' +
-        `Details: ${message}`
-    );
+  const message = getErrorMessage(err);
+  for (const mapping of SEARCH_ERROR_MAP) {
+    if (mapping.matches(message)) {
+      return mapping.build(message);
+    }
   }
   return undefined;
 };
