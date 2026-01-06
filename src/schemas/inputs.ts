@@ -4,7 +4,7 @@ const hashSchema = z.string().min(32).max(32);
 const tagSchema = z.string().min(1).max(50);
 const tagsSchema = z.array(tagSchema);
 const contentSchema = z.string().min(1).max(100000);
-const querySchema = z.string().min(1).max(1000);
+const querySchema = z.string().trim().min(1).max(1000);
 const importanceSchema = z.number().min(0).max(10);
 const memoryTypeSchema = z.string().min(1).max(50);
 
@@ -26,12 +26,14 @@ export const SearchMemoriesInputSchema = z.strictObject({
   query: querySchema.meta({ description: 'Search query' }),
   limit: z
     .number()
+    .int()
     .min(1)
     .max(100)
     .optional()
     .meta({ description: 'Maximum number of results' }),
   offset: z
     .number()
+    .int()
     .min(0)
     .max(1000)
     .optional()
@@ -68,6 +70,7 @@ export const GetRelatedInputSchema = z.strictObject({
     .meta({ description: 'Filter by relationship type' }),
   depth: z
     .number()
+    .int()
     .min(1)
     .max(3)
     .optional()

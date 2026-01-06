@@ -70,6 +70,15 @@ void describe('input schema search constraints', () => {
       !SearchMemoriesInputSchema.safeParse({ query: 'ok', minRelevance: -0.1 })
         .success
     );
+
+    assert.ok(!SearchMemoriesInputSchema.safeParse({ query: '   ' }).success);
+
+    assert.ok(
+      !SearchMemoriesInputSchema.safeParse({ query: 'ok', limit: 1.5 }).success
+    );
+    assert.ok(
+      !SearchMemoriesInputSchema.safeParse({ query: 'ok', offset: 1.5 }).success
+    );
   });
 });
 
@@ -98,6 +107,10 @@ void describe('input schema relationship constraints', () => {
     );
     assert.ok(
       !GetRelatedInputSchema.safeParse({ hash: repeat(32), depth: 4 }).success
+    );
+
+    assert.ok(
+      !GetRelatedInputSchema.safeParse({ hash: repeat(32), depth: 1.5 }).success
     );
   });
 });

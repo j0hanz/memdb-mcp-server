@@ -1,3 +1,5 @@
+import type { StatementSync } from 'node:sqlite';
+
 import type { MemoryUpdateResult } from '../types/index.js';
 import { db } from './database.js';
 import {
@@ -16,6 +18,20 @@ const stmtLoadTagsForMemory = db.prepare(
 const stmtDeleteTagsForMemory = db.prepare(
   'DELETE FROM tags WHERE memory_id = ?'
 );
+
+const deleteTagsStatements: (StatementSync | undefined)[] = [];
+
+const getDeleteTagsStatement = (tagCount: number): StatementSync => {
+  const cached = deleteTagsStatements[tagCount];
+  if (cached) return cached;
+
+  const placeholders = Array.from({ length: tagCount }, () => '?').join(', ');
+  const stmt = db.prepare(
+    `DELETE FROM tags WHERE memory_id = ? AND tag IN (${placeholders})`
+  );
+  deleteTagsStatements[tagCount] = stmt;
+  return stmt;
+};
 
 const loadTagsForMemory = (memoryId: number): Set<string> => {
   const rows = executeAll(stmtLoadTagsForMemory, memoryId);
@@ -125,10 +141,7 @@ const removeTagsFromMemory = (
   tags: readonly string[]
 ): void => {
   if (tags.length === 0) return;
-  const placeholders = tags.map(() => '?').join(', ');
-  const stmt = db.prepare(
-    `DELETE FROM tags WHERE memory_id = ? AND tag IN (${placeholders})`
-  );
+  const stmt = getDeleteTagsStatement(tags.length);
   executeRun(stmt, memoryId, ...tags);
 };
 

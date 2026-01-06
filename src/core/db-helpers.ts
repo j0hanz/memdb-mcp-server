@@ -5,6 +5,35 @@ import type { DbRow } from './row-mappers.js';
 
 export type SqlParam = string | number | bigint | null | Uint8Array;
 
+const MAX_CACHED_STATEMENTS = 200;
+const statementCache = new Map<string, StatementSync>();
+const statementCacheOrder: string[] = [];
+
+type FinalizableStatement = StatementSync & { finalize?: () => void };
+
+const enforceStatementCacheLimit = (): void => {
+  if (statementCacheOrder.length <= MAX_CACHED_STATEMENTS) return;
+  const oldestSql = statementCacheOrder.shift();
+  if (!oldestSql) return;
+
+  const toEvict = statementCache.get(oldestSql);
+  statementCache.delete(oldestSql);
+  (toEvict as FinalizableStatement | undefined)?.finalize?.();
+};
+
+export const prepareCached = (sql: string): StatementSync => {
+  const cached = statementCache.get(sql);
+  if (cached) return cached;
+
+  const stmt = db.prepare(sql);
+  statementCache.set(sql, stmt);
+  statementCacheOrder.push(sql);
+
+  enforceStatementCacheLimit();
+
+  return stmt;
+};
+
 export const executeAll = (
   stmt: StatementSync,
   ...params: SqlParam[]

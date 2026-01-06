@@ -128,6 +128,20 @@ void describe('tools responses search/update', () => {
     const updated = await update.handler({ hash, importance: 4 });
     assertOk(updated);
   });
+
+  void it('rejects overly long search token lists', async () => {
+    const registrations = setupRegistrations();
+    const search = getTool(registrations, 'search_memories');
+
+    const query = Array.from({ length: 51 }, (_, i) => `t${String(i)}`).join(
+      ' '
+    );
+    const result = await search.handler({ query });
+
+    assert.strictEqual(result.isError, true);
+    assert.match(JSON.stringify(result.structuredContent), /E_SEARCH_MEMORIES/);
+    assert.match(JSON.stringify(result.structuredContent), /too many terms/);
+  });
 });
 
 void describe('tools responses relationships/stats', () => {

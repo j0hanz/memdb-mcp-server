@@ -1,6 +1,5 @@
 import type { RelatedMemory } from '../types/index.js';
-import { db } from './database.js';
-import type { SqlParam } from './db-helpers.js';
+import { executeAll, prepareCached, type SqlParam } from './db-helpers.js';
 import { type DbRow, mapRowToRelatedMemory } from './row-mappers.js';
 
 type Direction = 'outgoing' | 'incoming';
@@ -44,7 +43,7 @@ const typeFilter = (
     : { clause: '', params: [] };
 
 const run = (sql: string, params: SqlParam[]): RelatedMemory[] =>
-  (db.prepare(sql).all(...params) as DbRow[]).map((row) =>
+  executeAll(prepareCached(sql), ...params).map((row: DbRow) =>
     mapRowToRelatedMemory(row)
   );
 

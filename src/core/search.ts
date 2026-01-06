@@ -1,5 +1,4 @@
-import { db } from './database.js';
-import { executeAll } from './db-helpers.js';
+import { executeAll, prepareCached } from './db-helpers.js';
 import type { DbRow } from './row-mappers.js';
 import { toSearchError } from './search-errors.js';
 
@@ -16,13 +15,25 @@ interface SearchQueryInput {
   offset?: number;
 }
 
+const MAX_QUERY_TOKENS = 50;
+
 const tokenizeQuery = (query: string): string => {
-  const tokens = query
+  const parts = query
     .trim()
     .split(/\s+/)
-    .filter((w) => w.length > 0)
-    .map((t) => `"${t.replace(/"/g, '""')}"`);
-  return tokens.length > 0 ? tokens.join(' OR ') : '""';
+    .filter((w) => w.length > 0);
+  if (parts.length === 0) return '""';
+  if (parts.length > MAX_QUERY_TOKENS) {
+    throw new Error(
+      'Query has too many terms (max ' + String(MAX_QUERY_TOKENS) + ')'
+    );
+  }
+
+  const tokens: string[] = [];
+  for (const part of parts) {
+    tokens.push(`"${part.replace(/"/g, '""')}"`);
+  }
+  return tokens.join(' OR ');
 };
 
 const buildTagFilter = (
@@ -42,7 +53,7 @@ const buildBaseSql = (whereClause: string): string => {
     WITH ranked AS (
       SELECT m.*, ${relevanceExpr} as relevance
       FROM memories m
-      JOIN memories_fts fts ON m.id = fts.rowid
+      JOIN memories_fts ON m.id = memories_fts.rowid
       WHERE memories_fts MATCH ?${whereClause}
     )
     SELECT * FROM ranked
@@ -101,7 +112,7 @@ export const executeSearch = (
   params: (number | string)[]
 ): DbRow[] => {
   try {
-    const stmt = db.prepare(sql);
+    const stmt = prepareCached(sql);
     return executeAll(stmt, ...params);
   } catch (err) {
     const mappedError = toSearchError(err);

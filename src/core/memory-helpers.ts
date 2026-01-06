@@ -1,3 +1,5 @@
+import type { StatementSync } from 'node:sqlite';
+
 import { db } from './database.js';
 import { executeGet, executeRun, type SqlParam } from './db-helpers.js';
 import { toSafeInteger } from './row-mappers.js';
@@ -9,10 +11,25 @@ const stmtFindMemoryIdByHash = db.prepare(
 const buildTagInsert = (
   memoryId: number,
   tags: readonly string[]
-): { placeholders: string; params: SqlParam[] } => {
-  const placeholders = tags.map(() => '(?, ?)').join(', ');
+): { params: SqlParam[] } => {
   const params: SqlParam[] = tags.flatMap((tag) => [memoryId, tag]);
-  return { placeholders, params };
+  return { params };
+};
+
+const tagInsertStatements: (StatementSync | undefined)[] = [];
+
+const getInsertTagsStatement = (tagCount: number): StatementSync => {
+  const cached = tagInsertStatements[tagCount];
+  if (cached) return cached;
+
+  const placeholders = Array.from({ length: tagCount }, () => '(?, ?)').join(
+    ', '
+  );
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO tags (memory_id, tag) VALUES ${placeholders}`
+  );
+  tagInsertStatements[tagCount] = stmt;
+  return stmt;
 };
 
 export const findMemoryIdByHash = (hash: string): number | undefined => {
@@ -23,9 +40,7 @@ export const findMemoryIdByHash = (hash: string): number | undefined => {
 
 export const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
-  const { placeholders, params } = buildTagInsert(memoryId, tags);
-  const stmt = db.prepare(
-    `INSERT OR IGNORE INTO tags (memory_id, tag) VALUES ${placeholders}`
-  );
+  const { params } = buildTagInsert(memoryId, tags);
+  const stmt = getInsertTagsStatement(tags.length);
   executeRun(stmt, ...params);
 };
