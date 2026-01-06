@@ -314,9 +314,7 @@ Add to your `claude_desktop_config.json`:
 | `npm run format:check`    | Check code formatting                      |
 | `npm run type-check`      | TypeScript type checking                   |
 | `npm run type-check:test` | Type-check tests only                      |
-| `npm run maintainability` | Generate maintainability report            |
 | `npm run duplication`     | Run duplication report (jscpd)             |
-| `npm run bench:memory`    | Run memory-service benchmark               |
 | `npm run inspector`       | Run MCP inspector                          |
 
 ### Project Structure

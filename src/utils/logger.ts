@@ -30,7 +30,4 @@ const buildLogger = (threshold: number): Logger => {
   };
 };
 
-export const createLogger = (logLevel: LogLevel): Logger =>
-  buildLogger(levels[logLevel]);
-
-export const logger = createLogger(config.logLevel);
+export const logger = buildLogger(levels[config.logLevel]);

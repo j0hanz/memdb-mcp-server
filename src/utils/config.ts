@@ -41,7 +41,7 @@ const ensureDbPath = (value: string): string => {
   return path.resolve(value);
 };
 
-export const resolveDbPath = (input: {
+const resolveDbPath = (input: {
   cliDbPath?: string;
   cliMemory?: boolean;
   envPath?: string;
@@ -52,7 +52,7 @@ export const resolveDbPath = (input: {
 const isLogLevel = (value: string): value is LogLevel =>
   value === 'info' || value === 'warn' || value === 'error';
 
-export const resolveLogLevel = (input: {
+const resolveLogLevel = (input: {
   cliValue?: string;
   envValue?: string;
 }): LogLevel => {
@@ -80,7 +80,7 @@ const validateShutdownTimeout = (parsed: number, raw: string): void => {
   }
 };
 
-export const resolveShutdownTimeout = (input: {
+const resolveShutdownTimeout = (input: {
   cliValue?: string;
   envValue?: string;
 }): number => {
