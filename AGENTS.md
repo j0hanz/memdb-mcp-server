@@ -2,43 +2,53 @@
 
 ## Project Overview
 
-- **Name**: `@j0hanz/memdb` - A memory-based MCP server using SQLite in-memory database
-- **Purpose**: Provides AI assistants with persistent memory storage, full-text search (FTS5), and graph-based memory relationships
-- **Primary Stack**: TypeScript (ES2022), Node.js >= 22.0.0, `@modelcontextprotocol/sdk`, Zod
-- **Package Type**: ESM (`"type": "module"`)
-- **Entry Point**: `dist/index.js` (compiled) / `src/index.ts` (source)
+**memdb** is a SQLite-backed MCP (Model Context Protocol) memory server that provides persistent memory storage for AI agents and applications. It supports full-text search, graph-based memory relationships, and local-first data storage.
+
+- **Primary stack**: TypeScript, Node.js (≥22.0.0), MCP SDK, Zod, SQLite (node:sqlite)
+- **Package**: `@j0hanz/memdb` on npm
+- **Repository**: [github.com/j0hanz/memdb-mcp-server](https://github.com/j0hanz/memdb-mcp-server)
 
 ## Repo Map / Structure
 
 ```text
 src/
-|-- index.ts          # Server entry point, stdio transport, shutdown handling
-|-- core/             # Database initialization and memory service logic
-|   |-- database.ts   # SQLite setup, FTS5 tables, migrations
-|   `-- memory-service.ts  # CRUD + search + relationships
-|-- tools/            # MCP tool implementations (store, search, get, delete, link, stats)
-|-- schemas/          # Zod input/output schemas for tool validation
-|   |-- inputs.ts     # Input schemas with constraints
-|   `-- outputs.ts    # Output schemas for structured responses
-|-- lib/              # Utilities
-|   |-- errors.ts     # Standardized error responses
-|   `-- tool_response.ts  # Tool response helpers
-|-- types/            # TypeScript type definitions
-`-- utils/            # Config parsing and logger
-    |-- config.ts     # CLI flags + env vars parsing
-    `-- logger.ts     # Logging utility
+├── index.ts              # Server entry point (stdio transport)
+├── core/                 # SQLite setup + memory CRUD/search/relations
+│   ├── database.ts       # DB init + schema sync
+│   ├── database-schema.ts
+│   ├── memory-create.ts
+│   ├── memory-read.ts
+│   ├── memory-search.ts
+│   ├── memory-relations.ts
+│   ├── memory-updates.ts
+│   ├── memory-stats.ts
+│   ├── search.ts
+│   └── tags.ts
+├── tools/                # MCP tool registration + handlers
+│   ├── index.ts
+│   ├── tool-handlers.ts
+│   ├── tool-types.ts
+│   └── definitions/      # Tool metadata + handlers
+├── schemas/              # Zod input/output schemas
+│   ├── inputs.ts
+│   └── outputs.ts
+├── lib/                  # Error/response helpers
+│   └── errors.ts
+├── types/                # TypeScript types
+│   └── index.ts
+└── utils/                # Config + logger
+    ├── config.ts
+    └── logger.ts
 
-tests/
-`-- memory-service.test.ts  # Node.js native test runner tests
-
-dist/                 # Build output (gitignored)
+tests/                    # Node.js test runner tests (*.test.ts)
+dist/                     # Build output (generated, gitignored)
 ```
 
 ## Setup & Environment
 
 ### Prerequisites
 
-- Node.js **>= 22.0.0** (required for `node:sqlite`)
+- **Node.js ≥22.0.0** (required for `node:sqlite` built-in module)
 
 ### Install Dependencies
 
@@ -48,38 +58,29 @@ npm install
 
 ### Environment Variables
 
-| Variable          | Default            | Description                        |
-| ----------------- | ------------------ | ---------------------------------- |
-| `MEMDB_PATH`      | `.memdb/memory.db` | Database path (`:memory:` for RAM) |
-| `MEMDB_LOG_LEVEL` | `info`             | Log level: `info`, `warn`, `error` |
+| Variable                 | Default                  | Description                              |
+| ------------------------ | ------------------------ | ---------------------------------------- |
+| `MEMDB_PATH`             | `<cwd>/.memdb/memory.db` | Database path (`:memory:` for in-memory) |
+| `MEMDB_LOG_LEVEL`        | `info`                   | `info`, `warn`, or `error`               |
+| `MEMDB_SHUTDOWN_TIMEOUT` | `5000`                   | Shutdown timeout in ms (1000-60000)      |
 
-### CLI Flags (override env vars)
+### CLI Flags
 
 - `--db <path>`: Override database path
 - `--memory`: Use in-memory database (`:memory:`)
-- `--log-level <level>`: Override log level
+- `--log-level <level>`: Log level
+- `--shutdown-timeout <ms>`: Shutdown timeout
 
 **Precedence**: CLI flags > environment variables > defaults
 
 ## Development Workflow
 
-| Command             | Description                                |
-| ------------------- | ------------------------------------------ |
-| `npm run dev`       | Run with `tsx watch` (hot reload)          |
-| `npm run build`     | Compile TypeScript to `dist/`              |
-| `npm run start`     | Run compiled server (`node dist/index.js`) |
-| `npm run inspector` | Launch MCP Inspector for debugging         |
-
-### Typical dev flow
-
-```bash
-npm install
-npm run dev         # Develop with watch mode
-npm run lint        # Check linting
-npm run type-check  # Check types
-npm run test        # Run tests
-npm run build       # Compile before commit
-```
+| Command         | Description                                |
+| --------------- | ------------------------------------------ |
+| `npm run dev`   | Run in development mode with watch (tsx)   |
+| `npm run build` | Compile TypeScript to `dist/`              |
+| `npm run start` | Run compiled server (`node dist/index.js`) |
+| `npm run clean` | Remove `dist/` directory                   |
 
 ## Testing
 
@@ -88,116 +89,135 @@ npm run build       # Compile before commit
 | `npm run test`          | Run all tests           |
 | `npm run test:coverage` | Run tests with coverage |
 
-- **Test Runner**: Node.js native test runner (`node --test`)
-- **Test Location**: `tests/*.test.ts`
-- **Pattern**: `describe`/`it` blocks with `node:assert/strict`
-- **Database**: Tests use `:memory:` database via `MEMDB_PATH` env var
+- **Test location**: `tests/*.test.ts`
+- **Test runner**: Node.js built-in test runner with tsx
+- **Pattern**: Files must end with `.test.ts`
 
 ## Code Style & Conventions
 
-### Language & Compilation
+### Language & Type Safety
 
-- **TypeScript**: `ES2022` target, `NodeNext` module resolution
-- **Strict Mode**: Enabled with `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`
-- **ESM Only**: All imports use `.js` extension for compiled output
+- **TypeScript** with strict mode enabled
+- Target: ES2022, Module: NodeNext
+- Explicit return types required on functions
 
 ### Linting & Formatting
 
-| Command                | Description                        |
-| ---------------------- | ---------------------------------- |
-| `npm run lint`         | Run ESLint                         |
-| `npm run format`       | Format with Prettier               |
-| `npm run format:check` | Check formatting without writing   |
-| `npm run type-check`   | TypeScript type checking (no emit) |
+| Command                   | Description               |
+| ------------------------- | ------------------------- |
+| `npm run lint`            | Run ESLint                |
+| `npm run format`          | Format code with Prettier |
+| `npm run format:check`    | Check code formatting     |
+| `npm run type-check`      | TypeScript type checking  |
+| `npm run type-check:test` | Type-check tests only     |
 
-### ESLint Rules (Key)
+### ESLint Rules (Strict)
 
-- `unused-imports/no-unused-imports`: Error
-- `@typescript-eslint/consistent-type-imports`: Inline type imports
-- `@typescript-eslint/explicit-function-return-type`: Required
-- `@typescript-eslint/no-explicit-any`: Error
-- `@typescript-eslint/no-floating-promises`: Error
-- `@typescript-eslint/only-throw-error`: Error
+- `complexity: max 5`
+- `max-depth: 2`
+- `max-lines: 300` (skip blanks/comments)
+- `max-lines-per-function: 40`
+- `max-params: 3`
+- `sonarjs/cognitive-complexity: 10`
+- No unused imports, no explicit `any`
+- Consistent type imports/exports (inline)
 
-### Conventions
+### Prettier Config
 
-- Use `type` imports for type-only imports: `import { type Foo } from '...'`
-- Explicit return types on all functions
-- Prefer `const` over `let`; no `var`
-- No floating promises (always `await` or `void`)
+- Single quotes, trailing commas (es5)
+- 2-space indent, 80 char width
+- Sorted imports via `@trivago/prettier-plugin-sort-imports`
+
+### Import Order
+
+1. `node:*` built-ins
+2. Node.js core modules
+3. `@modelcontextprotocol/*`
+4. External packages (`zod`, etc.)
+5. Relative imports (`./`, `../`)
+
+### Naming Conventions
+
+- Files: `kebab-case.ts`
+- Types/Interfaces: `PascalCase`
+- Functions/Variables: `camelCase`
+- Constants: `UPPER_SNAKE_CASE`
 
 ## Build / Release
 
 ### Build Output
 
-- **Directory**: `dist/`
-- **Artifacts**: `.js`, `.d.ts`, `.d.ts.map`, `.js.map`
-- **Clean**: `npm run clean` removes `dist/`
+- Output directory: `dist/`
+- Generates `.js`, `.d.ts`, `.js.map`, `.d.ts.map`
+- Entry point: `dist/index.js`
 
 ### Release Process
 
-1. Code is versioned in `package.json`
-2. Create a GitHub Release with tag `vX.Y.Z`
-3. CI (`.github/workflows/publish.yml`) triggers on release:
-   - Runs lint, type-check, tests, coverage
-   - Builds package
-   - Publishes to npm with trusted publishing (OIDC)
+1. Create a GitHub release with tag `v<version>` (e.g., `v1.0.7`)
+2. CI workflow runs: lint → type-check → test → coverage → build → publish
+3. Package published to npm with provenance
 
 ### Pre-publish Checks
 
+The `prepublishOnly` script runs automatically:
+
 ```bash
-npm run prepublishOnly  # lint -> type-check -> build
+npm run lint && npm run type-check && npm run build
 ```
 
 ## Security & Safety
 
-- **Local-only storage**: All data in `.memdb/memory.db` (or `:memory:`), no network requests
-- **No secrets in code**: Database path and log level are the only config; no API keys
-- **Graceful shutdown**: SIGTERM/SIGINT/SIGBREAK handlers close DB and transport
-- **Input validation**: Zod schemas validate all tool inputs with strict constraints
-- **Content limits**: Max 100,000 chars per memory, max 1,000 char queries
+- **Local-first**: All data stored locally in SQLite (`.memdb/memory.db`)
+- **No network calls**: Server operates via stdio transport only
+- **Content deduplication**: Memories are deduplicated by MD5 hash
+- **No secrets in code**: Use environment variables for configuration
 
 ## Pull Request / Commit Guidelines
 
 ### Required Checks Before Commit
 
 ```bash
-npm run lint && npm run type-check && npm run test
-```
-
-Or use the combined task:
-
-```bash
 npm run lint && npm run type-check
 ```
 
-### Commit Format
+### CI Pipeline (on release)
 
-- Use conventional commits when possible (e.g., `feat:`, `fix:`, `docs:`, `chore:`)
-- Keep commits atomic and focused
+1. `npm run lint`
+2. `npm run type-check`
+3. `npm run test`
+4. `npm run test:coverage`
+5. `npm run build`
 
-### CI Checks (on release)
+### Commit Best Practices
 
-- `npm run lint`
-- `npm run type-check`
-- `npm run test`
-- `npm run test:coverage`
-- `npm run build`
+- Run lint + type-check before committing
+- Ensure tests pass locally
+- Keep functions small (<40 lines)
+- Maintain complexity limits
 
 ## Troubleshooting
 
-| Issue                              | Solution                                                |
-| ---------------------------------- | ------------------------------------------------------- |
-| `Cannot find module 'node:sqlite'` | Upgrade to Node.js >= 22.0.0                            |
-| Type errors after pulling changes  | Run `npm install` then `npm run type-check`             |
-| Tests fail with DB errors          | Ensure `MEMDB_PATH=:memory:` is set for test isolation  |
-| ESLint errors on type imports      | Use inline type imports: `import { type X } from '...'` |
-| Server won't start                 | Check `MEMDB_PATH` is writable or use `--memory` flag   |
+### Common Issues
+
+| Issue                          | Cause                     | Fix                                                 |
+| ------------------------------ | ------------------------- | --------------------------------------------------- |
+| `node:sqlite` not found        | Node.js version < 22      | Upgrade to Node.js ≥22.0.0                          |
+| ESLint complexity error        | Function too complex (>5) | Refactor into smaller functions                     |
+| `max-lines-per-function` error | Function >40 lines        | Extract helper functions                            |
+| FTS5 search errors             | Invalid query syntax      | Queries are tokenized; FTS5 operators not supported |
+| Import order lint error        | Wrong import grouping     | Run `npm run format` to auto-fix                    |
+
+### Debugging
+
+- Use `MEMDB_LOG_LEVEL=info` for verbose logging
+- Run MCP inspector: `npm run inspector`
+- Check duplication: `npm run duplication`
 
 ## Agent Operating Rules
 
-1. **Search before edit**: Use `search_memories` before creating duplicates
-2. **Read schemas first**: Check `src/schemas/inputs.ts` for validation constraints
-3. **Test locally**: Run `npm run dev` and use MCP Inspector for debugging
-4. **Respect limits**: See README for content/query/result constraints
-5. **Type-safe changes**: Run `npm run type-check` after any TypeScript changes
+1. **Search before edit**: Use file search to understand existing patterns before making changes
+2. **Run checks**: Always run `npm run lint && npm run type-check` before committing
+3. **Respect complexity limits**: Keep functions under 40 lines, complexity under 5
+4. **Use existing patterns**: Follow import order, naming conventions, and file structure
+5. **Test changes**: Run `npm run test` to verify functionality
+6. **No destructive commands**: Avoid running commands that delete data without confirmation
