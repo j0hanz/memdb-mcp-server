@@ -6,6 +6,15 @@ import { createMemory, updateMemory } from '../core/memory-write.js';
 import { getRelated, linkMemories } from '../core/relations.js';
 import { searchMemories } from '../core/search.js';
 import {
+  GetMemoryInputSchema,
+  GetRelatedInputSchema,
+  LinkMemoriesInputSchema,
+  MemoryStatsInputSchema,
+  SearchMemoriesInputSchema,
+  StoreMemoryInputSchema,
+  UpdateMemoryInputSchema,
+} from '../schemas.js';
+import {
   isWorkerRequest,
   type WorkerAction,
   type WorkerRequest,
@@ -34,27 +43,122 @@ const toErrorMessage = (error: unknown): string => {
   return 'Unknown error';
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const isTwoItemArray = (value: unknown): value is [unknown, unknown] => {
+  return Array.isArray(value) && value.length === 2;
+};
+
+const parseStoreMemoryInput = (params: unknown): CreateMemoryInput => {
+  const parsed = StoreMemoryInputSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+  const { content, tags, importance, memoryType } = parsed.data;
+  const result: CreateMemoryInput = { content };
+  if (tags !== undefined) result.tags = tags;
+  if (importance !== undefined) result.importance = importance;
+  if (memoryType !== undefined) result.memoryType = memoryType;
+  return result;
+};
+
+const parseHashParam = (params: unknown, action: string): string => {
+  const parsed = GetMemoryInputSchema.safeParse({ hash: params });
+  if (!parsed.success) {
+    throw new Error(`${action}: ${parsed.error.message}`);
+  }
+  return parsed.data.hash;
+};
+
+const parseSearchInput = (params: unknown): SearchInput => {
+  const parsed = SearchMemoriesInputSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+  return parsed.data;
+};
+
+const parseUpdateMemoryArgs = (params: unknown): UpdateMemoryArgs => {
+  if (!isTwoItemArray(params)) {
+    throw new Error('update_memory: expected [hash, options]');
+  }
+  const hash = params[0];
+  const options = params[1];
+  if (typeof hash !== 'string') {
+    throw new Error('update_memory: hash must be a string');
+  }
+  if (!isRecord(options)) {
+    throw new Error('update_memory: options must be an object');
+  }
+  const parsed = UpdateMemoryInputSchema.safeParse({ hash, ...options });
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+  const { hash: parsedHash, ...parsedOptions } = parsed.data;
+  return [parsedHash, parsedOptions];
+};
+
+const parseLinkParams = (params: unknown): LinkParams => {
+  const parsed = LinkMemoriesInputSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+  return parsed.data;
+};
+
+const parseGetRelatedInput = (params: unknown): GetRelatedInput => {
+  const parsed = GetRelatedInputSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+  const { hash, relationType, depth, direction } = parsed.data;
+  const result: GetRelatedInput = { hash };
+  if (relationType !== undefined) result.relationType = relationType;
+  if (depth !== undefined) result.depth = depth;
+  if (direction !== undefined) result.direction = direction;
+  return result;
+};
+
+const parseStatsParams = (params: unknown): void => {
+  if (params == null) return;
+  const parsed = MemoryStatsInputSchema.safeParse(params);
+  if (!parsed.success) {
+    throw new Error(parsed.error.message);
+  }
+};
+
 const handlers = new Map<WorkerAction, (params: unknown) => unknown>([
-  ['store_memory', (params) => createMemory(params as CreateMemoryInput)],
-  ['get_memory', (params) => getMemory(params as string)],
-  ['delete_memory', (params) => deleteMemory(params as string)],
+  ['store_memory', (params) => createMemory(parseStoreMemoryInput(params))],
+  ['get_memory', (params) => getMemory(parseHashParam(params, 'get_memory'))],
+  [
+    'delete_memory',
+    (params) => deleteMemory(parseHashParam(params, 'delete_memory')),
+  ],
   [
     'update_memory',
     (params) => {
-      const [hash, options] = params as UpdateMemoryArgs;
+      const [hash, options] = parseUpdateMemoryArgs(params);
       return updateMemory(hash, options);
     },
   ],
-  ['search_memories', (params) => searchMemories(params as SearchInput)],
+  ['search_memories', (params) => searchMemories(parseSearchInput(params))],
   [
     'link_memories',
     (params) => {
-      const input = params as LinkParams;
+      const input = parseLinkParams(params);
       return linkMemories(input.fromHash, input.toHash, input.relationType);
     },
   ],
-  ['get_related', (params) => getRelated(params as GetRelatedInput)],
-  ['memory_stats', () => getStats()],
+  ['get_related', (params) => getRelated(parseGetRelatedInput(params))],
+  [
+    'memory_stats',
+    (params) => {
+      parseStatsParams(params);
+      return getStats();
+    },
+  ],
 ]);
 
 const getHandler = (action: WorkerAction): ((params: unknown) => unknown) => {

@@ -4,10 +4,13 @@ import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
 import { config } from './config.js';
 import { closeDb } from './core/db.js';
 import { logger } from './logger.js';
+import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { registerAllTools } from './tools.js';
 import {
   createDbWorkerClient,
@@ -46,7 +49,7 @@ if (config.dbWorker) {
   registerAllTools(server);
 }
 
-let transport: StdioServerTransport | undefined;
+let transport: Transport | undefined;
 let shuttingDown = false;
 
 async function shutdown(signal: string): Promise<void> {
@@ -74,8 +77,13 @@ async function shutdown(signal: string): Promise<void> {
 
 const main = async (): Promise<void> => {
   try {
-    transport = new StdioServerTransport();
-    await server.connect(transport);
+    const stdioTransport = new StdioServerTransport();
+    const guardedTransport = new ProtocolVersionGuardTransport(
+      stdioTransport,
+      SUPPORTED_PROTOCOL_VERSIONS
+    );
+    transport = guardedTransport;
+    await server.connect(guardedTransport);
     logger.info('Memory MCP Server running on stdio');
   } catch (error) {
     logger.error('Failed to start server', error);

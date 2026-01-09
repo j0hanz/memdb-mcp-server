@@ -8,6 +8,8 @@ import type {
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { z } from 'zod';
+
 import { deleteMemory, getMemory, getStats } from './core/memory-read.js';
 import { createMemory, updateMemory } from './core/memory-write.js';
 import { getRelated, linkMemories } from './core/relations.js';
@@ -41,6 +43,15 @@ type SearchInput = Parameters<typeof searchMemories>[0];
 type GetRelatedInput = Parameters<typeof getRelated>[0];
 
 type ToolSchema = ZodRawShapeCompat | AnySchema;
+
+const coerceInputObject = (value: unknown): Record<string, unknown> => {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+};
+
+const LooseInputSchema = z.preprocess(coerceInputObject, z.looseObject({}));
 
 export interface ToolDependencies {
   createMemory: (input: CreateMemoryInput) => MaybePromise<MemoryInsertResult>;
@@ -111,9 +122,9 @@ const ok = (result: unknown): CallToolResult => {
 
 const wrapHandler = (
   code: string,
-  handler: (params: Record<string, unknown>) => MaybePromise<CallToolResult>
-): ((params: Record<string, unknown>) => Promise<CallToolResult>) => {
-  return async (params) => {
+  handler: (params: unknown) => MaybePromise<CallToolResult>
+): ((params: unknown) => Promise<CallToolResult>) => {
+  return async (params: unknown) => {
     try {
       return await handler(params);
     } catch (err) {
@@ -131,7 +142,7 @@ interface ToolDef {
     outputSchema: ToolSchema;
     annotations?: ToolAnnotations;
   };
-  handler: (params: Record<string, unknown>) => Promise<CallToolResult>;
+  handler: (params: unknown) => Promise<CallToolResult>;
 }
 
 const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
@@ -140,7 +151,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Store Memory',
       description: 'Store a new memory with optional tags',
-      inputSchema: StoreMemoryInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
@@ -160,7 +171,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Get Memory',
       description: 'Retrieve memory by hash',
-      inputSchema: GetMemoryInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
@@ -178,7 +189,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Delete Memory',
       description: 'Delete by hash',
-      inputSchema: DeleteMemoryInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { destructiveHint: true },
     },
@@ -197,7 +208,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
       title: 'Update Memory',
       description:
         'Update memory metadata (importance, type, tags). Content cannot be changed.',
-      inputSchema: UpdateMemoryInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
@@ -216,7 +227,7 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Search Memories',
       description: 'Full-text search with filters',
-      inputSchema: SearchMemoriesInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
@@ -234,7 +245,7 @@ const buildRelationTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Link Memories',
       description: 'Create relationship between memories',
-      inputSchema: LinkMemoriesInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
@@ -249,7 +260,7 @@ const buildRelationTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Get Related Memories',
       description: 'Get memories related to a given memory',
-      inputSchema: GetRelatedInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
@@ -275,7 +286,7 @@ const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Memory Stats',
       description: 'Database statistics and health',
-      inputSchema: MemoryStatsInputSchema,
+      inputSchema: LooseInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },

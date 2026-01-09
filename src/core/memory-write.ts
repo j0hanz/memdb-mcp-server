@@ -192,33 +192,36 @@ interface UpdateMemoryOptions {
   removeTags?: readonly string[] | undefined;
 }
 
-const buildMetadataUpdate = (
-  options: UpdateMemoryOptions
-): { updates: string[]; params: SqlParam[] } => {
-  const updates: string[] = [];
-  const params: SqlParam[] = [];
-  if (options.importance !== undefined) {
-    updates.push('importance = ?');
-    params.push(options.importance);
-  }
-  if (options.memoryType !== undefined) {
-    updates.push('memory_type = ?');
-    params.push(options.memoryType);
-  }
-  return { updates, params };
-};
+const stmtUpdateImportance = db.prepare(
+  'UPDATE memories SET importance = ? WHERE id = ?'
+);
+const stmtUpdateMemoryType = db.prepare(
+  'UPDATE memories SET memory_type = ? WHERE id = ?'
+);
+const stmtUpdateImportanceAndType = db.prepare(
+  'UPDATE memories SET importance = ?, memory_type = ? WHERE id = ?'
+);
 
 const updateMetadataFields = (
   memoryId: number,
   options: UpdateMemoryOptions
 ): void => {
-  const { updates, params } = buildMetadataUpdate(options);
-  if (updates.length === 0) return;
-  params.push(memoryId);
-  executeRun(
-    db.prepare(`UPDATE memories SET ${updates.join(', ')} WHERE id = ?`),
-    ...params
-  );
+  if (options.importance !== undefined && options.memoryType !== undefined) {
+    executeRun(
+      stmtUpdateImportanceAndType,
+      options.importance,
+      options.memoryType,
+      memoryId
+    );
+    return;
+  }
+  if (options.importance !== undefined) {
+    executeRun(stmtUpdateImportance, options.importance, memoryId);
+    return;
+  }
+  if (options.memoryType !== undefined) {
+    executeRun(stmtUpdateMemoryType, options.memoryType, memoryId);
+  }
 };
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {

@@ -15,6 +15,7 @@ import { isWorkerResponse, type WorkerAction } from './protocol.js';
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
+  timeout: ReturnType<typeof setTimeout>;
 }
 
 export interface DbWorkerClient {
@@ -26,6 +27,8 @@ const resolveWorkerUrl = (): URL => {
   const extension = import.meta.url.endsWith('.ts') ? 'ts' : 'js';
   return new URL(`./db-worker.${extension}`, import.meta.url);
 };
+
+const WORKER_REQUEST_TIMEOUT_MS = 30000;
 
 interface ModuleWorkerOptions extends WorkerOptions {
   type: 'module';
@@ -41,6 +44,7 @@ const rejectAll = (
   error: Error
 ): void => {
   for (const entry of pending.values()) {
+    clearTimeout(entry.timeout);
     entry.reject(error);
   }
   pending.clear();
@@ -54,6 +58,7 @@ const onWorkerMessage = (
   const entry = pending.get(value.id);
   if (!entry) return;
   pending.delete(value.id);
+  clearTimeout(entry.timeout);
   if (!value.ok) {
     entry.reject(new Error(value.error ?? 'Worker error'));
     return;
@@ -69,11 +74,16 @@ const createRequest = (
   id: number
 ): Promise<unknown> => {
   return new Promise((resolve, reject) => {
-    pending.set(id, { resolve, reject });
+    const timeout = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error('Worker request timed out'));
+    }, WORKER_REQUEST_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timeout });
     try {
       worker.postMessage({ id, action, params });
     } catch (error) {
       pending.delete(id);
+      clearTimeout(timeout);
       reject(error instanceof Error ? error : new Error(String(error)));
     }
   });
