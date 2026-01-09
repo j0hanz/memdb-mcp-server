@@ -7,6 +7,7 @@ type LogLevel = 'error' | 'info' | 'warn';
 interface CliValues {
   db?: string;
   memory?: boolean;
+  'db-worker'?: boolean;
   'log-level'?: string;
   'shutdown-timeout'?: string;
 }
@@ -23,12 +24,22 @@ const normalizeValue = (value?: string): string | undefined => {
   return trimmed;
 };
 
+const normalizeBoolean = (value?: string): boolean | undefined => {
+  const trimmed = normalizeValue(value);
+  if (!trimmed) return undefined;
+  const normalized = trimmed.toLowerCase();
+  if (normalized === 'true' || normalized === '1') return true;
+  if (normalized === 'false' || normalized === '0') return false;
+  throw new Error(`Invalid boolean value: ${trimmed}`);
+};
+
 const parseCli = (): CliValues =>
   parseArgs({
     args: process.argv.slice(2),
     options: {
       db: { type: 'string' },
       memory: { type: 'boolean' },
+      'db-worker': { type: 'boolean' },
       'log-level': { type: 'string' },
       'shutdown-timeout': { type: 'string' },
     },
@@ -46,6 +57,11 @@ const resolveDbPath = (cli: CliValues, env: NodeJS.ProcessEnv): string => {
     throw new Error('Invalid MEMDB_PATH: null byte detected');
   }
   return path.resolve(raw);
+};
+
+const resolveDbWorker = (cli: CliValues, env: NodeJS.ProcessEnv): boolean => {
+  if (cli['db-worker'] !== undefined) return cli['db-worker'];
+  return normalizeBoolean(env.MEMDB_DB_WORKER) ?? false;
 };
 
 const isLogLevel = (value: string): value is LogLevel =>
@@ -89,6 +105,7 @@ const cli = parseCli();
 
 export const config = {
   dbPath: resolveDbPath(cli, process.env),
+  dbWorker: resolveDbWorker(cli, process.env),
   logLevel: resolveLogLevel(cli, process.env),
   shutdownTimeout: resolveShutdownTimeout(cli, process.env),
 };

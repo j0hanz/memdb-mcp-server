@@ -23,6 +23,50 @@ import {
   StoreMemoryInputSchema,
   UpdateMemoryInputSchema,
 } from './schemas.js';
+import type {
+  Memory,
+  MemoryInsertResult,
+  MemoryStats,
+  MemoryUpdateResult,
+  RelatedMemory,
+  SearchResult,
+  StatementResult,
+} from './types.js';
+
+type MaybePromise<T> = T | Promise<T>;
+
+type CreateMemoryInput = Parameters<typeof createMemory>[0];
+type UpdateMemoryArgs = Parameters<typeof updateMemory>;
+type SearchInput = Parameters<typeof searchMemories>[0];
+type GetRelatedInput = Parameters<typeof getRelated>[0];
+
+type ToolSchema = ZodRawShapeCompat | AnySchema;
+
+export interface ToolDependencies {
+  createMemory: (input: CreateMemoryInput) => MaybePromise<MemoryInsertResult>;
+  updateMemory: (...args: UpdateMemoryArgs) => MaybePromise<MemoryUpdateResult>;
+  getMemory: (hash: string) => MaybePromise<Memory | undefined>;
+  deleteMemory: (hash: string) => MaybePromise<StatementResult>;
+  searchMemories: (input: SearchInput) => MaybePromise<SearchResult[]>;
+  linkMemories: (
+    fromHash: string,
+    toHash: string,
+    relationType: string
+  ) => MaybePromise<StatementResult>;
+  getRelated: (input: GetRelatedInput) => MaybePromise<RelatedMemory[]>;
+  getStats: () => MaybePromise<MemoryStats>;
+}
+
+const defaultDeps: ToolDependencies = {
+  createMemory,
+  updateMemory,
+  getMemory,
+  deleteMemory,
+  searchMemories,
+  linkMemories,
+  getRelated,
+  getStats,
+};
 
 type ErrorResponse = CallToolResult & {
   content: { type: 'text'; text: string }[];
@@ -67,18 +111,16 @@ const ok = (result: unknown): CallToolResult => {
 
 const wrapHandler = (
   code: string,
-  handler: (params: Record<string, unknown>) => CallToolResult
-): ((params: Record<string, unknown>) => CallToolResult) => {
-  return (params) => {
+  handler: (params: Record<string, unknown>) => MaybePromise<CallToolResult>
+): ((params: Record<string, unknown>) => Promise<CallToolResult>) => {
+  return async (params) => {
     try {
-      return handler(params);
+      return await handler(params);
     } catch (err) {
       return createErrorResponse(code, getErrorMessage(err));
     }
   };
 };
-
-type ToolSchema = ZodRawShapeCompat | AnySchema;
 
 interface ToolDef {
   name: string;
@@ -89,10 +131,10 @@ interface ToolDef {
     outputSchema: ToolSchema;
     annotations?: ToolAnnotations;
   };
-  handler: (params: Record<string, unknown>) => CallToolResult;
+  handler: (params: Record<string, unknown>) => Promise<CallToolResult>;
 }
 
-const coreTools: ToolDef[] = [
+const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
   {
     name: 'store_memory',
     options: {
@@ -102,16 +144,15 @@ const coreTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
-    handler: wrapHandler('E_STORE_MEMORY', (params) => {
+    handler: wrapHandler('E_STORE_MEMORY', async (params) => {
       const input = StoreMemoryInputSchema.parse(params);
-      return ok(
-        createMemory({
-          content: input.content,
-          tags: input.tags ?? [],
-          importance: input.importance ?? 0,
-          memoryType: input.memoryType ?? 'general',
-        })
-      );
+      const result = await deps.createMemory({
+        content: input.content,
+        tags: input.tags ?? [],
+        importance: input.importance ?? 0,
+        memoryType: input.memoryType ?? 'general',
+      });
+      return ok(result);
     }),
   },
   {
@@ -123,9 +164,9 @@ const coreTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_GET_MEMORY', (params) => {
+    handler: wrapHandler('E_GET_MEMORY', async (params) => {
       const input = GetMemoryInputSchema.parse(params);
-      const result = getMemory(input.hash);
+      const result = await deps.getMemory(input.hash);
       if (!result) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
       }
@@ -141,9 +182,9 @@ const coreTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { destructiveHint: true },
     },
-    handler: wrapHandler('E_DELETE_MEMORY', (params) => {
+    handler: wrapHandler('E_DELETE_MEMORY', async (params) => {
       const input = DeleteMemoryInputSchema.parse(params);
-      const result = deleteMemory(input.hash);
+      const result = await deps.deleteMemory(input.hash);
       if (result.changes === 0) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
       }
@@ -160,15 +201,16 @@ const coreTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
-    handler: wrapHandler('E_UPDATE_MEMORY', (params) => {
+    handler: wrapHandler('E_UPDATE_MEMORY', async (params) => {
       const input = UpdateMemoryInputSchema.parse(params);
       const { hash, ...options } = input;
-      return ok(updateMemory(hash, options));
+      const result = await deps.updateMemory(hash, options);
+      return ok(result);
     }),
   },
 ];
 
-const searchTools: ToolDef[] = [
+const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
   {
     name: 'search_memories',
     options: {
@@ -178,14 +220,15 @@ const searchTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_SEARCH_MEMORIES', (params) => {
+    handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      return ok(searchMemories(input));
+      const result = await deps.searchMemories(input);
+      return ok(result);
     }),
   },
 ];
 
-const relationTools: ToolDef[] = [
+const buildRelationTools = (deps: ToolDependencies): ToolDef[] => [
   {
     name: 'link_memories',
     options: {
@@ -195,9 +238,9 @@ const relationTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
-    handler: wrapHandler('E_LINK_MEMORIES', (params) => {
+    handler: wrapHandler('E_LINK_MEMORIES', async (params) => {
       const input = LinkMemoriesInputSchema.parse(params);
-      linkMemories(input.fromHash, input.toHash, input.relationType);
+      await deps.linkMemories(input.fromHash, input.toHash, input.relationType);
       return ok({ linked: true });
     }),
   },
@@ -210,7 +253,7 @@ const relationTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_GET_RELATED', (params) => {
+    handler: wrapHandler('E_GET_RELATED', async (params) => {
       const input = GetRelatedInputSchema.parse(params);
       const relatedInput = {
         hash: input.hash,
@@ -220,12 +263,13 @@ const relationTools: ToolDef[] = [
           ? { relationType: input.relationType }
           : {}),
       };
-      return ok(getRelated(relatedInput));
+      const result = await deps.getRelated(relatedInput);
+      return ok(result);
     }),
   },
 ];
 
-const statsTools: ToolDef[] = [
+const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
   {
     name: 'memory_stats',
     options: {
@@ -235,26 +279,27 @@ const statsTools: ToolDef[] = [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_MEMORY_STATS', (params) => {
+    handler: wrapHandler('E_MEMORY_STATS', async (params) => {
       MemoryStatsInputSchema.parse(params);
-      return ok(getStats());
+      const result = await deps.getStats();
+      return ok(result);
     }),
   },
 ];
 
-const tools: ToolDef[] = [
-  ...coreTools,
-  ...searchTools,
-  ...relationTools,
-  ...statsTools,
+const buildTools = (deps: ToolDependencies): ToolDef[] => [
+  ...buildCoreTools(deps),
+  ...buildSearchTools(deps),
+  ...buildRelationTools(deps),
+  ...buildStatsTools(deps),
 ];
 
-export function registerAllTools(server: McpServer): void {
+export function registerAllTools(
+  server: McpServer,
+  deps: ToolDependencies = defaultDeps
+): void {
+  const tools = buildTools(deps);
   for (const tool of tools) {
-    server.registerTool(
-      tool.name,
-      tool.options,
-      (params: Record<string, unknown>) => Promise.resolve(tool.handler(params))
-    );
+    server.registerTool(tool.name, tool.options, tool.handler);
   }
 }

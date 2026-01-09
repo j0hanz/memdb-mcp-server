@@ -96,7 +96,11 @@ const initializeSchema = (database: DatabaseSync): void => {
 };
 
 const createDatabase = (dbPath: string): DatabaseSync => {
-  const database = new DatabaseSync(dbPath, { timeout: 5000 });
+  const database = new DatabaseSync(dbPath, {
+    timeout: 5000,
+    enableForeignKeyConstraints: true,
+    allowExtension: false,
+  });
   enableDefensiveMode(database);
   initializeSchema(database);
   return database;

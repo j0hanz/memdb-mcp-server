@@ -9,6 +9,10 @@ import { config } from './config.js';
 import { closeDb } from './core/db.js';
 import { logger } from './logger.js';
 import { registerAllTools } from './tools.js';
+import {
+  createDbWorkerClient,
+  createWorkerToolDependencies,
+} from './worker/db-worker-client.js';
 
 const readPackageVersion = async (): Promise<string | undefined> => {
   const packageJsonText = await readFile(
@@ -33,7 +37,14 @@ const server = new McpServer(
   }
 );
 
-registerAllTools(server);
+let workerClient: ReturnType<typeof createDbWorkerClient> | undefined;
+if (config.dbWorker) {
+  workerClient = createDbWorkerClient();
+  registerAllTools(server, createWorkerToolDependencies(workerClient));
+  logger.info('Database worker enabled');
+} else {
+  registerAllTools(server);
+}
 
 let transport: StdioServerTransport | undefined;
 let shuttingDown = false;
@@ -49,6 +60,7 @@ async function shutdown(signal: string): Promise<void> {
     process.exit(1);
   }, config.shutdownTimeout);
   try {
+    await workerClient?.close();
     closeDb();
     await transport?.close();
     clearTimeout(forceExitTimer);

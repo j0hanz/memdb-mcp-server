@@ -66,6 +66,7 @@ The path is resolved to an absolute path unless you use `:memory:`.
 ### Environment Variables
 
 - `MEMDB_PATH`: Override the database path (`:memory:` for in-memory).
+- `MEMDB_DB_WORKER`: Run DB operations in a worker thread (default: `false`).
 - `MEMDB_LOG_LEVEL`: `info`, `warn`, or `error` (default: `info`).
 - `MEMDB_SHUTDOWN_TIMEOUT`: Shutdown timeout in ms (1000-60000, default: `5000`).
 
@@ -73,6 +74,7 @@ The path is resolved to an absolute path unless you use `:memory:`.
 
 - `--db <path>`: Override the database path.
 - `--memory`: Use in-memory database (`:memory:`).
+- `--db-worker`: Run DB operations in a worker thread.
 - `--log-level <level>`: `info`, `warn`, or `error`.
 - `--shutdown-timeout <ms>`: Shutdown timeout in ms (1000-60000).
 

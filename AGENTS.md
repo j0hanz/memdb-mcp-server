@@ -61,6 +61,7 @@ npm install
 | Variable                 | Default                  | Description                              |
 | ------------------------ | ------------------------ | ---------------------------------------- |
 | `MEMDB_PATH`             | `<cwd>/.memdb/memory.db` | Database path (`:memory:` for in-memory) |
+| `MEMDB_DB_WORKER`        | `false`                  | Run DB operations in a worker thread     |
 | `MEMDB_LOG_LEVEL`        | `info`                   | `info`, `warn`, or `error`               |
 | `MEMDB_SHUTDOWN_TIMEOUT` | `5000`                   | Shutdown timeout in ms (1000-60000)      |
 
@@ -68,6 +69,7 @@ npm install
 
 - `--db <path>`: Override database path
 - `--memory`: Use in-memory database (`:memory:`)
+- `--db-worker`: Run DB operations in a worker thread
 - `--log-level <level>`: Log level
 - `--shutdown-timeout <ms>`: Shutdown timeout
 
