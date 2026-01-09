@@ -1,6 +1,10 @@
 import type { SearchResult } from '../types.js';
-import { type DbRow, executeAll, prepareCached } from './db.js';
-import { mapRowToSearchResult } from './db.js';
+import {
+  type DbRow,
+  executeAll,
+  mapRowToSearchResult,
+  prepareCached,
+} from './db.js';
 import { normalizeTags } from './memory-write.js';
 
 const MAX_QUERY_TOKENS = 50;
@@ -73,7 +77,7 @@ const appendPagination = (input: {
   return { sql, params };
 };
 
-export const buildSearchQuery = (input: {
+const buildSearchQuery = (input: {
   query: string;
   limit: number;
   tags: readonly string[];
@@ -137,7 +141,7 @@ const SEARCH_ERROR_MAP: {
   },
 ];
 
-export const toSearchError = (err: unknown): Error | undefined => {
+const toSearchError = (err: unknown): Error | undefined => {
   const message = getErrorMessage(err);
   for (const mapping of SEARCH_ERROR_MAP) {
     if (mapping.matches(message)) {
@@ -147,10 +151,7 @@ export const toSearchError = (err: unknown): Error | undefined => {
   return undefined;
 };
 
-export const executeSearch = (
-  sql: string,
-  params: (number | string)[]
-): DbRow[] => {
+const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
   try {
     const stmt = prepareCached(sql);
     return executeAll(stmt, ...params);

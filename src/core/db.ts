@@ -2,8 +2,8 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 
+import { config } from '../config.js';
 import type { Memory, RelatedMemory, SearchResult } from '../types.js';
-import { config } from '../utils.js';
 
 export type DbRow = Record<string, unknown>;
 

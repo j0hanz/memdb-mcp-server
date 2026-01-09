@@ -5,9 +5,10 @@ import process from 'node:process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
+import { config } from './config.js';
 import { closeDb } from './core/db.js';
+import { logger } from './logger.js';
 import { registerAllTools } from './tools.js';
-import { config, logger } from './utils.js';
 
 const readPackageVersion = async (): Promise<string | undefined> => {
   const packageJsonText = await readFile(
@@ -23,50 +24,14 @@ const readPackageVersion = async (): Promise<string | undefined> => {
   return typeof version === 'string' ? version : undefined;
 };
 
-const createServer = (version: string | undefined): McpServer => {
-  return new McpServer(
-    { name: 'memdb', version: version ?? '0.0.0' },
-    {
-      instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
-      capabilities: { logging: {}, tools: {} },
-    }
-  );
-};
-
-const closeTransport = async (
-  transport: StdioServerTransport | undefined
-): Promise<void> => {
-  if (!transport) return;
-  await transport.close();
-};
-
-const runShutdown = async (
-  transport: StdioServerTransport | undefined
-): Promise<number> => {
-  try {
-    closeDb();
-    await closeTransport(transport);
-    return 0;
-  } catch (err) {
-    logger.error('Error during shutdown:', err);
-    return 1;
-  }
-};
-
-const scheduleForceExit = (timeoutMs: number): NodeJS.Timeout => {
-  return setTimeout(() => {
-    logger.warn('Shutdown timeout exceeded, forcing exit');
-    process.exit(1);
-  }, timeoutMs);
-};
-
-const exitWithTimer = (timer: NodeJS.Timeout, code: number): void => {
-  clearTimeout(timer);
-  process.exit(code);
-};
-
 const packageVersion = await readPackageVersion();
-const server = createServer(packageVersion);
+const server = new McpServer(
+  { name: 'memdb', version: packageVersion ?? '0.0.0' },
+  {
+    instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
+    capabilities: { logging: {}, tools: {} },
+  }
+);
 
 registerAllTools(server);
 
@@ -79,20 +44,26 @@ async function shutdown(signal: string): Promise<void> {
 
   logger.info(`Received ${signal}, shutting down gracefully...`);
 
-  const forceExitTimer = scheduleForceExit(config.shutdownTimeout);
-  const code = await runShutdown(transport);
-  exitWithTimer(forceExitTimer, code);
+  const forceExitTimer = setTimeout(() => {
+    logger.warn('Shutdown timeout exceeded, forcing exit');
+    process.exit(1);
+  }, config.shutdownTimeout);
+  try {
+    closeDb();
+    await transport?.close();
+    clearTimeout(forceExitTimer);
+    process.exit(0);
+  } catch (err) {
+    logger.error('Error during shutdown:', err);
+    clearTimeout(forceExitTimer);
+    process.exit(1);
+  }
 }
-
-const startServer = async (): Promise<void> => {
-  const stdio = new StdioServerTransport();
-  transport = stdio;
-  await server.connect(stdio);
-};
 
 const main = async (): Promise<void> => {
   try {
-    await startServer();
+    transport = new StdioServerTransport();
+    await server.connect(transport);
     logger.info('Memory MCP Server running on stdio');
   } catch (error) {
     logger.error('Failed to start server', error);

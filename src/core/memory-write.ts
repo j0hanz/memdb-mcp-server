@@ -81,7 +81,7 @@ export const findMemoryIdByHash = (hash: string): number | undefined => {
   return toSafeInteger(row.id, 'id');
 };
 
-export const insertTags = (memoryId: number, tags: readonly string[]): void => {
+const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
   const { params } = buildTagInsert(memoryId, tags);
   const stmt = getInsertTagsStatement(tags.length);

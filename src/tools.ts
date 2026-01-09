@@ -34,21 +34,17 @@ type ErrorResponse = CallToolResult & {
   isError: true;
 };
 
-const toNonEmptyString = (value: unknown): string | undefined => {
-  if (typeof value === 'string' && value.length > 0) return value;
-  return undefined;
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string' && error.length > 0) return error;
+  return 'Unknown error';
 };
 
-export function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return toNonEmptyString(error) ?? 'Unknown error';
-}
-
-export function createErrorResponse(
+const createErrorResponse = (
   code: string,
   message: string,
   result?: unknown
-): ErrorResponse {
+): ErrorResponse => {
   const structured: ErrorResponse['structuredContent'] = {
     ok: false,
     error: { code, message },
@@ -59,7 +55,7 @@ export function createErrorResponse(
     structuredContent: structured,
     isError: true,
   };
-}
+};
 
 const ok = (result: unknown): CallToolResult => {
   const structured = { ok: true, result };
@@ -69,24 +65,22 @@ const ok = (result: unknown): CallToolResult => {
   };
 };
 
-const withError = (code: string, fn: () => CallToolResult): CallToolResult => {
-  try {
-    return fn();
-  } catch (err) {
-    return createErrorResponse(code, getErrorMessage(err));
-  }
-};
-
 const wrapHandler = (
   code: string,
   handler: (params: Record<string, unknown>) => CallToolResult
 ): ((params: Record<string, unknown>) => CallToolResult) => {
-  return (params) => withError(code, () => handler(params));
+  return (params) => {
+    try {
+      return handler(params);
+    } catch (err) {
+      return createErrorResponse(code, getErrorMessage(err));
+    }
+  };
 };
 
-export type ToolSchema = ZodRawShapeCompat | AnySchema;
+type ToolSchema = ZodRawShapeCompat | AnySchema;
 
-export interface ToolDef {
+interface ToolDef {
   name: string;
   options: {
     title: string;
@@ -98,7 +92,7 @@ export interface ToolDef {
   handler: (params: Record<string, unknown>) => CallToolResult;
 }
 
-export const coreTools: ToolDef[] = [
+const coreTools: ToolDef[] = [
   {
     name: 'store_memory',
     options: {
@@ -174,7 +168,7 @@ export const coreTools: ToolDef[] = [
   },
 ];
 
-export const searchTools: ToolDef[] = [
+const searchTools: ToolDef[] = [
   {
     name: 'search_memories',
     options: {
@@ -191,7 +185,7 @@ export const searchTools: ToolDef[] = [
   },
 ];
 
-export const relationTools: ToolDef[] = [
+const relationTools: ToolDef[] = [
   {
     name: 'link_memories',
     options: {
@@ -231,7 +225,7 @@ export const relationTools: ToolDef[] = [
   },
 ];
 
-export const statsTools: ToolDef[] = [
+const statsTools: ToolDef[] = [
   {
     name: 'memory_stats',
     options: {
