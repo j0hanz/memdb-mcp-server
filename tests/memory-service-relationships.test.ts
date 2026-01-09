@@ -3,10 +3,9 @@ import { after, describe, it } from 'node:test';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { closeDb } = await import('../src/core/database.js');
-const { createMemory } = await import('../src/core/memory-create.js');
-const { getRelated, linkMemories } =
-  await import('../src/core/memory-relations.js');
+const { closeDb } = await import('../src/core/db.js');
+const { createMemory } = await import('../src/core/memory-write.js');
+const { getRelated, linkMemories } = await import('../src/core/relations.js');
 
 interface CreateInput {
   content: string;

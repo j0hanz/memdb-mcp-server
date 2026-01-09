@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { createErrorResponse, getErrorMessage } from '../src/lib/errors.js';
+import { createErrorResponse, getErrorMessage } from '../src/tools.js';
 
 void describe('errors', () => {
   void it('normalizes error messages', () => {

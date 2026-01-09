@@ -6,8 +6,8 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { registerAllTools } = await import('../src/tools/index.js');
-const { closeDb } = await import('../src/core/database.js');
+const { registerAllTools } = await import('../src/tools.js');
+const { closeDb } = await import('../src/core/db.js');
 
 interface ToolRegistration {
   name: string;

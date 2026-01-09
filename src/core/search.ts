@@ -1,6 +1,7 @@
-import type { DbRow } from './row-mappers.js';
-import { toSearchError } from './search-errors.js';
-import { executeAll, prepareCached } from './sqlite.js';
+import type { SearchResult } from '../types.js';
+import { type DbRow, executeAll, prepareCached } from './db.js';
+import { mapRowToSearchResult } from './db.js';
+import { normalizeTags } from './memory-write.js';
 
 const MAX_QUERY_TOKENS = 50;
 
@@ -98,6 +99,54 @@ export const buildSearchQuery = (input: {
   return appendPagination(paginatedQuery);
 };
 
+const INDEX_MISSING_TOKENS = [
+  'no such module: fts5',
+  'no such table: memories_fts',
+];
+const QUERY_INVALID_TOKENS = ['fts5', 'syntax error'];
+
+const isSearchIndexMissing = (message: string): boolean =>
+  INDEX_MISSING_TOKENS.some((token) => message.includes(token));
+
+const isSearchQueryInvalid = (message: string): boolean =>
+  QUERY_INVALID_TOKENS.some((token) => message.includes(token));
+
+const getErrorMessage = (err: unknown): string =>
+  err instanceof Error ? err.message : String(err);
+
+const SEARCH_ERROR_MAP: {
+  matches: (message: string) => boolean;
+  build: (message: string) => Error;
+}[] = [
+  {
+    matches: isSearchIndexMissing,
+    build: () =>
+      new Error(
+        'Search index unavailable. Ensure FTS5 is enabled and the index is ' +
+          'initialized.'
+      ),
+  },
+  {
+    matches: isSearchQueryInvalid,
+    build: (message) =>
+      new Error(
+        'Invalid search query syntax. Check for unbalanced quotes or special ' +
+          'characters. ' +
+          `Details: ${message}`
+      ),
+  },
+];
+
+export const toSearchError = (err: unknown): Error | undefined => {
+  const message = getErrorMessage(err);
+  for (const mapping of SEARCH_ERROR_MAP) {
+    if (mapping.matches(message)) {
+      return mapping.build(message);
+    }
+  }
+  return undefined;
+};
+
 export const executeSearch = (
   sql: string,
   params: (number | string)[]
@@ -112,4 +161,49 @@ export const executeSearch = (
     }
     throw err;
   }
+};
+
+interface SearchInput {
+  query: string;
+  limit?: number | undefined;
+  tags?: readonly string[] | undefined;
+  minRelevance?: number | undefined;
+  offset?: number | undefined;
+}
+
+const buildSearchInput = (
+  input: SearchInput
+): {
+  query: string;
+  limit: number;
+  tags: readonly string[];
+  minRelevance?: number;
+  offset?: number;
+} => {
+  const result: {
+    query: string;
+    limit: number;
+    tags: readonly string[];
+    minRelevance?: number;
+    offset?: number;
+  } = {
+    query: input.query,
+    limit: input.limit ?? 10,
+    tags: normalizeTags(input.tags ?? [], 50),
+  };
+
+  if (input.minRelevance !== undefined) {
+    result.minRelevance = input.minRelevance;
+  }
+  if (input.offset !== undefined) {
+    result.offset = input.offset;
+  }
+  return result;
+};
+
+export const searchMemories = (input: SearchInput): SearchResult[] => {
+  const searchInput = buildSearchInput(input);
+  const { sql, params } = buildSearchQuery(searchInput);
+  const rows = executeSearch(sql, params);
+  return rows.map((row) => mapRowToSearchResult(row));
 };

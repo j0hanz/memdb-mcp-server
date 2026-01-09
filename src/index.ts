@@ -5,10 +5,9 @@ import process from 'node:process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 
-import { closeDb } from './core/database.js';
-import { registerAllTools } from './tools/index.js';
-import { config } from './utils/config.js';
-import { logger } from './utils/logger.js';
+import { closeDb } from './core/db.js';
+import { registerAllTools } from './tools.js';
+import { config, logger } from './utils.js';
 
 const readPackageVersion = async (): Promise<string | undefined> => {
   const packageJsonText = await readFile(

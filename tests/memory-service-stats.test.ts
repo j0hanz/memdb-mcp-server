@@ -3,8 +3,8 @@ import { after, describe, it } from 'node:test';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { closeDb } = await import('../src/core/database.js');
-const { getStats } = await import('../src/core/memory-stats.js');
+const { closeDb } = await import('../src/core/db.js');
+const { getStats } = await import('../src/core/memory-read.js');
 
 after(() => {
   closeDb();

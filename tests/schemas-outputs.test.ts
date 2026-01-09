@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { DefaultOutputSchema } from '../src/schemas/outputs.js';
+import { DefaultOutputSchema } from '../src/schemas.js';
 
 const parse = (
   input: unknown

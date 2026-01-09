@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { toSearchError } from '../src/core/search-errors.js';
+import { toSearchError } from '../src/core/search.js';
 
 void describe('search-errors', () => {
   void it('maps missing index errors', () => {

@@ -6,7 +6,7 @@ import {
   mapRowToRelatedMemory,
   mapRowToSearchResult,
   toSafeInteger,
-} from '../src/core/row-mappers.js';
+} from '../src/core/db.js';
 
 void describe('row-mappers mapRowToMemory', () => {
   void it('maps rows with optional fields', () => {

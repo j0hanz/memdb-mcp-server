@@ -8,7 +8,7 @@ import {
   LinkMemoriesInputSchema,
   SearchMemoriesInputSchema,
   StoreMemoryInputSchema,
-} from '../src/schemas/inputs.js';
+} from '../src/schemas.js';
 
 const repeat = (length: number): string => 'a'.repeat(length);
 
