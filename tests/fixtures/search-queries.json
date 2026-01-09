@@ -1,0 +1,28 @@
+[
+  {
+    "name": "tags_min_relevance_offset",
+    "input": {
+      "query": "hello world",
+      "limit": 5,
+      "tags": ["tag1", "tag2"],
+      "minRelevance": 0.3,
+      "offset": 10
+    },
+    "expected": {
+      "sqlNormalized": "WITH ranked AS ( SELECT m.*, 1.0 / (1.0 + abs(bm25(memories_fts))) as relevance FROM memories m JOIN memories_fts ON m.id = memories_fts.rowid WHERE memories_fts MATCH ? AND m.id IN (SELECT memory_id FROM tags WHERE tag IN (?, ?)) ) SELECT * FROM ranked WHERE relevance >= ? ORDER BY relevance DESC LIMIT ? OFFSET ?",
+      "params": ["\"hello\" OR \"world\"", "tag1", "tag2", 0.3, 5, 10]
+    }
+  },
+  {
+    "name": "empty_query_no_tags",
+    "input": {
+      "query": "   ",
+      "limit": 10,
+      "tags": []
+    },
+    "expected": {
+      "sqlNormalized": "WITH ranked AS ( SELECT m.*, 1.0 / (1.0 + abs(bm25(memories_fts))) as relevance FROM memories m JOIN memories_fts ON m.id = memories_fts.rowid WHERE memories_fts MATCH ? ) SELECT * FROM ranked ORDER BY relevance DESC LIMIT ?",
+      "params": ["\"\"", 10]
+    }
+  }
+]

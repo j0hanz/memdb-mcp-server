@@ -14,9 +14,7 @@ const enforceStatementCacheLimit = (): void => {
   const oldestSql = statementCacheOrder.shift();
   if (!oldestSql) return;
 
-  const toEvict = statementCache.get(oldestSql);
   statementCache.delete(oldestSql);
-  void toEvict;
 };
 
 const isDbRow = (value: unknown): value is DbRow => {

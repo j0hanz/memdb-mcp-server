@@ -115,7 +115,7 @@ const enforceTagLimit = (
     if (existingTags.has(tag)) continue;
     projectedCount += 1;
     if (projectedCount > maxTags) {
-      throw new Error('Too many tags (max ' + String(maxTags) + ')');
+      throw new Error(`Too many tags (max ${maxTags})`);
     }
     existingTags.add(tag);
   }

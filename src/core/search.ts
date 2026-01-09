@@ -11,9 +11,7 @@ const tokenizeQuery = (query: string): string => {
     .filter((w) => w.length > 0);
   if (parts.length === 0) return '""';
   if (parts.length > MAX_QUERY_TOKENS) {
-    throw new Error(
-      'Query has too many terms (max ' + String(MAX_QUERY_TOKENS) + ')'
-    );
+    throw new Error(`Query has too many terms (max ${MAX_QUERY_TOKENS})`);
   }
 
   const tokens: string[] = [];

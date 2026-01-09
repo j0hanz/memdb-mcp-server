@@ -16,16 +16,7 @@ export const searchTools: ToolDef[] = [
     },
     handler: wrapHandler('E_SEARCH_MEMORIES', (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      const searchInput = {
-        query: input.query,
-        limit: input.limit ?? 10,
-        tags: input.tags ?? [],
-        ...(input.minRelevance !== undefined
-          ? { minRelevance: input.minRelevance }
-          : {}),
-        ...(input.offset !== undefined ? { offset: input.offset } : {}),
-      };
-      return ok(searchMemories(searchInput));
+      return ok(searchMemories(input));
     }),
   },
 ];

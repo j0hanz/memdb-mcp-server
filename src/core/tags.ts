@@ -9,7 +9,7 @@ const validateTag = (tag: string): void => {
 
 const validateTagCount = (tags: readonly string[], maxTags: number): void => {
   if (tags.length > maxTags) {
-    throw new Error('Too many tags (max ' + String(maxTags) + ')');
+    throw new Error(`Too many tags (max ${maxTags})`);
   }
 };
 
