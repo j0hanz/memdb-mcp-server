@@ -18,7 +18,7 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout>;
 }
 
-export interface DbWorkerClient {
+interface DbWorkerClient {
   request<T>(action: WorkerAction, params: unknown): Promise<T>;
   close(): Promise<void>;
 }

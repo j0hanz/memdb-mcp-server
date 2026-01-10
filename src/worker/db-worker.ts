@@ -14,17 +14,25 @@ import {
   StoreMemoryInputSchema,
   UpdateMemoryInputSchema,
 } from '../schemas.js';
-import {
-  isWorkerRequest,
-  type WorkerAction,
-  type WorkerRequest,
-  type WorkerResponse,
-} from './protocol.js';
+import type { WorkerAction } from './protocol.js';
 
 type CreateMemoryInput = Parameters<typeof createMemory>[0];
 type UpdateMemoryArgs = Parameters<typeof updateMemory>;
 type SearchInput = Parameters<typeof searchMemories>[0];
 type GetRelatedInput = Parameters<typeof getRelated>[0];
+
+interface WorkerRequest {
+  id: number;
+  action: WorkerAction;
+  params: unknown;
+}
+
+interface WorkerResponse {
+  id: number;
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}
 
 interface LinkParams {
   fromHash: string;
@@ -160,6 +168,18 @@ const handlers = new Map<WorkerAction, (params: unknown) => unknown>([
     },
   ],
 ]);
+
+const isWorkerAction = (value: unknown): value is WorkerAction => {
+  if (typeof value !== 'string') return false;
+  return handlers.has(value as WorkerAction);
+};
+
+const isWorkerRequest = (value: unknown): value is WorkerRequest => {
+  if (!isRecord(value)) return false;
+  if (typeof value.id !== 'number') return false;
+  if (!isWorkerAction(value.action)) return false;
+  return 'params' in value;
+};
 
 const getHandler = (action: WorkerAction): ((params: unknown) => unknown) => {
   const handler = handlers.get(action);
