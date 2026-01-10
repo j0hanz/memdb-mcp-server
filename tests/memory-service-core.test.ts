@@ -11,16 +11,12 @@ const { searchMemories } = await import('../src/core/search.js');
 interface CreateInput {
   content: string;
   tags?: readonly string[];
-  importance?: number;
-  memoryType?: string;
 }
 
 const create = (input: CreateInput): ReturnType<typeof createMemory> =>
   createMemory({
     content: input.content,
     tags: input.tags ?? [],
-    importance: input.importance ?? 0,
-    memoryType: input.memoryType ?? 'general',
   });
 
 interface SearchInput {
@@ -46,8 +42,6 @@ void describe('MemoryService createMemory', () => {
     const result = create({
       content,
       tags: [],
-      importance: 5,
-      memoryType: 'fact',
     });
 
     assert.ok(result.id > 0, 'Should return valid ID');
@@ -76,7 +70,7 @@ void describe('MemoryService createMemory', () => {
 void describe('MemoryService getMemory', () => {
   void it('should retrieve memory by hash', () => {
     const content = 'Retrievable content';
-    const { hash } = create({ content, importance: 3, memoryType: 'note' });
+    const { hash } = create({ content });
 
     const memory = getMemory(hash);
 
@@ -99,7 +93,7 @@ void describe('MemoryService getMemory', () => {
 void describe('MemoryService searchMemories (FTS5)', () => {
   void it('should find memories matching search query', () => {
     const content = 'TypeScript programming language guide';
-    create({ content, importance: 5, memoryType: 'guide' });
+    create({ content });
 
     const results = search({ query: 'TypeScript' });
 

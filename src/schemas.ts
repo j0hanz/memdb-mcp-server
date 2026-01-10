@@ -5,8 +5,7 @@ const tagSchema = z.string().min(1).max(50);
 const tagsSchema = z.array(tagSchema);
 const contentSchema = z.string().min(1).max(100000);
 const querySchema = z.string().trim().min(1).max(1000);
-const importanceSchema = z.number().int().min(0).max(10);
-const memoryTypeSchema = z.string().min(1).max(50);
+const relationTypeSchema = z.string().min(1).max(50);
 
 export const StoreMemoryInputSchema = z.strictObject({
   content: contentSchema.meta({ description: 'The content of the memory' }),
@@ -14,12 +13,6 @@ export const StoreMemoryInputSchema = z.strictObject({
     description:
       'Tags to categorize the memory (max 100 tags, each max 50 chars)',
   }),
-  importance: importanceSchema
-    .optional()
-    .meta({ description: 'Importance score (0-10)' }),
-  memoryType: memoryTypeSchema
-    .optional()
-    .meta({ description: 'Type of memory (e.g., conversation, fact, rule)' }),
 });
 
 export const SearchMemoriesInputSchema = z.strictObject({
@@ -47,12 +40,14 @@ export const DeleteMemoryInputSchema = z.strictObject({
 export const LinkMemoriesInputSchema = z.strictObject({
   fromHash: hashSchema.meta({ description: 'Hash of the source memory' }),
   toHash: hashSchema.meta({ description: 'Hash of the target memory' }),
-  relationType: memoryTypeSchema.meta({ description: 'Type of relationship' }),
+  relationType: relationTypeSchema.meta({
+    description: 'Type of relationship',
+  }),
 });
 
 export const GetRelatedInputSchema = z.strictObject({
   hash: hashSchema.meta({ description: 'Hash of the memory' }),
-  relationType: memoryTypeSchema
+  relationType: relationTypeSchema
     .optional()
     .meta({ description: 'Filter by relationship type' }),
   depth: z
@@ -70,16 +65,11 @@ export const GetRelatedInputSchema = z.strictObject({
 
 export const UpdateMemoryInputSchema = z.strictObject({
   hash: hashSchema.meta({ description: 'MD5 hash of the memory to update' }),
-  importance: importanceSchema
-    .optional()
-    .meta({ description: 'New importance score (0-10)' }),
-  memoryType: memoryTypeSchema
-    .optional()
-    .meta({ description: 'New memory type' }),
+  content: contentSchema.meta({ description: 'New content for the memory' }),
   tags: tagsSchema
     .max(100)
     .optional()
-    .meta({ description: 'Replace all tags with these (max 100 tags)' }),
+    .meta({ description: 'Replace tags (max 100 tags, each max 50 chars)' }),
 });
 
 export const MemoryStatsInputSchema = z

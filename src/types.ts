@@ -2,8 +2,6 @@ export interface Memory {
   readonly id: number;
   readonly content: string;
   readonly summary: string | undefined;
-  readonly importance: number;
-  readonly memory_type: string;
   readonly created_at: string;
   readonly accessed_at: string;
   readonly hash: string;
@@ -30,14 +28,14 @@ export interface MemoryInsertResult {
 
 export interface MemoryUpdateResult {
   readonly updated: boolean;
-  readonly hash: string;
+  readonly oldHash: string;
+  readonly newHash: string;
 }
 
 export interface MemoryStats {
   readonly memoryCount: number;
   readonly relationshipCount: number;
   readonly tagCount: number;
-  readonly memoryTypes: Record<string, number>;
   readonly oldestMemory: string | null;
   readonly newestMemory: string | null;
 }

@@ -10,16 +10,12 @@ const { getRelated, linkMemories } = await import('../src/core/relations.js');
 interface CreateInput {
   content: string;
   tags?: readonly string[];
-  importance?: number;
-  memoryType?: string;
 }
 
 const create = (input: CreateInput): ReturnType<typeof createMemory> =>
   createMemory({
     content: input.content,
     tags: input.tags ?? [],
-    importance: input.importance ?? 0,
-    memoryType: input.memoryType ?? 'general',
   });
 
 interface RelatedInput {

@@ -125,7 +125,7 @@ void describe('tools responses search/update', () => {
     const searched = await search.handler({ query: 'Searchable', tags: ['t'] });
     assertOk(searched);
 
-    const updated = await update.handler({ hash, importance: 4 });
+    const updated = await update.handler({ hash, content: 'Updated memory' });
     assertOk(updated);
   });
 

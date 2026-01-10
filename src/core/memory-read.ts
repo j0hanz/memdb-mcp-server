@@ -2,7 +2,6 @@ import type { Memory, MemoryStats, StatementResult } from '../types.js';
 import {
   db,
   type DbRow,
-  executeAll,
   executeGet,
   executeRun,
   mapRowToMemory,
@@ -31,22 +30,9 @@ const stmtRelationshipCount = db.prepare(
 const stmtTagCount = db.prepare(
   'SELECT COUNT(DISTINCT tag) as count FROM tags'
 );
-const stmtMemoryTypes = db.prepare(
-  'SELECT memory_type, COUNT(*) as count FROM memories GROUP BY memory_type'
-);
 const stmtDateRange = db.prepare(
   'SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM memories'
 );
-
-const buildMemoryTypes = (typeRows: DbRow[]): Record<string, number> => {
-  const memoryTypes: Record<string, number> = {};
-  for (const row of typeRows) {
-    const rawType = row.memory_type;
-    const typeKey = typeof rawType === 'string' ? rawType : 'unknown';
-    memoryTypes[typeKey] = toSafeInteger(row.count, 'typeCount');
-  }
-  return memoryTypes;
-};
 
 const toDateString = (value: unknown): string | null => {
   if (value == null) return null;
@@ -71,7 +57,6 @@ const queryCounts = (): {
 
 export const getStats = (): MemoryStats => {
   const { memoryRow, relationshipRow, tagRow } = queryCounts();
-  const typeRows = executeAll(stmtMemoryTypes);
   const dateRow = executeGet(stmtDateRange);
 
   return {
@@ -81,7 +66,6 @@ export const getStats = (): MemoryStats => {
       'relationshipCount'
     ),
     tagCount: toSafeInteger(tagRow.count, 'tagCount'),
-    memoryTypes: buildMemoryTypes(typeRows),
     oldestMemory: toDateString(dateRow?.oldest),
     newestMemory: toDateString(dateRow?.newest),
   };

@@ -93,8 +93,7 @@ const buildHash = (content: string): string => {
 };
 
 const stmtInsertMemory = db.prepare(
-  'INSERT OR IGNORE INTO memories (content, importance, memory_type, hash) ' +
-    'VALUES (?, ?, ?, ?) RETURNING id'
+  'INSERT OR IGNORE INTO memories (content, hash) VALUES (?, ?) RETURNING id'
 );
 
 const requireMemoryId = (id: number | undefined): number => {
@@ -104,48 +103,28 @@ const requireMemoryId = (id: number | undefined): number => {
   return id;
 };
 
-const resolveMemoryId = (input: {
-  content: string;
-  importance: number;
-  memoryType: string;
-  hash: string;
-}): { id: number; isNew: boolean } => {
-  const inserted = executeGet(
-    stmtInsertMemory,
-    input.content,
-    input.importance,
-    input.memoryType,
-    input.hash
-  );
+const resolveMemoryId = (
+  content: string,
+  hash: string
+): { id: number; isNew: boolean } => {
+  const inserted = executeGet(stmtInsertMemory, content, hash);
   if (inserted) {
     return { id: toSafeInteger(inserted.id, 'id'), isNew: true };
   }
 
-  const id = requireMemoryId(findMemoryIdByHash(input.hash));
+  const id = requireMemoryId(findMemoryIdByHash(hash));
   return { id, isNew: false };
 };
 
 export const createMemory = (input: {
   content: string;
   tags?: readonly string[];
-  importance?: number;
-  memoryType?: string;
 }): MemoryInsertResult =>
   withImmediateTransaction(() => {
-    const {
-      content,
-      tags = [],
-      importance = 0,
-      memoryType = 'general',
-    } = input;
+    const { content, tags = [] } = input;
     const hash = buildHash(content);
     const normalizedTags = normalizeTags(tags, MAX_TAGS);
-    const { id, isNew } = resolveMemoryId({
-      content,
-      importance,
-      memoryType,
-      hash,
-    });
+    const { id, isNew } = resolveMemoryId(content, hash);
     insertTags(id, normalizedTags);
     return { id, hash, isNew };
   });
@@ -154,53 +133,18 @@ const stmtDeleteTagsForMemory = db.prepare(
   'DELETE FROM tags WHERE memory_id = ?'
 );
 
+const stmtUpdateContent = db.prepare(
+  'UPDATE memories SET content = ?, hash = ? WHERE id = ?'
+);
+
 interface UpdateMemoryOptions {
-  importance?: number | undefined;
-  memoryType?: string | undefined;
+  content: string;
   tags?: readonly string[] | undefined;
 }
-
-const stmtUpdateImportance = db.prepare(
-  'UPDATE memories SET importance = ? WHERE id = ?'
-);
-const stmtUpdateMemoryType = db.prepare(
-  'UPDATE memories SET memory_type = ? WHERE id = ?'
-);
-const stmtUpdateImportanceAndType = db.prepare(
-  'UPDATE memories SET importance = ?, memory_type = ? WHERE id = ?'
-);
-
-const updateMetadataFields = (
-  memoryId: number,
-  options: UpdateMemoryOptions
-): void => {
-  if (options.importance !== undefined && options.memoryType !== undefined) {
-    executeRun(
-      stmtUpdateImportanceAndType,
-      options.importance,
-      options.memoryType,
-      memoryId
-    );
-    return;
-  }
-  if (options.importance !== undefined) {
-    executeRun(stmtUpdateImportance, options.importance, memoryId);
-    return;
-  }
-  if (options.memoryType !== undefined) {
-    executeRun(stmtUpdateMemoryType, options.memoryType, memoryId);
-  }
-};
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
   executeRun(stmtDeleteTagsForMemory, memoryId);
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
-};
-
-const updateTags = (memoryId: number, options: UpdateMemoryOptions): void => {
-  if (options.tags !== undefined) {
-    replaceTags(memoryId, options.tags);
-  }
 };
 
 export const updateMemory = (
@@ -211,8 +155,24 @@ export const updateMemory = (
   if (memoryId === undefined) throw new Error('Memory not found');
 
   return withImmediateTransaction(() => {
-    updateMetadataFields(memoryId, options);
-    updateTags(memoryId, options);
-    return { updated: true, hash };
+    const newHash = buildHash(options.content);
+
+    // Check if new content would create a duplicate
+    if (newHash !== hash) {
+      const existingId = findMemoryIdByHash(newHash);
+      if (existingId !== undefined) {
+        throw new Error('Content already exists as another memory');
+      }
+    }
+
+    // Update content and hash
+    executeRun(stmtUpdateContent, options.content, newHash, memoryId);
+
+    // Update tags if provided, otherwise preserve existing tags
+    if (options.tags !== undefined) {
+      replaceTags(memoryId, options.tags);
+    }
+
+    return { updated: true, oldHash: hash, newHash };
   });
 };

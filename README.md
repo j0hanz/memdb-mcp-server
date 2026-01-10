@@ -14,7 +14,7 @@ A SQLite-backed MCP memory server (on-disk by default, in-memory optional).
 
 | Feature           | Description                                                       |
 | :---------------- | :---------------------------------------------------------------- |
-| Memory Storage    | Store text memories with tags, importance, and type               |
+| Memory Storage    | Store text memories with tags                                     |
 | Full-Text Search  | FTS5-backed tokenized search with relevance ranking               |
 | Graph Connections | Link memories and traverse relationships                          |
 | Stats             | Memory, tag, and relationship counts + activity range             |
@@ -115,14 +115,12 @@ Example `content[0].text`:
 
 ### `store_memory`
 
-Store a new memory with optional tags and metadata.
+Store a new memory with optional tags.
 
-| Parameter    | Type     | Required | Default   | Description                                |
-| :----------- | :------- | :------- | :-------- | :----------------------------------------- |
-| `content`    | string   | Yes      | -         | The content of the memory (1-100000 chars) |
-| `tags`       | string[] | No       | -         | Tags (max 100, each 1-50 chars)            |
-| `importance` | number   | No       | `0`       | Importance score (0-10)                    |
-| `memoryType` | string   | No       | `general` | Type of memory (1-50 chars)                |
+| Parameter | Type     | Required | Default | Description                                |
+| :-------- | :------- | :------- | :------ | :----------------------------------------- |
+| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars) |
+| `tags`    | string[] | No       | -       | Tags (max 100, each 1-50 chars)            |
 
 **Returns:** `{ id, hash, isNew }`
 
@@ -194,24 +192,23 @@ Get memories related to a given memory.
 
 ### `memory_stats`
 
-Get database statistics and memory type breakdown.
+Get database statistics.
 
 _No parameters required._
 
-**Returns:** `{ memoryCount, relationshipCount, tagCount, memoryTypes, oldestMemory, newestMemory }`.
+**Returns:** `{ memoryCount, relationshipCount, tagCount, oldestMemory, newestMemory }`.
 
 ### `update_memory`
 
-Update memory metadata (content cannot be changed).
+Update the content of a memory. Returns the new hash since changing content changes the hash.
 
-| Parameter    | Type     | Required | Default | Description                                 |
-| :----------- | :------- | :------- | :------ | :------------------------------------------ |
-| `hash`       | string   | Yes      | -       | MD5 hash (32 chars)                         |
-| `importance` | number   | No       | -       | New importance score (0-10)                 |
-| `memoryType` | string   | No       | -       | New memory type (1-50 chars)                |
-| `tags`       | string[] | No       | -       | Replace all tags (max 100, each 1-50 chars) |
+| Parameter | Type     | Required | Default | Description                             |
+| :-------- | :------- | :------- | :------ | :-------------------------------------- |
+| `hash`    | string   | Yes      | -       | MD5 hash of memory to update (32 chars) |
+| `content` | string   | Yes      | -       | New content (1-100000 chars)            |
+| `tags`    | string[] | No       | -       | Replace tags (max 100, each 1-50 chars) |
 
-**Returns:** `{ updated: true, hash }`.
+**Returns:** `{ updated: true, oldHash, newHash }`.
 
 ### Memory Fields
 
@@ -220,8 +217,6 @@ All memory-shaped responses include:
 - `id`: integer ID
 - `content`: original content string
 - `summary`: optional summary (currently unset by tools)
-- `importance`: integer 0-10
-- `memory_type`: string
 - `created_at`: timestamp string
 - `accessed_at`: timestamp string
 - `hash`: MD5 hash
@@ -289,7 +284,6 @@ Add to your `claude_desktop_config.json`:
 | **Max tags in search filter** | 50            | Maximum tags when filtering search results                                    |
 | **Max related memories**      | 1,000         | Maximum results from `get_related` queries                                    |
 | **Max traversal depth**       | 3             | Maximum depth for relationship traversal                                      |
-| **Importance range**          | 0-10          | Allowed range for `importance`                                                |
 | **Hash length**               | 32 chars      | MD5 hash length                                                               |
 | **Search mode**               | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 

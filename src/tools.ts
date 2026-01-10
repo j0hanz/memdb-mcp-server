@@ -149,8 +149,6 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
       const result = await deps.createMemory({
         content: input.content,
         tags: input.tags ?? [],
-        importance: input.importance ?? 0,
-        memoryType: input.memoryType ?? 'general',
       });
       return ok(result);
     }),
@@ -196,15 +194,17 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     options: {
       title: 'Update Memory',
       description:
-        'Update memory metadata (importance, type, tags). Content cannot be changed.',
+        'Update memory content. Returns new hash since content change affects the hash.',
       inputSchema: UpdateMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
     },
     handler: wrapHandler('E_UPDATE_MEMORY', async (params) => {
       const input = UpdateMemoryInputSchema.parse(params);
-      const { hash, ...options } = input;
-      const result = await deps.updateMemory(hash, options);
+      const result = await deps.updateMemory(input.hash, {
+        content: input.content,
+        tags: input.tags,
+      });
       return ok(result);
     }),
   },

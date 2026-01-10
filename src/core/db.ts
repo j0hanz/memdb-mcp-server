@@ -257,8 +257,6 @@ export const mapRowToMemory = (row: DbRow): Memory => ({
   id: toSafeInteger(row.id, 'id'),
   content: toString(row.content, 'content'),
   summary: toOptionalString(row.summary, 'summary'),
-  importance: toSafeInteger(row.importance, 'importance'),
-  memory_type: toString(row.memory_type, 'memory_type'),
   created_at: toString(row.created_at, 'created_at'),
   accessed_at: toString(row.accessed_at, 'accessed_at'),
   hash: toString(row.hash, 'hash'),
