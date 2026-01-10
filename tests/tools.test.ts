@@ -72,8 +72,6 @@ void describe('tools registration', () => {
     assert.deepStrictEqual(names, [
       'delete_memory',
       'get_memory',
-      'get_related',
-      'link_memories',
       'memory_stats',
       'search_memories',
       'store_memory',
@@ -90,7 +88,10 @@ void describe('tools responses store/get/delete', () => {
     const getMemory = getTool(registrations, 'get_memory');
     const deleteMemory = getTool(registrations, 'delete_memory');
 
-    const stored = await store.handler({ content: 'Tool memory' });
+    const stored = await store.handler({
+      content: 'Tool memory',
+      tags: ['test'],
+    });
     assertOk(stored);
 
     const hash = getHash(stored);
@@ -117,12 +118,12 @@ void describe('tools responses search/update', () => {
 
     const stored = await store.handler({
       content: 'Searchable memory',
-      tags: ['t'],
+      tags: ['testtag'],
     });
     assertOk(stored);
     const hash = getHash(stored);
 
-    const searched = await search.handler({ query: 'Searchable', tags: ['t'] });
+    const searched = await search.handler({ query: 'Searchable' });
     assertOk(searched);
 
     const updated = await update.handler({ hash, content: 'Updated memory' });
@@ -144,36 +145,7 @@ void describe('tools responses search/update', () => {
   });
 });
 
-void describe('tools responses relationships/stats', () => {
-  void it('supports linking and related', async () => {
-    const registrations = setupRegistrations();
-
-    const store = getTool(registrations, 'store_memory');
-    const link = getTool(registrations, 'link_memories');
-    const related = getTool(registrations, 'get_related');
-
-    const storedA = await store.handler({ content: 'Node A' });
-    const storedB = await store.handler({ content: 'Node B' });
-    assertOk(storedA);
-    assertOk(storedB);
-
-    const hashA = getHash(storedA);
-    const hashB = getHash(storedB);
-
-    const linked = await link.handler({
-      fromHash: hashA,
-      toHash: hashB,
-      relationType: 'linked',
-    });
-    assertOk(linked);
-
-    const relatedResult = await related.handler({
-      hash: hashA,
-      relationType: 'linked',
-    });
-    assertOk(relatedResult);
-  });
-
+void describe('tools responses stats', () => {
   void it('returns stats response', async () => {
     const registrations = setupRegistrations();
 

@@ -24,9 +24,6 @@ export const deleteMemory = (hash: string): StatementResult => {
 };
 
 const stmtMemoryCount = db.prepare('SELECT COUNT(*) as count FROM memories');
-const stmtRelationshipCount = db.prepare(
-  'SELECT COUNT(*) as count FROM relationships'
-);
 const stmtTagCount = db.prepare(
   'SELECT COUNT(DISTINCT tag) as count FROM tags'
 );
@@ -43,28 +40,21 @@ const toDateString = (value: unknown): string | null => {
 
 const queryCounts = (): {
   memoryRow: DbRow;
-  relationshipRow: DbRow;
   tagRow: DbRow;
 } => {
   const memoryRow = executeGet(stmtMemoryCount);
-  const relationshipRow = executeGet(stmtRelationshipCount);
   const tagRow = executeGet(stmtTagCount);
   if (!memoryRow) throw new Error('Failed to load memory stats');
-  if (!relationshipRow) throw new Error('Failed to load relationship stats');
   if (!tagRow) throw new Error('Failed to load tag stats');
-  return { memoryRow, relationshipRow, tagRow };
+  return { memoryRow, tagRow };
 };
 
 export const getStats = (): MemoryStats => {
-  const { memoryRow, relationshipRow, tagRow } = queryCounts();
+  const { memoryRow, tagRow } = queryCounts();
   const dateRow = executeGet(stmtDateRange);
 
   return {
     memoryCount: toSafeInteger(memoryRow.count, 'memoryCount'),
-    relationshipCount: toSafeInteger(
-      relationshipRow.count,
-      'relationshipCount'
-    ),
     tagCount: toSafeInteger(tagRow.count, 'tagCount'),
     oldestMemory: toDateString(dateRow?.oldest),
     newestMemory: toDateString(dateRow?.newest),

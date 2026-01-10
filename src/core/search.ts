@@ -5,55 +5,68 @@ import {
   mapRowToSearchResult,
   prepareCached,
 } from './db.js';
-import { normalizeTags } from './memory-write.js';
 
 const MAX_QUERY_TOKENS = 50;
+const DEFAULT_LIMIT = 100;
 
-const tokenizeQuery = (query: string): string => {
+const tokenizeQuery = (query: string): string[] => {
   const parts = query
     .trim()
     .split(/\s+/)
     .filter((w) => w.length > 0);
-  if (parts.length === 0) return '""';
+  if (parts.length === 0) return [];
   if (parts.length > MAX_QUERY_TOKENS) {
     throw new Error(`Query has too many terms (max ${MAX_QUERY_TOKENS})`);
   }
-
-  const tokens: string[] = [];
-  for (const part of parts) {
-    tokens.push(`"${part.replace(/"/g, '""')}"`);
-  }
-  return tokens.join(' OR ');
+  return parts;
 };
 
-const buildTagFilter = (
-  tags: readonly string[]
-): { clause: string; params: string[] } => {
-  if (tags.length === 0) return { clause: '', params: [] };
-  const placeholders = tags.map(() => '?').join(', ');
-  return {
-    clause: ` AND m.id IN (SELECT memory_id FROM tags WHERE tag IN (${placeholders}))`,
-    params: [...tags],
-  };
+const buildFtsQuery = (tokens: string[]): string => {
+  if (tokens.length === 0) return '""';
+  const escaped = tokens.map((t) => `"${t.replace(/"/g, '""')}"`);
+  return escaped.join(' OR ');
 };
 
-const buildSearchQuery = (input: {
-  query: string;
-  limit: number;
-  tags: readonly string[];
-}): { sql: string; params: (number | string)[] } => {
-  const sanitizedQuery = tokenizeQuery(input.query);
-  const tagFilter = buildTagFilter(input.tags);
+const buildTagPlaceholders = (count: number): string => {
+  return Array.from({ length: count }, () => '?').join(', ');
+};
+
+// Search both content (FTS) and tags, deduplicated by memory id
+const buildSearchQuery = (
+  tokens: string[]
+): { sql: string; params: (number | string)[] } => {
+  const ftsQuery = buildFtsQuery(tokens);
+  const tagPlaceholders = buildTagPlaceholders(tokens.length);
   const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
+
+  // Union of FTS content matches and tag matches, deduplicated
   const sql = `
-    SELECT m.*, ${relevanceExpr} as relevance
-    FROM memories m
-    JOIN memories_fts ON m.id = memories_fts.rowid
-    WHERE memories_fts MATCH ?${tagFilter.clause}
+    WITH content_matches AS (
+      SELECT m.*, ${relevanceExpr} as relevance
+      FROM memories m
+      JOIN memories_fts ON m.id = memories_fts.rowid
+      WHERE memories_fts MATCH ?
+    ),
+    tag_matches AS (
+      SELECT DISTINCT m.*, 0.5 as relevance
+      FROM memories m
+      JOIN tags t ON m.id = t.memory_id
+      WHERE t.tag IN (${tagPlaceholders})
+    ),
+    combined AS (
+      SELECT * FROM content_matches
+      UNION ALL
+      SELECT * FROM tag_matches
+    )
+    SELECT id, content, summary, created_at, accessed_at, hash,
+           MAX(relevance) as relevance
+    FROM combined
+    GROUP BY id
     ORDER BY relevance DESC
     LIMIT ?
   `;
-  return { sql, params: [sanitizedQuery, ...tagFilter.params, input.limit] };
+
+  return { sql, params: [ftsQuery, ...tokens, DEFAULT_LIMIT] };
 };
 
 const INDEX_MISSING_TOKENS = [
@@ -119,17 +132,14 @@ const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
 
 interface SearchInput {
   query: string;
-  limit?: number | undefined;
-  tags?: readonly string[] | undefined;
 }
 
 export const searchMemories = (input: SearchInput): SearchResult[] => {
-  const searchInput = {
-    query: input.query,
-    limit: input.limit ?? 10,
-    tags: normalizeTags(input.tags ?? [], 50),
-  };
-  const { sql, params } = buildSearchQuery(searchInput);
+  const tokens = tokenizeQuery(input.query);
+  if (tokens.length === 0) {
+    throw new Error('Query cannot be empty');
+  }
+  const { sql, params } = buildSearchQuery(tokens);
   const rows = executeSearch(sql, params);
   return rows.map((row) => mapRowToSearchResult(row));
 };

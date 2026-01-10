@@ -12,13 +12,12 @@ A SQLite-backed MCP memory server (on-disk by default, in-memory optional).
 
 ## Features
 
-| Feature           | Description                                                       |
-| :---------------- | :---------------------------------------------------------------- |
-| Memory Storage    | Store text memories with tags                                     |
-| Full-Text Search  | FTS5-backed tokenized search with relevance ranking               |
-| Graph Connections | Link memories and traverse relationships                          |
-| Stats             | Memory, tag, and relationship counts + activity range             |
-| Local Privacy     | All data stored locally in SQLite (`.memdb/memory.db` by default) |
+| Feature          | Description                                                       |
+| :--------------- | :---------------------------------------------------------------- |
+| Memory Storage   | Store text memories with tags                                     |
+| Full-Text Search | FTS5-backed tokenized search with relevance ranking               |
+| Stats            | Memory and tag counts + activity range                            |
+| Local Privacy    | All data stored locally in SQLite (`.memdb/memory.db` by default) |
 
 ## Quick Start
 
@@ -115,30 +114,35 @@ Example `content[0].text`:
 
 ### `store_memory`
 
-Store a new memory with optional tags.
+Store a new memory with tags.
 
-| Parameter | Type     | Required | Default | Description                                |
-| :-------- | :------- | :------- | :------ | :----------------------------------------- |
-| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars) |
-| `tags`    | string[] | No       | -       | Tags (max 100, each 1-50 chars)            |
+| Parameter | Type     | Required | Default | Description                                         |
+| :-------- | :------- | :------- | :------ | :-------------------------------------------------- |
+| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars)          |
+| `tags`    | string[] | Yes      | -       | Tags (1-100 tags, no whitespace, max 50 chars each) |
 
 **Returns:** `{ id, hash, isNew }`
 
 Notes:
 
 - Content is deduplicated by MD5 hash. Storing the same content again returns the same hash with `isNew: false`.
+- Tags must not contain whitespace. Use hyphens for compound words (e.g., `api-design`, `error-handling`).
 
 ### `search_memories`
 
-Full-text search with filters.
+Search memories by content and tags.
 
-| Parameter | Type     | Required | Default | Description                       |
-| :-------- | :------- | :------- | :------ | :-------------------------------- |
-| `query`   | string   | Yes      | -       | Search query (1-1000 chars)       |
-| `limit`   | number   | No       | `10`    | Maximum number of results (1-100) |
-| `tags`    | string[] | No       | -       | Filter by tags (max 50)           |
+| Parameter | Type   | Required | Default | Description                               |
+| :-------- | :----- | :------- | :------ | :---------------------------------------- |
+| `query`   | string | Yes      | -       | Search query (1-1000 chars, max 50 terms) |
 
 **Returns:** Array of search results (`Memory` + `relevance`).
+
+Notes:
+
+- Searches both memory content (full-text) and tags.
+- Returns up to 100 results, ranked by relevance.
+- Content matches rank higher than tag matches.
 
 ### `get_memory`
 
@@ -160,43 +164,13 @@ Delete a memory by its hash.
 
 **Returns:** `{ deleted: true }`.
 
-### `link_memories`
-
-Create a relationship between two memories.
-
-| Parameter      | Type   | Required | Default | Description                          |
-| :------------- | :----- | :------- | :------ | :----------------------------------- |
-| `fromHash`     | string | Yes      | -       | Hash of the source memory (32 chars) |
-| `toHash`       | string | Yes      | -       | Hash of the target memory (32 chars) |
-| `relationType` | string | Yes      | -       | Type of relationship (1-50 chars)    |
-
-**Returns:** `{ linked: true }`.
-
-Notes:
-
-- Linking the same relation again is a no-op (idempotent).
-- Returns an error if either memory hash does not exist.
-
-### `get_related`
-
-Get memories related to a given memory.
-
-| Parameter      | Type   | Required | Default    | Description                    |
-| :------------- | :----- | :------- | :--------- | :----------------------------- |
-| `hash`         | string | Yes      | -          | Hash of the memory (32 chars)  |
-| `relationType` | string | No       | -          | Filter by relationship type    |
-| `depth`        | number | No       | `1`        | Traversal depth (1-3)          |
-| `direction`    | string | No       | `outgoing` | `outgoing`, `incoming`, `both` |
-
-**Returns:** Array of related memories (`Memory` + `relation_type`, `depth`).
-
 ### `memory_stats`
 
 Get database statistics.
 
 _No parameters required._
 
-**Returns:** `{ memoryCount, relationshipCount, tagCount, oldestMemory, newestMemory }`.
+**Returns:** `{ memoryCount, tagCount, oldestMemory, newestMemory }`.
 
 ### `update_memory`
 
@@ -272,28 +246,25 @@ Add to your `claude_desktop_config.json`:
 
 ## Limits & Constraints
 
-| Constraint                    | Value         | Description                                                                   |
-| :---------------------------- | :------------ | :---------------------------------------------------------------------------- |
-| **Max content length**        | 100,000 chars | Maximum characters in memory content                                          |
-| **Max query length**          | 1,000 chars   | Maximum characters in search query                                            |
-| **Max search terms**          | 50            | Maximum whitespace-separated terms per query                                  |
-| **Max search results**        | 100           | Maximum results returned from `search_memories`                               |
-| **Default search limit**      | 10            | Default `limit` for `search_memories`                                         |
-| **Max tags per memory**       | 100           | Maximum number of tags when storing a memory                                  |
-| **Max tag length**            | 50 chars      | Maximum characters per tag                                                    |
-| **Max tags in search filter** | 50            | Maximum tags when filtering search results                                    |
-| **Max related memories**      | 1,000         | Maximum results from `get_related` queries                                    |
-| **Max traversal depth**       | 3             | Maximum depth for relationship traversal                                      |
-| **Hash length**               | 32 chars      | MD5 hash length                                                               |
-| **Search mode**               | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
+| Constraint              | Value         | Description                                                                   |
+| :---------------------- | :------------ | :---------------------------------------------------------------------------- |
+| **Max content length**  | 100,000 chars | Maximum characters in memory content                                          |
+| **Max query length**    | 1,000 chars   | Maximum characters in search query                                            |
+| **Max search terms**    | 50            | Maximum whitespace-separated terms per query                                  |
+| **Max search results**  | 100           | Maximum results returned from `search_memories`                               |
+| **Min tags per memory** | 1             | At least one tag is required                                                  |
+| **Max tags per memory** | 100           | Maximum number of tags when storing a memory                                  |
+| **Max tag length**      | 50 chars      | Maximum characters per tag                                                    |
+| **Tag format**          | No whitespace | Tags cannot contain spaces or tabs; use hyphens for compound words            |
+| **Hash length**         | 32 chars      | MD5 hash length                                                               |
+| **Search mode**         | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 
 ### Notes
 
 - **Content deduplication**: Memories are deduplicated using MD5 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
 - **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
-- **Tag behavior**: Tags are de-duplicated per memory; exceeding tag limits throws an error.
-- **Bidirectional depth**: `get_related` with `direction: "both"` caps traversal depth at 2.
+- **Tag requirements**: At least one tag is required. Tags cannot contain whitespace; use hyphens for compound words (e.g., `api-design`).
 - **Local storage**: All data is stored locally in `.memdb/memory.db` unless `:memory:` is used.
 
 ## Development

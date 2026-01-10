@@ -11,11 +11,6 @@ export interface SearchResult extends Memory {
   readonly relevance: number;
 }
 
-export interface RelatedMemory extends Memory {
-  readonly relation_type: string;
-  readonly depth: number;
-}
-
 export interface StatementResult {
   readonly changes: number;
 }
@@ -34,7 +29,6 @@ export interface MemoryUpdateResult {
 
 export interface MemoryStats {
   readonly memoryCount: number;
-  readonly relationshipCount: number;
   readonly tagCount: number;
   readonly oldestMemory: string | null;
   readonly newestMemory: string | null;

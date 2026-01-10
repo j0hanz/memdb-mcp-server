@@ -11,7 +11,7 @@ after(() => {
 });
 
 void describe('MemoryService stats', () => {
-  void it('should return memory and relationship counts', () => {
+  void it('should return memory and tag counts', () => {
     const stats = getStats();
 
     assert.ok(
@@ -19,13 +19,10 @@ void describe('MemoryService stats', () => {
       'Memory count should be a number'
     );
     assert.ok(
-      typeof stats.relationshipCount === 'number',
-      'Relationship count should be a number'
+      typeof stats.tagCount === 'number',
+      'Tag count should be a number'
     );
     assert.ok(stats.memoryCount >= 0, 'Memory count should be non-negative');
-    assert.ok(
-      stats.relationshipCount >= 0,
-      'Relationship count should be non-negative'
-    );
+    assert.ok(stats.tagCount >= 0, 'Tag count should be non-negative');
   });
 });

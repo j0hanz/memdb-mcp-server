@@ -3,7 +3,7 @@ import path from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 
 import { config } from '../config.js';
-import type { Memory, RelatedMemory, SearchResult } from '../types.js';
+import type { Memory, SearchResult } from '../types.js';
 
 export type DbRow = Record<string, unknown>;
 
@@ -265,10 +265,4 @@ export const mapRowToMemory = (row: DbRow): Memory => ({
 export const mapRowToSearchResult = (row: DbRow): SearchResult => ({
   ...mapRowToMemory(row),
   relevance: toOptionalNumber(row.relevance, 'relevance') ?? 0,
-});
-
-export const mapRowToRelatedMemory = (row: DbRow): RelatedMemory => ({
-  ...mapRowToMemory(row),
-  relation_type: toString(row.relation_type, 'relation_type'),
-  depth: toSafeInteger(row.depth, 'depth'),
 });

@@ -10,14 +10,11 @@ import type {
 
 import { deleteMemory, getMemory, getStats } from './core/memory-read.js';
 import { createMemory, updateMemory } from './core/memory-write.js';
-import { getRelated, linkMemories } from './core/relations.js';
 import { searchMemories } from './core/search.js';
 import {
   DefaultOutputSchema,
   DeleteMemoryInputSchema,
   GetMemoryInputSchema,
-  GetRelatedInputSchema,
-  LinkMemoriesInputSchema,
   MemoryStatsInputSchema,
   SearchMemoriesInputSchema,
   StoreMemoryInputSchema,
@@ -28,7 +25,6 @@ import type {
   MemoryInsertResult,
   MemoryStats,
   MemoryUpdateResult,
-  RelatedMemory,
   SearchResult,
   StatementResult,
 } from './types.js';
@@ -38,7 +34,6 @@ type MaybePromise<T> = T | Promise<T>;
 type CreateMemoryInput = Parameters<typeof createMemory>[0];
 type UpdateMemoryArgs = Parameters<typeof updateMemory>;
 type SearchInput = Parameters<typeof searchMemories>[0];
-type GetRelatedInput = Parameters<typeof getRelated>[0];
 
 type ToolSchema = ZodRawShapeCompat | AnySchema;
 
@@ -48,12 +43,6 @@ export interface ToolDependencies {
   getMemory: (hash: string) => MaybePromise<Memory | undefined>;
   deleteMemory: (hash: string) => MaybePromise<StatementResult>;
   searchMemories: (input: SearchInput) => MaybePromise<SearchResult[]>;
-  linkMemories: (
-    fromHash: string,
-    toHash: string,
-    relationType: string
-  ) => MaybePromise<StatementResult>;
-  getRelated: (input: GetRelatedInput) => MaybePromise<RelatedMemory[]>;
   getStats: () => MaybePromise<MemoryStats>;
 }
 
@@ -63,8 +52,6 @@ const defaultDeps: ToolDependencies = {
   getMemory,
   deleteMemory,
   searchMemories,
-  linkMemories,
-  getRelated,
   getStats,
 };
 
@@ -148,7 +135,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
       const input = StoreMemoryInputSchema.parse(params);
       const result = await deps.createMemory({
         content: input.content,
-        tags: input.tags ?? [],
+        tags: input.tags,
       });
       return ok(result);
     }),
@@ -215,55 +202,14 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
     name: 'search_memories',
     options: {
       title: 'Search Memories',
-      description: 'Full-text search with filters',
+      description: 'Search memories by content and tags',
       inputSchema: SearchMemoriesInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      const result = await deps.searchMemories(input);
-      return ok(result);
-    }),
-  },
-];
-
-const buildRelationTools = (deps: ToolDependencies): ToolDef[] => [
-  {
-    name: 'link_memories',
-    options: {
-      title: 'Link Memories',
-      description: 'Create relationship between memories',
-      inputSchema: LinkMemoriesInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { idempotentHint: true },
-    },
-    handler: wrapHandler('E_LINK_MEMORIES', async (params) => {
-      const input = LinkMemoriesInputSchema.parse(params);
-      await deps.linkMemories(input.fromHash, input.toHash, input.relationType);
-      return ok({ linked: true });
-    }),
-  },
-  {
-    name: 'get_related',
-    options: {
-      title: 'Get Related Memories',
-      description: 'Get memories related to a given memory',
-      inputSchema: GetRelatedInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { readOnlyHint: true },
-    },
-    handler: wrapHandler('E_GET_RELATED', async (params) => {
-      const input = GetRelatedInputSchema.parse(params);
-      const relatedInput = {
-        hash: input.hash,
-        depth: input.depth ?? 1,
-        direction: input.direction ?? 'outgoing',
-        ...(input.relationType !== undefined
-          ? { relationType: input.relationType }
-          : {}),
-      };
-      const result = await deps.getRelated(relatedInput);
+      const result = await deps.searchMemories({ query: input.query });
       return ok(result);
     }),
   },
@@ -290,7 +236,6 @@ const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
 const buildTools = (deps: ToolDependencies): ToolDef[] => [
   ...buildCoreTools(deps),
   ...buildSearchTools(deps),
-  ...buildRelationTools(deps),
   ...buildStatsTools(deps),
 ];
 

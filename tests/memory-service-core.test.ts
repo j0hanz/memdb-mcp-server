@@ -21,15 +21,11 @@ const create = (input: CreateInput): ReturnType<typeof createMemory> =>
 
 interface SearchInput {
   query: string;
-  limit?: number;
-  tags?: readonly string[];
 }
 
 const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
   searchMemories({
     query: input.query,
-    limit: input.limit ?? 10,
-    tags: input.tags ?? [],
   });
 
 after(() => {
@@ -91,7 +87,7 @@ void describe('MemoryService getMemory', () => {
 });
 
 void describe('MemoryService searchMemories (FTS5)', () => {
-  void it('should find memories matching search query', () => {
+  void it('should find memories matching content', () => {
     const content = 'TypeScript programming language guide';
     create({ content });
 
@@ -106,27 +102,22 @@ void describe('MemoryService searchMemories (FTS5)', () => {
     );
   });
 
-  void it('should filter by tags', () => {
-    create({ content: 'Tagged memory 1', tags: ['tag1'] });
-    create({ content: 'Tagged memory 2', tags: ['tag2'] });
+  void it('should find memories by tag search', () => {
+    create({ content: 'Memory with special tag', tags: ['uniquetag123'] });
 
-    const results = search({ query: 'Tagged', limit: 10, tags: ['tag1'] });
-    assert.strictEqual(results.length, 1);
+    const results = search({ query: 'uniquetag123' });
+    assert.ok(results.length > 0, 'Should find memory by tag');
     const first = results[0];
     assert.ok(first, 'Expected tagged result');
-    assert.strictEqual(first.content, 'Tagged memory 1');
+    assert.strictEqual(first.content, 'Memory with special tag');
   });
 
-  void it('should reject too many search tags', () => {
-    assert.throws(
-      () =>
-        search({
-          query: 'Tagged',
-          limit: 10,
-          tags: Array.from({ length: 51 }, () => 'tag'),
-        }),
-      /Too many tags/i
-    );
+  void it('should find memories matching either content or tags', () => {
+    create({ content: 'Has content match', tags: ['othertag'] });
+    create({ content: 'Has tag match', tags: ['searchterm'] });
+
+    const results = search({ query: 'searchterm' });
+    assert.ok(results.length >= 1, 'Should find at least one result');
   });
 });
 

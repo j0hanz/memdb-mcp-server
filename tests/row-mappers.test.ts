@@ -3,7 +3,6 @@ import { describe, it } from 'node:test';
 
 import {
   mapRowToMemory,
-  mapRowToRelatedMemory,
   mapRowToSearchResult,
   toSafeInteger,
 } from '../src/core/db.js';
@@ -28,24 +27,6 @@ void describe('row-mappers mapRowToMemory', () => {
       relevance: null,
     });
     assert.strictEqual(searchResult.relevance, 0);
-  });
-});
-
-void describe('row-mappers mapRowToRelatedMemory', () => {
-  void it('maps related rows', () => {
-    const related = mapRowToRelatedMemory({
-      id: 2,
-      content: 'related',
-      summary: 'summary',
-      created_at: '2025-01-01T00:00:00Z',
-      accessed_at: '2025-01-02T00:00:00Z',
-      hash: 'hash-2',
-      relation_type: 'rel',
-      depth: 2,
-    });
-
-    assert.strictEqual(related.relation_type, 'rel');
-    assert.strictEqual(related.depth, 2);
   });
 });
 

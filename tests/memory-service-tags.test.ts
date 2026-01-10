@@ -22,15 +22,11 @@ const create = (input: CreateInput): ReturnType<typeof createMemory> =>
 
 interface SearchInput {
   query: string;
-  limit?: number;
-  tags?: readonly string[];
 }
 
 const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
   searchMemories({
     query: input.query,
-    limit: input.limit ?? 10,
-    tags: input.tags ?? [],
   });
 
 after(() => {
@@ -38,15 +34,14 @@ after(() => {
 });
 
 void describe('MemoryService tags association', () => {
-  void it('should associate tags with memories', () => {
+  void it('should find memories by searching tags', () => {
     const content = 'Tagged content';
     const { hash } = create({ content, tags: ['important', 'work'] });
 
-    const results = search({ query: 'Tagged', limit: 10, tags: ['important'] });
-    assert.strictEqual(results.length, 1);
-    const first = results[0];
-    assert.ok(first, 'Expected tag search result');
-    assert.strictEqual(first.hash, hash);
+    const results = search({ query: 'important' });
+    assert.ok(results.length >= 1, 'Should find at least one result');
+    const found = results.find((r) => r.hash === hash);
+    assert.ok(found, 'Expected to find tagged memory');
   });
 });
 
@@ -90,27 +85,36 @@ void describe('MemoryService updateMemory content', () => {
   });
 
   void it('preserves tags when not specified', () => {
-    const { hash: oldHash } = create({ content: 'With tags', tags: ['keep'] });
+    const { hash: oldHash } = create({
+      content: 'With tags to keep',
+      tags: ['keeptag'],
+    });
 
-    const result = updateMemory(oldHash, { content: 'New content' });
+    const result = updateMemory(oldHash, { content: 'New content with tags' });
 
-    const results = search({ query: 'New content', tags: ['keep'] });
-    assert.strictEqual(results.length, 1);
-    const first = results[0];
-    assert.ok(first, 'Expected result with preserved tag');
-    assert.strictEqual(first.hash, result.newHash);
+    const results = search({ query: 'keeptag' });
+    const found = results.find((r) => r.hash === result.newHash);
+    assert.ok(found, 'Expected result with preserved tag');
   });
 
   void it('replaces tags when specified', () => {
-    const { hash: oldHash } = create({ content: 'Tag replace', tags: ['old'] });
+    const { hash: oldHash } = create({
+      content: 'Tag replace test',
+      tags: ['oldtag'],
+    });
 
-    updateMemory(oldHash, { content: 'Tag replace updated', tags: ['new'] });
+    const result = updateMemory(oldHash, {
+      content: 'Tag replace updated',
+      tags: ['newtag'],
+    });
 
-    const oldResults = search({ query: 'Tag replace', tags: ['old'] });
-    assert.strictEqual(oldResults.length, 0);
+    const oldResults = search({ query: 'oldtag' });
+    const hasOld = oldResults.some((r) => r.hash === result.newHash);
+    assert.strictEqual(hasOld, false, 'Should not find by old tag');
 
-    const newResults = search({ query: 'Tag replace', tags: ['new'] });
-    assert.strictEqual(newResults.length, 1);
+    const newResults = search({ query: 'newtag' });
+    const hasNew = newResults.some((r) => r.hash === result.newHash);
+    assert.strictEqual(hasNew, true, 'Should find by new tag');
   });
 
   void it('rejects update if new content already exists', () => {
