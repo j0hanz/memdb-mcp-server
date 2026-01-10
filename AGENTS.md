@@ -2,224 +2,143 @@
 
 ## Project Overview
 
-**memdb** is a SQLite-backed MCP (Model Context Protocol) memory server that provides persistent memory storage for AI agents and applications. It supports full-text search, graph-based memory relationships, and local-first data storage.
-
-- **Primary stack**: TypeScript, Node.js (≥22.0.0), MCP SDK, Zod, SQLite (node:sqlite)
-- **Package**: `@j0hanz/memdb` on npm
-- **Repository**: [github.com/j0hanz/memdb-mcp-server](https://github.com/j0hanz/memdb-mcp-server)
+- This repository implements an MCP (Model Context Protocol) server named "memdb".
+- Tech stack: Node.js (ESM), TypeScript, @modelcontextprotocol/sdk, Zod, SQLite via node:sqlite.
+- Primary entrypoint for the MCP server is src/index.ts (stdio transport).
 
 ## Repo Map / Structure
 
-```text
-src/
-├── index.ts              # Server entry point (stdio transport)
-├── core/                 # SQLite setup + memory CRUD/search/relations
-│   ├── database.ts       # DB init + schema sync
-│   ├── database-schema.ts
-│   ├── memory-create.ts
-│   ├── memory-read.ts
-│   ├── memory-search.ts
-│   ├── memory-relations.ts
-│   ├── memory-updates.ts
-│   ├── memory-stats.ts
-│   ├── search.ts
-│   └── tags.ts
-├── tools/                # MCP tool registration + handlers
-│   ├── index.ts
-│   ├── tool-handlers.ts
-│   ├── tool-types.ts
-│   └── definitions/      # Tool metadata + handlers
-├── schemas/              # Zod input/output schemas
-│   ├── inputs.ts
-│   └── outputs.ts
-├── lib/                  # Error/response helpers
-│   └── errors.ts
-├── types/                # TypeScript types
-│   └── index.ts
-└── utils/                # Config + logger
-    ├── config.ts
-    └── logger.ts
-
-tests/                    # Node.js test runner tests (*.test.ts)
-dist/                     # Build output (generated, gitignored)
-```
+- src/: MCP server implementation
+  - src/index.ts: CLI entrypoint (stdio MCP server)
+  - src/config.ts: CLI/env configuration (DB path, log level, worker toggle)
+  - src/tools.ts: MCP tool registration and tool handler wrappers
+  - src/schemas.ts: Zod input/output schemas used by tools
+  - src/core/: SQLite schema and core operations
+  - src/worker/: optional worker-thread DB execution
+- tests/: Node.js test runner tests (TypeScript)
+- dist/: build output (compiled JS + types)
+- scripts/: helper scripts (not required for normal dev)
+  - scripts/Quality-Gates.ps1: measure/compare/safe-refactor automation
+- metrics/: generated reports (repo-maintenance artifacts)
+- .github/workflows/: CI automation
 
 ## Setup & Environment
 
-### Prerequisites
+- Required Node.js version (per package.json engines): Node >= 22.0.0
+- Install dependencies:
+  - npm install
+  - CI-style install: npm ci (requires package-lock.json)
 
-- **Node.js ≥22.0.0** (required for `node:sqlite` built-in module)
+Runtime configuration (from README.md and src/config.ts):
 
-### Install Dependencies
+- Environment variables:
+  - MEMDB_PATH: override database path (use :memory: for in-memory)
+  - MEMDB_DB_WORKER: enable worker thread DB operations ("true"/"false" or "1"/"0")
+  - MEMDB_LOG_LEVEL: info | warn | error
+  - MEMDB_SHUTDOWN_TIMEOUT: integer milliseconds (1000-60000)
+- CLI flags:
+  - --db PATH
+  - --memory
+  - --db-worker
+  - --log-level LEVEL
+  - --shutdown-timeout MS
+- Precedence: CLI flags > environment variables > defaults
 
-```bash
-npm install
-```
+Default DB location:
 
-### Environment Variables
-
-| Variable                 | Default                  | Description                              |
-| ------------------------ | ------------------------ | ---------------------------------------- |
-| `MEMDB_PATH`             | `<cwd>/.memdb/memory.db` | Database path (`:memory:` for in-memory) |
-| `MEMDB_DB_WORKER`        | `false`                  | Run DB operations in a worker thread     |
-| `MEMDB_LOG_LEVEL`        | `info`                   | `info`, `warn`, or `error`               |
-| `MEMDB_SHUTDOWN_TIMEOUT` | `5000`                   | Shutdown timeout in ms (1000-60000)      |
-
-### CLI Flags
-
-- `--db <path>`: Override database path
-- `--memory`: Use in-memory database (`:memory:`)
-- `--db-worker`: Run DB operations in a worker thread
-- `--log-level <level>`: Log level
-- `--shutdown-timeout <ms>`: Shutdown timeout
-
-**Precedence**: CLI flags > environment variables > defaults
+- CWD/.memdb/memory.db (created automatically when needed)
 
 ## Development Workflow
 
-| Command         | Description                                |
-| --------------- | ------------------------------------------ |
-| `npm run dev`   | Run in development mode with watch (tsx)   |
-| `npm run build` | Compile TypeScript to `dist/`              |
-| `npm run start` | Run compiled server (`node dist/index.js`) |
-| `npm run clean` | Remove `dist/` directory                   |
+- Dev/watch mode:
+  - npm run dev
+  - Runs: tsx watch src/index.ts
+- Build:
+  - npm run build
+  - Produces dist/ and makes dist/index.js executable
+- Run built server:
+  - npm run start
+
+Useful utilities:
+
+- MCP inspector (for local debugging):
+  - npm run inspector
 
 ## Testing
 
-| Command                 | Description             |
-| ----------------------- | ----------------------- |
-| `npm run test`          | Run all tests           |
-| `npm run test:coverage` | Run tests with coverage |
-
-- **Test location**: `tests/*.test.ts`
-- **Test runner**: Node.js built-in test runner with tsx
-- **Pattern**: Files must end with `.test.ts`
+- All tests:
+  - npm run test
+  - Uses Node’s built-in test runner with tsx/esm and tests/\*.test.ts
+- Coverage:
+  - npm run test:coverage
+  - Uses Node experimental test coverage
+- Type-check tests only:
+  - npm run type-check:test
 
 ## Code Style & Conventions
 
-### Language & Type Safety
+- TypeScript configuration:
+  - ESM (module: NodeNext / moduleResolution: NodeNext)
+  - Strict mode enabled (see tsconfig.json)
+- Lint:
+  - npm run lint
+  - Flat ESLint config in eslint.config.mjs with type-aware rules for src/\*\*/\*.ts
+- Format:
+  - npm run format
+  - npm run format:check
+  - Prettier config in .prettierrc with import sorting via @trivago/prettier-plugin-sort-imports
 
-- **TypeScript** with strict mode enabled
-- Target: ES2022, Module: NodeNext
-- Explicit return types required on functions
+Repo-local MCP implementation guidance:
 
-### Linting & Formatting
-
-| Command                   | Description               |
-| ------------------------- | ------------------------- |
-| `npm run lint`            | Run ESLint                |
-| `npm run format`          | Format code with Prettier |
-| `npm run format:check`    | Check code formatting     |
-| `npm run type-check`      | TypeScript type checking  |
-| `npm run type-check:test` | Type-check tests only     |
-
-### ESLint Rules (Strict)
-
-- `complexity: max 5`
-- `max-depth: 2`
-- `max-lines: 300` (skip blanks/comments)
-- `max-lines-per-function: 40`
-- `max-params: 3`
-- `sonarjs/cognitive-complexity: 10`
-- No unused imports, no explicit `any`
-- Consistent type imports/exports (inline)
-
-### Prettier Config
-
-- Single quotes, trailing commas (es5)
-- 2-space indent, 80 char width
-- Sorted imports via `@trivago/prettier-plugin-sort-imports`
-
-### Import Order
-
-1. `node:*` built-ins
-2. Node.js core modules
-3. `@modelcontextprotocol/*`
-4. External packages (`zod`, etc.)
-5. Relative imports (`./`, `../`)
-
-### Naming Conventions
-
-- Files: `kebab-case.ts`
-- Types/Interfaces: `PascalCase`
-- Functions/Variables: `camelCase`
-- Constants: `UPPER_SNAKE_CASE`
+- See .github/instructions/typescript-mcp-server.instructions.md for conventions such as:
+  - Returning structuredContent plus a JSON string in content for compatibility
+  - Avoid writing non-MCP output to stdout for stdio servers (log to stderr)
 
 ## Build / Release
 
-### Build Output
-
-- Output directory: `dist/`
-- Generates `.js`, `.d.ts`, `.js.map`, `.d.ts.map`
-- Entry point: `dist/index.js`
-
-### Release Process
-
-1. Create a GitHub release with tag `v<version>` (e.g., `v1.0.7`)
-2. CI workflow runs: lint → type-check → test → coverage → build → publish
-3. Package published to npm with provenance
-
-### Pre-publish Checks
-
-The `prepublishOnly` script runs automatically:
-
-```bash
-npm run lint && npm run type-check && npm run build
-```
+- Build output directory: dist/
+- Prepublish checks:
+  - npm run prepublishOnly
+  - Runs: npm run lint && npm run type-check && npm run build
+- GitHub release publishing:
+  - .github/workflows/publish.yml triggers on GitHub Release “published”
+  - Pipeline runs: npm ci, lint, type-check, test, test:coverage, duplication, build, then npm publish
 
 ## Security & Safety
 
-- **Local-first**: All data stored locally in SQLite (`.memdb/memory.db`)
-- **No network calls**: Server operates via stdio transport only
-- **Content deduplication**: Memories are deduplicated by MD5 hash
-- **No secrets in code**: Use environment variables for configuration
+- Local data storage:
+  - The server stores data in a local SQLite database under CWD/.memdb/ by default.
+  - Treat the database as sensitive local data; do not commit it.
+- StdIO MCP safety:
+  - Avoid writing non-protocol output to stdout. This repo’s logger writes to stderr.
+- Input validation:
+  - Tool inputs are validated with Zod schemas in src/schemas.ts.
 
 ## Pull Request / Commit Guidelines
 
-### Required Checks Before Commit
+- Before opening a PR, run the same checks CI expects:
+  - npm run lint
+  - npm run type-check
+  - npm run test
+- Optional but useful:
+  - npm run test:coverage
+  - npm run duplication
+  - npm run format:check
 
-```bash
-npm run lint && npm run type-check
-```
-
-### CI Pipeline (on release)
-
-1. `npm run lint`
-2. `npm run type-check`
-3. `npm run test`
-4. `npm run test:coverage`
-5. `npm run build`
-
-### Commit Best Practices
-
-- Run lint + type-check before committing
-- Ensure tests pass locally
-- Keep functions small (<40 lines)
-- Maintain complexity limits
+If you’re doing larger refactors, scripts/Quality-Gates.ps1 can automate “measure/compare/safe-refactor” flows.
 
 ## Troubleshooting
 
-### Common Issues
+- Error: Cannot find module 'node:sqlite' / DatabaseSync not available
+  - Ensure you are on Node >= 22 (matches package.json engines and README prerequisites).
+- DB path issues:
+  - Use MEMDB_PATH or --db to point to a writable location.
+  - Use --memory or MEMDB_PATH=:memory: to run in-memory.
+- “Tool failed” responses:
+  - Tool handlers wrap errors into { ok: false, error: { code, message } } responses.
 
-| Issue                          | Cause                     | Fix                                                 |
-| ------------------------------ | ------------------------- | --------------------------------------------------- |
-| `node:sqlite` not found        | Node.js version < 22      | Upgrade to Node.js ≥22.0.0                          |
-| ESLint complexity error        | Function too complex (>5) | Refactor into smaller functions                     |
-| `max-lines-per-function` error | Function >40 lines        | Extract helper functions                            |
-| FTS5 search errors             | Invalid query syntax      | Queries are tokenized; FTS5 operators not supported |
-| Import order lint error        | Wrong import grouping     | Run `npm run format` to auto-fix                    |
+## Open Questions / TODO
 
-### Debugging
-
-- Use `MEMDB_LOG_LEVEL=info` for verbose logging
-- Run MCP inspector: `npm run inspector`
-- Check duplication: `npm run duplication`
-
-## Agent Operating Rules
-
-1. **Search before edit**: Use file search to understand existing patterns before making changes
-2. **Run checks**: Always run `npm run lint && npm run type-check` before committing
-3. **Respect complexity limits**: Keep functions under 40 lines, complexity under 5
-4. **Use existing patterns**: Follow import order, naming conventions, and file structure
-5. **Test changes**: Run `npm run test` to verify functionality
-6. **No destructive commands**: Avoid running commands that delete data without confirmation
+- CI publish workflow uses node-version: 20 in .github/workflows/publish.yml, but package.json requires Node >= 22.0.0.
+- CI publish workflow runs npm run maintainability, but no maintainability script is present in package.json.
+- .github/instructions/typescript-mcp-server.instructions.md mentions “repo currently uses Zod v3”, but package.json depends on zod ^4.3.5.
