@@ -50,7 +50,6 @@ void describe('input schema search constraints', () => {
         query: repeat(1000),
         limit: 100,
         tags: Array.from({ length: 50 }, () => 'tag'),
-        minRelevance: 1,
       }).success
     );
     assert.ok(
@@ -62,22 +61,11 @@ void describe('input schema search constraints', () => {
         tags: Array.from({ length: 51 }, () => 'tag'),
       }).success
     );
-    assert.ok(
-      !SearchMemoriesInputSchema.safeParse({ query: 'ok', minRelevance: 1.1 })
-        .success
-    );
-    assert.ok(
-      !SearchMemoriesInputSchema.safeParse({ query: 'ok', minRelevance: -0.1 })
-        .success
-    );
 
     assert.ok(!SearchMemoriesInputSchema.safeParse({ query: '   ' }).success);
 
     assert.ok(
       !SearchMemoriesInputSchema.safeParse({ query: 'ok', limit: 1.5 }).success
-    );
-    assert.ok(
-      !SearchMemoriesInputSchema.safeParse({ query: 'ok', offset: 1.5 }).success
     );
   });
 });

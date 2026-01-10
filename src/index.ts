@@ -7,15 +7,10 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
-import { config } from './config.js';
 import { closeDb } from './core/db.js';
 import { logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { registerAllTools } from './tools.js';
-import {
-  createDbWorkerClient,
-  createWorkerToolDependencies,
-} from './worker/db-worker-client.js';
 
 const readPackageVersion = async (): Promise<string | undefined> => {
   const packageJsonText = await readFile(
@@ -40,17 +35,12 @@ const server = new McpServer(
   }
 );
 
-let workerClient: ReturnType<typeof createDbWorkerClient> | undefined;
-if (config.dbWorker) {
-  workerClient = createDbWorkerClient();
-  registerAllTools(server, createWorkerToolDependencies(workerClient));
-  logger.info('Database worker enabled');
-} else {
-  registerAllTools(server);
-}
+registerAllTools(server);
 
 let transport: Transport | undefined;
 let shuttingDown = false;
+
+const SHUTDOWN_TIMEOUT = 5000;
 
 async function shutdown(signal: string): Promise<void> {
   if (shuttingDown) return;
@@ -61,9 +51,8 @@ async function shutdown(signal: string): Promise<void> {
   const forceExitTimer = setTimeout(() => {
     logger.warn('Shutdown timeout exceeded, forcing exit');
     process.exit(1);
-  }, config.shutdownTimeout);
+  }, SHUTDOWN_TIMEOUT);
   try {
-    await workerClient?.close();
     closeDb();
     await transport?.close();
     clearTimeout(forceExitTimer);

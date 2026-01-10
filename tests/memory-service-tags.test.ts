@@ -28,8 +28,6 @@ interface SearchInput {
   query: string;
   limit?: number;
   tags?: readonly string[];
-  minRelevance?: number;
-  offset?: number;
 }
 
 const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
@@ -37,8 +35,6 @@ const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
     query: input.query,
     limit: input.limit ?? 10,
     tags: input.tags ?? [],
-    minRelevance: input.minRelevance,
-    offset: input.offset,
   });
 
 after(() => {
@@ -103,41 +99,5 @@ void describe('MemoryService updateMemory tags', () => {
     const first = results[0];
     assert.ok(first, 'Expected replaced tag result');
     assert.strictEqual(first.hash, hash);
-  });
-
-  void it('removes tags when removeTags is provided', () => {
-    const { hash } = create({ content: 'Remove tags', tags: ['gone'] });
-
-    updateMemory(hash, { removeTags: ['gone'] });
-
-    const results = search({ query: 'Remove', tags: ['gone'] });
-    assert.strictEqual(results.length, 0);
-  });
-});
-
-void describe('MemoryService updateMemory tag limits', () => {
-  void it('enforces tag cap when adding tags via updateMemory', () => {
-    const tags = Array.from(
-      { length: 100 },
-      (_, index) => `tag-${String(index)}`
-    );
-    const { hash } = create({ content: 'Tag limit memory add', tags });
-
-    assert.throws(
-      () => updateMemory(hash, { addTags: ['extra'] }),
-      /Too many tags/i
-    );
-  });
-
-  void it('allows add/remove to stay within tag cap', () => {
-    const tags = Array.from(
-      { length: 100 },
-      (_, index) => `cap-${String(index)}`
-    );
-    const { hash } = create({ content: 'Tag limit memory swap', tags });
-
-    assert.doesNotThrow(() =>
-      updateMemory(hash, { addTags: ['extra'], removeTags: ['cap-0'] })
-    );
   });
 });

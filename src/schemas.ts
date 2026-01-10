@@ -31,22 +31,9 @@ export const SearchMemoriesInputSchema = z.strictObject({
     .max(100)
     .optional()
     .meta({ description: 'Maximum number of results' }),
-  offset: z
-    .number()
-    .int()
-    .min(0)
-    .max(1000)
-    .optional()
-    .meta({ description: 'Pagination offset (skip N results)' }),
   tags: tagsSchema.max(50).optional().meta({
     description: 'Filter by tags (max 50 tags)',
   }),
-  minRelevance: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .meta({ description: 'Minimum relevance score' }),
 });
 
 export const GetMemoryInputSchema = z.strictObject({
@@ -93,14 +80,6 @@ export const UpdateMemoryInputSchema = z.strictObject({
     .max(100)
     .optional()
     .meta({ description: 'Replace all tags with these (max 100 tags)' }),
-  addTags: tagsSchema
-    .max(100)
-    .optional()
-    .meta({ description: 'Tags to add (max 100 tags)' }),
-  removeTags: tagsSchema
-    .max(100)
-    .optional()
-    .meta({ description: 'Tags to remove (max 100 tags)' }),
 });
 
 export const MemoryStatsInputSchema = z

@@ -66,17 +66,13 @@ The path is resolved to an absolute path unless you use `:memory:`.
 ### Environment Variables
 
 - `MEMDB_PATH`: Override the database path (`:memory:` for in-memory).
-- `MEMDB_DB_WORKER`: Run DB operations in a worker thread (default: `false`).
 - `MEMDB_LOG_LEVEL`: `info`, `warn`, or `error` (default: `info`).
-- `MEMDB_SHUTDOWN_TIMEOUT`: Shutdown timeout in ms (1000-60000, default: `5000`).
 
 ### CLI Flags
 
 - `--db <path>`: Override the database path.
 - `--memory`: Use in-memory database (`:memory:`).
-- `--db-worker`: Run DB operations in a worker thread.
 - `--log-level <level>`: `info`, `warn`, or `error`.
-- `--shutdown-timeout <ms>`: Shutdown timeout in ms (1000-60000).
 
 Precedence: CLI flags > environment variables > defaults.
 
@@ -138,13 +134,11 @@ Notes:
 
 Full-text search with filters.
 
-| Parameter      | Type     | Required | Default | Description                       |
-| :------------- | :------- | :------- | :------ | :-------------------------------- |
-| `query`        | string   | Yes      | -       | Search query (1-1000 chars)       |
-| `limit`        | number   | No       | `10`    | Maximum number of results (1-100) |
-| `offset`       | number   | No       | `0`     | Pagination offset (0-1000)        |
-| `tags`         | string[] | No       | -       | Filter by tags (max 50)           |
-| `minRelevance` | number   | No       | -       | Minimum relevance score (0-1)     |
+| Parameter | Type     | Required | Default | Description                       |
+| :-------- | :------- | :------- | :------ | :-------------------------------- |
+| `query`   | string   | Yes      | -       | Search query (1-1000 chars)       |
+| `limit`   | number   | No       | `10`    | Maximum number of results (1-100) |
+| `tags`    | string[] | No       | -       | Filter by tags (max 50)           |
 
 **Returns:** Array of search results (`Memory` + `relevance`).
 
@@ -216,8 +210,6 @@ Update memory metadata (content cannot be changed).
 | `importance` | number   | No       | -       | New importance score (0-10)                 |
 | `memoryType` | string   | No       | -       | New memory type (1-50 chars)                |
 | `tags`       | string[] | No       | -       | Replace all tags (max 100, each 1-50 chars) |
-| `addTags`    | string[] | No       | -       | Tags to add (max 100, each 1-50 chars)      |
-| `removeTags` | string[] | No       | -       | Tags to remove (max 100, each 1-50 chars)   |
 
 **Returns:** `{ updated: true, hash }`.
 
@@ -292,14 +284,12 @@ Add to your `claude_desktop_config.json`:
 | **Max search terms**          | 50            | Maximum whitespace-separated terms per query                                  |
 | **Max search results**        | 100           | Maximum results returned from `search_memories`                               |
 | **Default search limit**      | 10            | Default `limit` for `search_memories`                                         |
-| **Max search offset**         | 1,000         | Maximum `offset` for `search_memories`                                        |
 | **Max tags per memory**       | 100           | Maximum number of tags when storing a memory                                  |
 | **Max tag length**            | 50 chars      | Maximum characters per tag                                                    |
 | **Max tags in search filter** | 50            | Maximum tags when filtering search results                                    |
 | **Max related memories**      | 1,000         | Maximum results from `get_related` queries                                    |
 | **Max traversal depth**       | 3             | Maximum depth for relationship traversal                                      |
 | **Importance range**          | 0-10          | Allowed range for `importance`                                                |
-| **Min relevance range**       | 0-1           | Allowed range for `minRelevance`                                              |
 | **Hash length**               | 32 chars      | MD5 hash length                                                               |
 | **Search mode**               | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 

@@ -37,70 +37,23 @@ const buildTagFilter = (
   };
 };
 
-const buildBaseSql = (whereClause: string): string => {
-  const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
-  return `
-    WITH ranked AS (
-      SELECT m.*, ${relevanceExpr} as relevance
-      FROM memories m
-      JOIN memories_fts ON m.id = memories_fts.rowid
-      WHERE memories_fts MATCH ?${whereClause}
-    )
-    SELECT * FROM ranked
-  `;
-};
-
-const appendMinRelevance = (input: {
-  sql: string;
-  params: (number | string)[];
-  minRelevance?: number;
-}): { sql: string; params: (number | string)[] } => {
-  if (input.minRelevance === undefined) return input;
-  return {
-    sql: `${input.sql} WHERE relevance >= ?`,
-    params: [...input.params, input.minRelevance],
-  };
-};
-
-const appendPagination = (input: {
-  sql: string;
-  params: (number | string)[];
-  limit: number;
-  offset?: number;
-}): { sql: string; params: (number | string)[] } => {
-  const params = [...input.params, input.limit];
-  let sql = `${input.sql} ORDER BY relevance DESC LIMIT ?`;
-  if (input.offset !== undefined && input.offset > 0) {
-    sql += ' OFFSET ?';
-    params.push(input.offset);
-  }
-  return { sql, params };
-};
-
 const buildSearchQuery = (input: {
   query: string;
   limit: number;
   tags: readonly string[];
-  minRelevance?: number;
-  offset?: number;
 }): { sql: string; params: (number | string)[] } => {
   const sanitizedQuery = tokenizeQuery(input.query);
   const tagFilter = buildTagFilter(input.tags);
-  const baseSql = buildBaseSql(tagFilter.clause);
-  const baseParams: (number | string)[] = [sanitizedQuery, ...tagFilter.params];
-  const baseQuery = { sql: baseSql, params: baseParams };
-  const withRelevance =
-    input.minRelevance === undefined
-      ? baseQuery
-      : appendMinRelevance({
-          ...baseQuery,
-          minRelevance: input.minRelevance,
-        });
-  const paginatedQuery =
-    input.offset === undefined
-      ? { ...withRelevance, limit: input.limit }
-      : { ...withRelevance, limit: input.limit, offset: input.offset };
-  return appendPagination(paginatedQuery);
+  const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
+  const sql = `
+    SELECT m.*, ${relevanceExpr} as relevance
+    FROM memories m
+    JOIN memories_fts ON m.id = memories_fts.rowid
+    WHERE memories_fts MATCH ?${tagFilter.clause}
+    ORDER BY relevance DESC
+    LIMIT ?
+  `;
+  return { sql, params: [sanitizedQuery, ...tagFilter.params, input.limit] };
 };
 
 const INDEX_MISSING_TOKENS = [
@@ -168,42 +121,14 @@ interface SearchInput {
   query: string;
   limit?: number | undefined;
   tags?: readonly string[] | undefined;
-  minRelevance?: number | undefined;
-  offset?: number | undefined;
 }
 
-const buildSearchInput = (
-  input: SearchInput
-): {
-  query: string;
-  limit: number;
-  tags: readonly string[];
-  minRelevance?: number;
-  offset?: number;
-} => {
-  const result: {
-    query: string;
-    limit: number;
-    tags: readonly string[];
-    minRelevance?: number;
-    offset?: number;
-  } = {
+export const searchMemories = (input: SearchInput): SearchResult[] => {
+  const searchInput = {
     query: input.query,
     limit: input.limit ?? 10,
     tags: normalizeTags(input.tags ?? [], 50),
   };
-
-  if (input.minRelevance !== undefined) {
-    result.minRelevance = input.minRelevance;
-  }
-  if (input.offset !== undefined) {
-    result.offset = input.offset;
-  }
-  return result;
-};
-
-export const searchMemories = (input: SearchInput): SearchResult[] => {
-  const searchInput = buildSearchInput(input);
   const { sql, params } = buildSearchQuery(searchInput);
   const rows = executeSearch(sql, params);
   return rows.map((row) => mapRowToSearchResult(row));

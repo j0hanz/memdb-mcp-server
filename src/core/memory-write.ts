@@ -4,7 +4,6 @@ import type { StatementSync } from 'node:sqlite';
 import type { MemoryInsertResult, MemoryUpdateResult } from '../types.js';
 import {
   db,
-  executeAll,
   executeGet,
   executeRun,
   type SqlParam,
@@ -151,45 +150,14 @@ export const createMemory = (input: {
     return { id, hash, isNew };
   });
 
-const stmtLoadTagsForMemory = db.prepare(
-  'SELECT tag FROM tags WHERE memory_id = ?'
-);
 const stmtDeleteTagsForMemory = db.prepare(
   'DELETE FROM tags WHERE memory_id = ?'
 );
-
-const deleteTagsStatements: (StatementSync | undefined)[] = [];
-
-const getDeleteTagsStatement = (tagCount: number): StatementSync => {
-  const cached = deleteTagsStatements[tagCount];
-  if (cached) return cached;
-
-  const placeholders = Array.from({ length: tagCount }, () => '?').join(', ');
-  const stmt = db.prepare(
-    `DELETE FROM tags WHERE memory_id = ? AND tag IN (${placeholders})`
-  );
-  deleteTagsStatements[tagCount] = stmt;
-  return stmt;
-};
-
-const loadTagsForMemory = (memoryId: number): Set<string> => {
-  const rows = executeAll(stmtLoadTagsForMemory, memoryId);
-  const tags = new Set<string>();
-  for (const row of rows) {
-    if (typeof row.tag !== 'string') {
-      throw new Error('Invalid tag');
-    }
-    tags.add(row.tag);
-  }
-  return tags;
-};
 
 interface UpdateMemoryOptions {
   importance?: number | undefined;
   memoryType?: string | undefined;
   tags?: readonly string[] | undefined;
-  addTags?: readonly string[] | undefined;
-  removeTags?: readonly string[] | undefined;
 }
 
 const stmtUpdateImportance = db.prepare(
@@ -229,74 +197,9 @@ const replaceTags = (memoryId: number, tags: readonly string[]): void => {
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
 
-const filterTagsToInsert = (
-  tags: readonly string[],
-  removeTags: readonly string[]
-): string[] => {
-  if (removeTags.length === 0) return [...tags];
-  const removeSet = new Set(removeTags);
-  return tags.filter((tag) => !removeSet.has(tag));
-};
-
-const removeTagsFromSet = (
-  tags: readonly string[],
-  tagSet: Set<string>
-): void => {
-  for (const tag of tags) {
-    tagSet.delete(tag);
-  }
-};
-
-const enforceTagLimit = (
-  existingTags: Set<string>,
-  tagsToInsert: readonly string[],
-  maxTags: number
-): void => {
-  let projectedCount = existingTags.size;
-  for (const tag of tagsToInsert) {
-    if (existingTags.has(tag)) continue;
-    projectedCount += 1;
-    if (projectedCount > maxTags) {
-      throw new Error(`Too many tags (max ${maxTags})`);
-    }
-    existingTags.add(tag);
-  }
-};
-
-const addTagsToMemory = (
-  memoryId: number,
-  tags: readonly string[],
-  removeTags: readonly string[] = []
-): void => {
-  if (tags.length === 0) return;
-  const normalizedTags = normalizeTags(tags, MAX_TAGS);
-  const tagsToInsert = filterTagsToInsert(normalizedTags, removeTags);
-  if (tagsToInsert.length === 0) return;
-  const existingTags = loadTagsForMemory(memoryId);
-  removeTagsFromSet(removeTags, existingTags);
-  enforceTagLimit(existingTags, tagsToInsert, MAX_TAGS);
-  insertTags(memoryId, tagsToInsert);
-};
-
-const removeTagsFromMemory = (
-  memoryId: number,
-  tags: readonly string[]
-): void => {
-  if (tags.length === 0) return;
-  const stmt = getDeleteTagsStatement(tags.length);
-  executeRun(stmt, memoryId, ...tags);
-};
-
 const updateTags = (memoryId: number, options: UpdateMemoryOptions): void => {
   if (options.tags !== undefined) {
     replaceTags(memoryId, options.tags);
-    return;
-  }
-  if (options.addTags !== undefined) {
-    addTagsToMemory(memoryId, options.addTags, options.removeTags ?? []);
-  }
-  if (options.removeTags !== undefined) {
-    removeTagsFromMemory(memoryId, options.removeTags);
   }
 };
 

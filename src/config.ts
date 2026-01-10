@@ -7,30 +7,16 @@ type LogLevel = 'error' | 'info' | 'warn';
 interface CliValues {
   db?: string;
   memory?: boolean;
-  'db-worker'?: boolean;
   'log-level'?: string;
-  'shutdown-timeout'?: string;
 }
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.memdb', 'memory.db');
 const DEFAULT_LOG_LEVEL: LogLevel = 'info';
-const DEFAULT_SHUTDOWN_TIMEOUT = 5000;
-const MIN_SHUTDOWN_TIMEOUT = 1000;
-const MAX_SHUTDOWN_TIMEOUT = 60000;
 
 const normalizeValue = (value?: string): string | undefined => {
   const trimmed = value?.trim();
   if (!trimmed) return undefined;
   return trimmed;
-};
-
-const normalizeBoolean = (value?: string): boolean | undefined => {
-  const trimmed = normalizeValue(value);
-  if (!trimmed) return undefined;
-  const normalized = trimmed.toLowerCase();
-  if (normalized === 'true' || normalized === '1') return true;
-  if (normalized === 'false' || normalized === '0') return false;
-  throw new Error(`Invalid boolean value: ${trimmed}`);
 };
 
 const parseCli = (): CliValues =>
@@ -39,9 +25,7 @@ const parseCli = (): CliValues =>
     options: {
       db: { type: 'string' },
       memory: { type: 'boolean' },
-      'db-worker': { type: 'boolean' },
       'log-level': { type: 'string' },
-      'shutdown-timeout': { type: 'string' },
     },
     strict: true,
     allowPositionals: false,
@@ -59,11 +43,6 @@ const resolveDbPath = (cli: CliValues, env: NodeJS.ProcessEnv): string => {
   return path.resolve(raw);
 };
 
-const resolveDbWorker = (cli: CliValues, env: NodeJS.ProcessEnv): boolean => {
-  if (cli['db-worker'] !== undefined) return cli['db-worker'];
-  return normalizeBoolean(env.MEMDB_DB_WORKER) ?? false;
-};
-
 const isLogLevel = (value: string): value is LogLevel =>
   value === 'info' || value === 'warn' || value === 'error';
 
@@ -79,33 +58,9 @@ const resolveLogLevel = (cli: CliValues, env: NodeJS.ProcessEnv): LogLevel => {
   return raw;
 };
 
-const resolveShutdownTimeout = (
-  cli: CliValues,
-  env: NodeJS.ProcessEnv
-): number => {
-  const raw =
-    normalizeValue(cli['shutdown-timeout']) ??
-    normalizeValue(env.MEMDB_SHUTDOWN_TIMEOUT);
-  if (!raw) return DEFAULT_SHUTDOWN_TIMEOUT;
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    throw new Error(
-      `Invalid shutdown timeout: ${raw}. Must be an integer in milliseconds.`
-    );
-  }
-  if (parsed < MIN_SHUTDOWN_TIMEOUT || parsed > MAX_SHUTDOWN_TIMEOUT) {
-    throw new Error(
-      `Shutdown timeout must be between ${String(MIN_SHUTDOWN_TIMEOUT)} and ${String(MAX_SHUTDOWN_TIMEOUT)} ms.`
-    );
-  }
-  return parsed;
-};
-
 const cli = parseCli();
 
 export const config = {
   dbPath: resolveDbPath(cli, process.env),
-  dbWorker: resolveDbWorker(cli, process.env),
   logLevel: resolveLogLevel(cli, process.env),
-  shutdownTimeout: resolveShutdownTimeout(cli, process.env),
 };

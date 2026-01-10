@@ -27,8 +27,6 @@ interface SearchInput {
   query: string;
   limit?: number;
   tags?: readonly string[];
-  minRelevance?: number;
-  offset?: number;
 }
 
 const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
@@ -36,8 +34,6 @@ const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
     query: input.query,
     limit: input.limit ?? 10,
     tags: input.tags ?? [],
-    minRelevance: input.minRelevance,
-    offset: input.offset,
   });
 
 after(() => {
@@ -137,36 +133,6 @@ void describe('MemoryService searchMemories (FTS5)', () => {
         }),
       /Too many tags/i
     );
-  });
-});
-
-void describe('MemoryService searchMemories minRelevance', () => {
-  void it('applies minRelevance filter path', () => {
-    create({ content: 'Relevance probe alpha', tags: ['relevance'] });
-
-    const results = search({
-      query: 'Relevance',
-      minRelevance: 0,
-      tags: ['relevance'],
-    });
-
-    assert.ok(results.length >= 1, 'Should return filtered results');
-  });
-});
-
-void describe('MemoryService searchMemories offset', () => {
-  void it('applies offset for pagination', () => {
-    create({ content: 'Offset sample one', tags: ['offset'] });
-    create({ content: 'Offset sample two', tags: ['offset'] });
-
-    const results = search({
-      query: 'Offset',
-      limit: 1,
-      offset: 1,
-      tags: ['offset'],
-    });
-
-    assert.strictEqual(results.length, 1);
   });
 });
 
