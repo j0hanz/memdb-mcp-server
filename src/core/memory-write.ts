@@ -37,7 +37,7 @@ const dedupeTags = (tags: readonly string[]): string[] => {
   return [...seen];
 };
 
-export const normalizeTags = (
+const normalizeTags = (
   tags: readonly string[],
   maxTags: number
 ): string[] => {
@@ -74,7 +74,7 @@ const getInsertTagsStatement = (tagCount: number): StatementSync => {
   return stmt;
 };
 
-export const findMemoryIdByHash = (hash: string): number | undefined => {
+const findMemoryIdByHash = (hash: string): number | undefined => {
   const row = executeGet(stmtFindMemoryIdByHash, hash);
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
