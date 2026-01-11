@@ -60,7 +60,8 @@ npm run build
 ## Configuration
 
 The server uses a local SQLite database at `<cwd>/.memdb/memory.db` by default.
-The path is resolved to an absolute path unless you use `:memory:`.
+The path is resolved to an absolute path unless you use `:memory:`. The
+directory is created automatically when needed.
 
 ### Environment Variables
 
@@ -74,6 +75,12 @@ The path is resolved to an absolute path unless you use `:memory:`.
 - `--log-level <level>`: `info`, `warn`, or `error`.
 
 Precedence: CLI flags > environment variables > defaults.
+
+### Shutdown Behavior
+
+The server listens for `SIGTERM`, `SIGINT`, and `SIGBREAK` and attempts a
+graceful shutdown. If shutdown does not complete within 5 seconds, the process
+exits with a non-zero status.
 
 ## Tool Response Format
 
@@ -183,6 +190,12 @@ Update the content of a memory. Returns the new hash since changing content chan
 | `tags`    | string[] | No       | -       | Replace tags (max 100, each 1-50 chars) |
 
 **Returns:** `{ updated: true, oldHash, newHash }`.
+
+Notes:
+
+- If `tags` is omitted, existing tags are preserved.
+- If `tags` is provided, it replaces all existing tags for the memory.
+- Updating to content that already exists in another memory returns an error.
 
 ### Memory Fields
 
@@ -295,27 +308,28 @@ Add to your `claude_desktop_config.json`:
 
 ```text
 src/
-|-- index.ts          # Server entry point (stdio transport)
-|-- core/             # SQLite setup + memory CRUD/search/relations
-|   |-- database.ts   # DB init + schema sync
-|   |-- memory-create.ts
-|   |-- memory-read.ts
-|   |-- memory-search.ts
-|   |-- memory-relations.ts
-|   |-- memory-updates.ts
-|   |-- memory-stats.ts
-|-- tools/            # Tool registration + handlers
-|   |-- definitions/  # Tool metadata + handlers
-|-- schemas/          # Zod input/output schemas
-|   |-- inputs.ts
-|   |-- outputs.ts
-|-- lib/              # Error/response helpers
-|-- types/            # TypeScript types
-`-- utils/            # Config + logger
+|-- index.ts                 # Server entry point (stdio transport)
+|-- config.ts                # CLI/env configuration
+|-- logger.ts                # stderr logger with level filtering
+|-- protocol-version-guard.ts # Reject unsupported MCP protocol versions
+|-- tools.ts                 # Tool registration + handlers
+|-- schemas.ts               # Zod input/output schemas
+|-- types.ts                 # Shared TypeScript types
+`-- core/                     # SQLite setup + memory CRUD/search
+    |-- db.ts                 # DB init + schema + helpers
+    |-- memory-read.ts        # Read + delete + stats
+    |-- memory-write.ts       # Create + update + tag handling
+    `-- search.ts             # FTS + tag search
 
 tests/
 `-- *.test.ts         # Node.js test runner tests
 ```
+
+## Troubleshooting
+
+- **`node:sqlite` / `DatabaseSync` not found**: Ensure Node.js >= 22.0.0.
+- **Search errors about FTS5**: FTS5 must be available; the server creates the
+  virtual table automatically, but your SQLite build must include FTS5 support.
 
 ## Contributing
 
