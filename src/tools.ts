@@ -257,19 +257,14 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
     name: 'search_memories',
     options: {
       title: 'Search Memories',
-      description:
-        'Search memories by content and tags. Supports optional date range filtering.',
+      description: 'Search memories by content and tags',
       inputSchema: SearchMemoriesInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      const result = await deps.searchMemories({
-        query: input.query,
-        createdAfter: input.createdAfter,
-        createdBefore: input.createdBefore,
-      });
+      const result = await deps.searchMemories({ query: input.query });
       return ok(result);
     }),
   },

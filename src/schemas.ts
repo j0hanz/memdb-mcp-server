@@ -35,12 +35,6 @@ export const SearchMemoriesInputSchema = z.strictObject({
   query: querySchema.meta({
     description: 'Search query (searches content and tags)',
   }),
-  createdAfter: z.iso.datetime().optional().meta({
-    description: 'Filter: only memories created after this ISO8601 datetime',
-  }),
-  createdBefore: z.iso.datetime().optional().meta({
-    description: 'Filter: only memories created before this ISO8601 datetime',
-  }),
 });
 
 export const GetMemoryInputSchema = z.strictObject({

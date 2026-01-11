@@ -157,11 +157,9 @@ Notes:
 
 Search memories by content and tags.
 
-| Parameter       | Type   | Required | Default | Description                                     |
-| :-------------- | :----- | :------- | :------ | :---------------------------------------------- |
-| `query`         | string | Yes      | -       | Search query (1-1000 chars, max 50 terms)       |
-| `createdAfter`  | string | No       | -       | Filter: only memories created after (ISO 8601)  |
-| `createdBefore` | string | No       | -       | Filter: only memories created before (ISO 8601) |
+| Parameter | Type   | Required | Default | Description                               |
+| :-------- | :----- | :------- | :------ | :---------------------------------------- |
+| `query`   | string | Yes      | -       | Search query (1-1000 chars, max 50 terms) |
 
 **Returns:** Array of search results (`Memory` + `relevance`).
 
@@ -170,7 +168,6 @@ Notes:
 - Searches both memory content (full-text) and tags.
 - Returns up to 100 results, ranked by relevance.
 - Content matches rank higher than tag matches.
-- Date filters use ISO 8601 format (e.g., `2025-01-01T00:00:00.000Z`).
 
 ### `get_memory`
 
@@ -320,7 +317,6 @@ Add to your `claude_desktop_config.json`:
 - **Content deduplication**: Memories are deduplicated using MD5 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
 - **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
-- **Date filtering**: Use `createdAfter` and `createdBefore` with ISO 8601 timestamps to filter search results by creation date.
 - **Batch operations**: `store_memories` and `delete_memories` support partial success—individual item failures don't affect other items in the batch.
 - **Tag requirements**: At least one tag is required. Tags cannot contain whitespace; use hyphens for compound words (e.g., `api-design`).
 - **Local storage**: All data is stored locally in `.memdb/memory.db`.
