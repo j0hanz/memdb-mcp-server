@@ -1,6 +1,6 @@
 import { config } from './config.js';
 
-type LogLevel = (typeof config)['logLevel'];
+type LogLevel = 'error' | 'info' | 'warn';
 
 const LEVELS: Record<LogLevel, number> = {
   error: 0,

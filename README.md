@@ -1,6 +1,6 @@
 # memdb
 
-A SQLite-backed MCP memory server (on-disk by default, in-memory optional).
+A SQLite-backed MCP memory server with local workspace storage.
 
 [![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb)
 
@@ -57,30 +57,18 @@ npm install
 npm run build
 ```
 
-## Configuration
+## Storage
 
-The server uses a local SQLite database at `<cwd>/.memdb/memory.db` by default.
-The path is resolved to an absolute path unless you use `:memory:`. The
-directory is created automatically when needed.
+The server uses a local SQLite database at `<cwd>/.memdb/memory.db`. The
+directory is created automatically when needed. All data remains local to your
+workspace.
 
-### Environment Variables
-
-- `MEMDB_PATH`: Override the database path (`:memory:` for in-memory).
-- `MEMDB_LOG_LEVEL`: `info`, `warn`, or `error` (default: `info`).
-
-### CLI Flags
-
-- `--db <path>`: Override the database path.
-- `--memory`: Use in-memory database (`:memory:`).
-- `--log-level <level>`: `info`, `warn`, or `error`.
-
-Precedence: CLI flags > environment variables > defaults.
-
-### Shutdown Behavior
-
-The server listens for `SIGTERM`, `SIGINT`, and `SIGBREAK` and attempts a
-graceful shutdown. If shutdown does not complete within 5 seconds, the process
-exits with a non-zero status.
+> **Tip:** Add `.memdb/` to your `.gitignore` to keep your memory database out of
+> version control:
+>
+> ```bash
+> echo ".memdb/" >> .gitignore
+> ```
 
 ## Tool Response Format
 
@@ -278,7 +266,7 @@ Add to your `claude_desktop_config.json`:
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
 - **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
 - **Tag requirements**: At least one tag is required. Tags cannot contain whitespace; use hyphens for compound words (e.g., `api-design`).
-- **Local storage**: All data is stored locally in `.memdb/memory.db` unless `:memory:` is used.
+- **Local storage**: All data is stored locally in `.memdb/memory.db`.
 
 ## Development
 
