@@ -8,7 +8,6 @@ import type { Memory, SearchResult } from '../types.js';
 export type DbRow = Record<string, unknown>;
 
 const SCHEMA_SQL = `
-  PRAGMA foreign_keys = ON;
   PRAGMA journal_mode = WAL;
   PRAGMA synchronous = NORMAL;
 
@@ -73,9 +72,37 @@ const FTS_SYNC_SQL = `
   WHERE id NOT IN (SELECT rowid FROM memories_fts);
 `;
 
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string
+): Promise<T> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, ms);
+  try {
+    const result = await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        controller.signal.addEventListener('abort', () => {
+          reject(new Error(message));
+        });
+      }),
+    ]);
+    return result;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   if (dbPath === ':memory:') return;
-  await mkdir(path.dirname(dbPath), { recursive: true });
+  await withTimeout(
+    mkdir(path.dirname(dbPath), { recursive: true }),
+    5000,
+    'Database directory creation timed out'
+  );
 };
 
 const isEnableDefensive = (
