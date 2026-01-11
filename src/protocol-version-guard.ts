@@ -3,7 +3,11 @@ import type {
   TransportSendOptions,
 } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
+  isInitializedNotification,
   isInitializeRequest,
+  isJSONRPCErrorResponse,
+  isJSONRPCRequest,
+  isJSONRPCResultResponse,
   type JSONRPCMessage,
   type MessageExtraInfo,
   type RequestId,
@@ -46,12 +50,26 @@ const createUnsupportedVersionError = (
   },
 });
 
+const createLifecycleError = (
+  id: RequestId,
+  message: string
+): JSONRPCMessage => ({
+  jsonrpc: '2.0',
+  id,
+  error: {
+    code: -32600,
+    message,
+  },
+});
+
 export class ProtocolVersionGuardTransport implements Transport {
   readonly inner: Transport;
   private readonly supportedVersions: readonly string[];
   onclose: () => void = () => {};
   onerror: (error: Error) => void = () => {};
   onmessage: NonNullable<Transport['onmessage']> = () => {};
+  private sawInitialize = false;
+  private ready = false;
 
   constructor(inner: Transport, supportedVersions: readonly string[]) {
     this.inner = inner;
@@ -91,20 +109,59 @@ export class ProtocolVersionGuardTransport implements Transport {
     extra?: MessageExtraInfo
   ): void {
     const initializeInfo = getInitializeInfo(message);
-    if (
-      initializeInfo &&
-      !this.supportedVersions.includes(initializeInfo.protocolVersion)
-    ) {
-      void this.inner.send(
-        createUnsupportedVersionError(
-          initializeInfo.id,
-          initializeInfo.protocolVersion,
-          this.supportedVersions
-        ),
-        { relatedRequestId: initializeInfo.id }
-      );
+    if (initializeInfo) {
+      if (this.sawInitialize) {
+        void this.inner.send(
+          createLifecycleError(
+            initializeInfo.id,
+            'Invalid request: initialize already received'
+          ),
+          { relatedRequestId: initializeInfo.id }
+        );
+        return;
+      }
+      if (!this.supportedVersions.includes(initializeInfo.protocolVersion)) {
+        void this.inner.send(
+          createUnsupportedVersionError(
+            initializeInfo.id,
+            initializeInfo.protocolVersion,
+            this.supportedVersions
+          ),
+          { relatedRequestId: initializeInfo.id }
+        );
+        return;
+      }
+      this.sawInitialize = true;
+      this.onmessage(message, extra);
       return;
     }
+
+    if (isInitializedNotification(message)) {
+      if (this.sawInitialize && !this.ready) {
+        this.ready = true;
+        this.onmessage(message, extra);
+      }
+      return;
+    }
+
+    if (!this.sawInitialize || !this.ready) {
+      if (isJSONRPCRequest(message)) {
+        void this.inner.send(
+          createLifecycleError(
+            message.id,
+            'Invalid request: initialize must be sent before other requests'
+          ),
+          { relatedRequestId: message.id }
+        );
+      } else if (
+        isJSONRPCResultResponse(message) ||
+        isJSONRPCErrorResponse(message)
+      ) {
+        this.onmessage(message, extra);
+      }
+      return;
+    }
+
     this.onmessage(message, extra);
   }
 }

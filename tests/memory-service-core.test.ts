@@ -3,7 +3,7 @@ import { after, describe, it } from 'node:test';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { closeDb } = await import('../src/core/db.js');
+const { closeDb, withImmediateTransaction } = await import('../src/core/db.js');
 const { createMemory } = await import('../src/core/memory-write.js');
 const { deleteMemory, getMemory } = await import('../src/core/memory-read.js');
 const { searchMemories } = await import('../src/core/search.js');
@@ -132,5 +132,19 @@ void describe('MemoryService deleteMemory', () => {
 
     const deleted = getMemory(hash);
     assert.strictEqual(deleted, undefined, 'Memory should be deleted');
+  });
+});
+
+void describe('withImmediateTransaction', () => {
+  void it('should throw on nested transaction attempt', () => {
+    assert.throws(
+      () => {
+        withImmediateTransaction(() => {
+          withImmediateTransaction(() => {});
+        });
+      },
+      /nested transaction/i,
+      'Should reject nested transactions'
+    );
   });
 });

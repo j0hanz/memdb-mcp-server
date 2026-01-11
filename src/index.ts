@@ -5,7 +5,10 @@ import process from 'node:process';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
+import {
+  type CallToolResult,
+  SUPPORTED_PROTOCOL_VERSIONS,
+} from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/db.js';
 import { logger } from './logger.js';
@@ -35,6 +38,24 @@ const server = new McpServer(
   }
 );
 
+const patchToolErrorResults = (target: McpServer): void => {
+  const patched = target as unknown as {
+    createToolError: (message: string) => CallToolResult;
+  };
+  patched.createToolError = (message: string): CallToolResult => {
+    const structured = {
+      ok: false,
+      error: { code: 'E_TOOL_ERROR', message },
+    };
+    return {
+      content: [{ type: 'text', text: JSON.stringify(structured) }],
+      structuredContent: structured,
+      isError: true,
+    };
+  };
+};
+
+patchToolErrorResults(server);
 registerAllTools(server);
 
 let transport: Transport | undefined;

@@ -90,6 +90,11 @@ const enableDefensiveMode = (database: DatabaseSync): void => {
   enableDefensive(true);
 };
 
+const isInTransaction = (database: DatabaseSync): boolean => {
+  const prop: unknown = Reflect.get(database, 'isTransaction');
+  return typeof prop === 'boolean' ? prop : false;
+};
+
 const initializeSchema = (database: DatabaseSync): void => {
   database.exec(SCHEMA_SQL);
   database.exec(FTS_SYNC_SQL);
@@ -201,6 +206,9 @@ export const executeRun = (
 ): { changes: number | bigint } => toRunResult(stmt.run(...params));
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
+  if (isInTransaction(db)) {
+    throw new Error('Cannot start nested transaction');
+  }
   db.exec('BEGIN IMMEDIATE');
   try {
     const result = operation();
