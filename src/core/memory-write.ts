@@ -37,10 +37,7 @@ const dedupeTags = (tags: readonly string[]): string[] => {
   return [...seen];
 };
 
-const normalizeTags = (
-  tags: readonly string[],
-  maxTags: number
-): string[] => {
+const normalizeTags = (tags: readonly string[], maxTags: number): string[] => {
   if (tags.length === 0) return [];
   validateTagCount(tags, maxTags);
   return dedupeTags(tags);
