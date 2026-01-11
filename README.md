@@ -70,6 +70,9 @@ workspace.
 > echo ".memdb/" >> .gitignore
 > ```
 
+To completely reset or remove all stored memories, simply delete the `.memdb/`
+folder. The server will create a fresh database on the next run.
+
 ## Tool Response Format
 
 All tools return structured JSON in `structuredContent`. For backwards
