@@ -132,6 +132,8 @@ const wrapHandler = (
   };
 };
 
+const normalizeHash = (hash: string): string => hash.toLowerCase();
+
 interface ToolDef {
   name: string;
   options: {
@@ -149,7 +151,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     name: 'store_memory',
     options: {
       title: 'Store Memory',
-      description: 'Store a new memory with optional tags',
+      description: 'Store a new memory with tags',
       inputSchema: StoreMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { idempotentHint: true },
@@ -190,7 +192,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     },
     handler: wrapHandler('E_GET_MEMORY', async (params) => {
       const input = GetMemoryInputSchema.parse(params);
-      const result = await deps.getMemory(input.hash);
+      const result = await deps.getMemory(normalizeHash(input.hash));
       if (!result) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
       }
@@ -208,7 +210,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     },
     handler: wrapHandler('E_DELETE_MEMORY', async (params) => {
       const input = DeleteMemoryInputSchema.parse(params);
-      const result = await deps.deleteMemory(input.hash);
+      const result = await deps.deleteMemory(normalizeHash(input.hash));
       if (result.changes === 0) {
         return createErrorResponse('E_NOT_FOUND', 'Memory not found');
       }
@@ -227,7 +229,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     },
     handler: wrapHandler('E_DELETE_MEMORIES', async (params) => {
       const input = DeleteMemoriesInputSchema.parse(params);
-      const result = await deps.deleteMemories(input.hashes);
+      const result = await deps.deleteMemories(input.hashes.map(normalizeHash));
       return ok(result);
     }),
   },
@@ -243,7 +245,7 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     },
     handler: wrapHandler('E_UPDATE_MEMORY', async (params) => {
       const input = UpdateMemoryInputSchema.parse(params);
-      const result = await deps.updateMemory(input.hash, {
+      const result = await deps.updateMemory(normalizeHash(input.hash), {
         content: input.content,
         tags: input.tags,
       });

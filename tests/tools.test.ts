@@ -108,6 +108,57 @@ void describe('tools responses store/get/delete', () => {
     assert.strictEqual(missing.isError, true);
     assert.match(JSON.stringify(missing.structuredContent), /E_NOT_FOUND/);
   });
+
+  void it('accepts uppercase hashes for get/update/delete and delete_memories', async () => {
+    const registrations = setupRegistrations();
+
+    const store = getTool(registrations, 'store_memory');
+    const getMemory = getTool(registrations, 'get_memory');
+    const update = getTool(registrations, 'update_memory');
+    const deleteMemory = getTool(registrations, 'delete_memory');
+    const deleteMemories = getTool(registrations, 'delete_memories');
+
+    const storedA = await store.handler({
+      content: 'Uppercase hash test A',
+      tags: ['test'],
+    });
+    assertOk(storedA);
+
+    const upperHashA = getHash(storedA).toUpperCase();
+
+    const fetchedA = await getMemory.handler({ hash: upperHashA });
+    assertOk(fetchedA);
+
+    const updatedA = await update.handler({
+      hash: upperHashA,
+      content: 'Uppercase hash updated content',
+    });
+    assertOk(updatedA);
+
+    const updatedResult = updatedA.structuredContent as {
+      result: { newHash: string };
+    };
+    const upperNewHash = updatedResult.result.newHash.toUpperCase();
+
+    const deletedA = await deleteMemory.handler({ hash: upperNewHash });
+    assertOk(deletedA);
+
+    const storedB = await store.handler({
+      content: 'Uppercase hash test B',
+      tags: ['test'],
+    });
+    assertOk(storedB);
+
+    const upperHashB = getHash(storedB).toUpperCase();
+    const deletedB = await deleteMemories.handler({ hashes: [upperHashB] });
+    assertOk(deletedB);
+
+    const deletedBatchResult = deletedB.structuredContent as {
+      result: { succeeded: number; failed: number };
+    };
+    assert.strictEqual(deletedBatchResult.result.succeeded, 1);
+    assert.strictEqual(deletedBatchResult.result.failed, 0);
+  });
 });
 
 void describe('tools responses search/update', () => {
