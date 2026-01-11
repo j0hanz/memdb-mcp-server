@@ -126,13 +126,42 @@ Notes:
 - Content is deduplicated by MD5 hash. Storing the same content again returns the same hash with `isNew: false`.
 - Tags must not contain whitespace. Use hyphens for compound words (e.g., `api-design`, `error-handling`).
 
+### `store_memories`
+
+Store multiple memories in a single batch operation.
+
+| Parameter | Type     | Required | Default | Description                            |
+| :-------- | :------- | :------- | :------ | :------------------------------------- |
+| `items`   | object[] | Yes      | -       | Array of memory items (1-50 items max) |
+
+Each item in `items` has:
+
+| Field     | Type     | Required | Default | Description                                         |
+| :-------- | :------- | :------- | :------ | :-------------------------------------------------- |
+| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars)          |
+| `tags`    | string[] | Yes      | -       | Tags (1-100 tags, no whitespace, max 50 chars each) |
+
+**Returns:** `{ results, succeeded, failed }`
+
+- `results`: Array of `{ index, hash?, isNew?, error? }` for each item
+- `succeeded`: Count of successfully stored memories
+- `failed`: Count of failed items
+
+Notes:
+
+- Supports partial success: if one item fails, others still process.
+- Each item is validated independently.
+- Useful for bulk memory imports.
+
 ### `search_memories`
 
 Search memories by content and tags.
 
-| Parameter | Type   | Required | Default | Description                               |
-| :-------- | :----- | :------- | :------ | :---------------------------------------- |
-| `query`   | string | Yes      | -       | Search query (1-1000 chars, max 50 terms) |
+| Parameter       | Type   | Required | Default | Description                                     |
+| :-------------- | :----- | :------- | :------ | :---------------------------------------------- |
+| `query`         | string | Yes      | -       | Search query (1-1000 chars, max 50 terms)       |
+| `createdAfter`  | string | No       | -       | Filter: only memories created after (ISO 8601)  |
+| `createdBefore` | string | No       | -       | Filter: only memories created before (ISO 8601) |
 
 **Returns:** Array of search results (`Memory` + `relevance`).
 
@@ -141,6 +170,7 @@ Notes:
 - Searches both memory content (full-text) and tags.
 - Returns up to 100 results, ranked by relevance.
 - Content matches rank higher than tag matches.
+- Date filters use ISO 8601 format (e.g., `2025-01-01T00:00:00.000Z`).
 
 ### `get_memory`
 
@@ -161,6 +191,26 @@ Delete a memory by its hash.
 | `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
 
 **Returns:** `{ deleted: true }`.
+
+### `delete_memories`
+
+Delete multiple memories by hash in a single batch operation.
+
+| Parameter | Type     | Required | Default | Description                           |
+| :-------- | :------- | :------- | :------ | :------------------------------------ |
+| `hashes`  | string[] | Yes      | -       | Array of MD5 hashes (1-50 hashes max) |
+
+**Returns:** `{ results, succeeded, failed }`
+
+- `results`: Array of `{ hash, deleted, error? }` for each hash
+- `succeeded`: Count of successfully deleted memories
+- `failed`: Count of hashes not found or failed
+
+Notes:
+
+- Supports partial success: if one hash doesn't exist, others still delete.
+- Returns `deleted: false` for non-existent hashes (not an error).
+- Useful for bulk cleanup operations.
 
 ### `memory_stats`
 
@@ -261,6 +311,8 @@ Add to your `claude_desktop_config.json`:
 | **Max tag length**      | 50 chars      | Maximum characters per tag                                                    |
 | **Tag format**          | No whitespace | Tags cannot contain spaces or tabs; use hyphens for compound words            |
 | **Hash length**         | 32 chars      | MD5 hash length                                                               |
+| **Batch store limit**   | 50 items      | Maximum items per `store_memories` call                                       |
+| **Batch delete limit**  | 50 hashes     | Maximum hashes per `delete_memories` call                                     |
 | **Search mode**         | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 
 ### Notes
@@ -268,6 +320,8 @@ Add to your `claude_desktop_config.json`:
 - **Content deduplication**: Memories are deduplicated using MD5 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
 - **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
+- **Date filtering**: Use `createdAfter` and `createdBefore` with ISO 8601 timestamps to filter search results by creation date.
+- **Batch operations**: `store_memories` and `delete_memories` support partial success—individual item failures don't affect other items in the batch.
 - **Tag requirements**: At least one tag is required. Tags cannot contain whitespace; use hyphens for compound words (e.g., `api-design`).
 - **Local storage**: All data is stored locally in `.memdb/memory.db`.
 

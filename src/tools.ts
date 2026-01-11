@@ -8,19 +8,32 @@ import type {
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { deleteMemory, getMemory, getStats } from './core/memory-read.js';
-import { createMemory, updateMemory } from './core/memory-write.js';
+import {
+  deleteMemories,
+  deleteMemory,
+  getMemory,
+  getStats,
+} from './core/memory-read.js';
+import {
+  createMemories,
+  createMemory,
+  updateMemory,
+} from './core/memory-write.js';
 import { searchMemories } from './core/search.js';
 import {
   DefaultOutputSchema,
+  DeleteMemoriesInputSchema,
   DeleteMemoryInputSchema,
   GetMemoryInputSchema,
   MemoryStatsInputSchema,
   SearchMemoriesInputSchema,
+  StoreMemoriesInputSchema,
   StoreMemoryInputSchema,
   UpdateMemoryInputSchema,
 } from './schemas.js';
 import type {
+  BatchDeleteResult,
+  BatchStoreResult,
   Memory,
   MemoryInsertResult,
   MemoryStats,
@@ -32,25 +45,35 @@ import type {
 type MaybePromise<T> = T | Promise<T>;
 
 type CreateMemoryInput = Parameters<typeof createMemory>[0];
+type CreateMemoriesInput = Parameters<typeof createMemories>[0];
 type UpdateMemoryArgs = Parameters<typeof updateMemory>;
 type SearchInput = Parameters<typeof searchMemories>[0];
+type DeleteMemoriesInput = Parameters<typeof deleteMemories>[0];
 
 type ToolSchema = ZodRawShapeCompat | AnySchema;
 
 export interface ToolDependencies {
   createMemory: (input: CreateMemoryInput) => MaybePromise<MemoryInsertResult>;
+  createMemories: (
+    input: CreateMemoriesInput
+  ) => MaybePromise<BatchStoreResult>;
   updateMemory: (...args: UpdateMemoryArgs) => MaybePromise<MemoryUpdateResult>;
   getMemory: (hash: string) => MaybePromise<Memory | undefined>;
   deleteMemory: (hash: string) => MaybePromise<StatementResult>;
+  deleteMemories: (
+    input: DeleteMemoriesInput
+  ) => MaybePromise<BatchDeleteResult>;
   searchMemories: (input: SearchInput) => MaybePromise<SearchResult[]>;
   getStats: () => MaybePromise<MemoryStats>;
 }
 
 const defaultDeps: ToolDependencies = {
   createMemory,
+  createMemories,
   updateMemory,
   getMemory,
   deleteMemory,
+  deleteMemories,
   searchMemories,
   getStats,
 };
@@ -141,6 +164,22 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     }),
   },
   {
+    name: 'store_memories',
+    options: {
+      title: 'Store Multiple Memories',
+      description:
+        'Store multiple memories in a single batch operation. Returns per-item results with partial success support.',
+      inputSchema: StoreMemoriesInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { idempotentHint: true },
+    },
+    handler: wrapHandler('E_STORE_MEMORIES', async (params) => {
+      const input = StoreMemoriesInputSchema.parse(params);
+      const result = await deps.createMemories(input.items);
+      return ok(result);
+    }),
+  },
+  {
     name: 'get_memory',
     options: {
       title: 'Get Memory',
@@ -177,6 +216,22 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     }),
   },
   {
+    name: 'delete_memories',
+    options: {
+      title: 'Delete Multiple Memories',
+      description:
+        'Delete multiple memories by hash in a single batch operation. Returns per-item results with partial success support.',
+      inputSchema: DeleteMemoriesInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { destructiveHint: true },
+    },
+    handler: wrapHandler('E_DELETE_MEMORIES', async (params) => {
+      const input = DeleteMemoriesInputSchema.parse(params);
+      const result = await deps.deleteMemories(input.hashes);
+      return ok(result);
+    }),
+  },
+  {
     name: 'update_memory',
     options: {
       title: 'Update Memory',
@@ -202,14 +257,19 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
     name: 'search_memories',
     options: {
       title: 'Search Memories',
-      description: 'Search memories by content and tags',
+      description:
+        'Search memories by content and tags. Supports optional date range filtering.',
       inputSchema: SearchMemoriesInputSchema,
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      const result = await deps.searchMemories({ query: input.query });
+      const result = await deps.searchMemories({
+        query: input.query,
+        createdAfter: input.createdAfter,
+        createdBefore: input.createdBefore,
+      });
       return ok(result);
     }),
   },

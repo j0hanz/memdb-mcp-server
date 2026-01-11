@@ -4,8 +4,10 @@ import { after, describe, it } from 'node:test';
 process.env.MEMDB_PATH = ':memory:';
 
 const { closeDb, withImmediateTransaction } = await import('../src/core/db.js');
-const { createMemory } = await import('../src/core/memory-write.js');
-const { deleteMemory, getMemory } = await import('../src/core/memory-read.js');
+const { createMemory, createMemories } =
+  await import('../src/core/memory-write.js');
+const { deleteMemory, deleteMemories, getMemory } =
+  await import('../src/core/memory-read.js');
 const { searchMemories } = await import('../src/core/search.js');
 
 interface CreateInput {
@@ -145,6 +147,224 @@ void describe('withImmediateTransaction', () => {
       },
       /nested transaction/i,
       'Should reject nested transactions'
+    );
+  });
+});
+
+void describe('MemoryService createMemories (batch)', () => {
+  void it('should create multiple memories successfully', () => {
+    const items = [
+      { content: 'Batch item 1', tags: ['batch', 'test'] },
+      { content: 'Batch item 2', tags: ['batch', 'second'] },
+      { content: 'Batch item 3', tags: ['batch', 'third'] },
+    ];
+
+    const result = createMemories(items);
+
+    assert.strictEqual(result.succeeded, 3, 'Should succeed for all items');
+    assert.strictEqual(result.failed, 0, 'Should have no failures');
+    assert.strictEqual(result.results.length, 3, 'Should return 3 results');
+
+    for (const r of result.results) {
+      assert.ok(r.hash, 'Each result should have a hash');
+      assert.ok(r.isNew !== undefined, 'Each result should have isNew');
+      assert.strictEqual(r.error, undefined, 'Should have no error');
+    }
+  });
+
+  void it('should return partial success on tag validation errors', () => {
+    const items = [
+      { content: 'Valid content for tag test 1', tags: ['valid'] },
+      { content: 'Invalid tags content', tags: ['a'.repeat(51)] }, // Tag too long (>50 chars)
+      { content: 'Valid content for tag test 2', tags: ['valid'] },
+    ];
+
+    const result = createMemories(items);
+
+    assert.strictEqual(result.succeeded, 2, 'Should succeed for 2 items');
+    assert.strictEqual(result.failed, 1, 'Should fail for 1 item');
+    assert.strictEqual(result.results.length, 3, 'Should return all results');
+
+    // Check that the middle item has an error
+    const failedResult = result.results[1];
+    assert.ok(failedResult, 'Should have result at index 1');
+    assert.ok(failedResult.error, 'Failed item should have error');
+    assert.ok(
+      failedResult.error.includes('50'),
+      'Error should mention tag length limit'
+    );
+  });
+
+  void it('should handle empty array', () => {
+    const result = createMemories([]);
+
+    assert.strictEqual(result.succeeded, 0, 'Should have 0 succeeded');
+    assert.strictEqual(result.failed, 0, 'Should have 0 failed');
+    assert.strictEqual(result.results.length, 0, 'Should return empty array');
+  });
+
+  void it('should deduplicate content across batch', () => {
+    const items = [
+      { content: 'Duplicate batch content', tags: ['first'] },
+      { content: 'Duplicate batch content', tags: ['second'] },
+    ];
+
+    const result = createMemories(items);
+
+    assert.strictEqual(result.succeeded, 2, 'Both should succeed');
+    assert.strictEqual(
+      result.results[0]?.hash,
+      result.results[1]?.hash,
+      'Same content should produce same hash'
+    );
+    assert.strictEqual(result.results[0]?.isNew, true, 'First should be new');
+    assert.strictEqual(
+      result.results[1]?.isNew,
+      false,
+      'Second should not be new'
+    );
+  });
+});
+
+void describe('MemoryService deleteMemories (batch)', () => {
+  void it('should delete multiple memories successfully', () => {
+    // Create test memories
+    const mem1 = createMemory({
+      content: 'To delete batch 1',
+      tags: ['delete-batch'],
+    });
+    const mem2 = createMemory({
+      content: 'To delete batch 2',
+      tags: ['delete-batch'],
+    });
+    const mem3 = createMemory({
+      content: 'To delete batch 3',
+      tags: ['delete-batch'],
+    });
+
+    const result = deleteMemories([mem1.hash, mem2.hash, mem3.hash]);
+
+    assert.strictEqual(result.succeeded, 3, 'Should delete all 3');
+    assert.strictEqual(result.failed, 0, 'Should have no failures');
+
+    for (const r of result.results) {
+      assert.strictEqual(r.deleted, true, 'Each should be deleted');
+    }
+
+    // Verify memories are gone
+    assert.strictEqual(getMemory(mem1.hash), undefined);
+    assert.strictEqual(getMemory(mem2.hash), undefined);
+    assert.strictEqual(getMemory(mem3.hash), undefined);
+  });
+
+  void it('should return partial success with non-existent hashes', () => {
+    const mem = createMemory({
+      content: 'To delete for partial',
+      tags: ['delete-test'],
+    });
+
+    const result = deleteMemories([
+      mem.hash,
+      'nonexistent1234567890123456789012',
+      'anotherfake12345678901234567890',
+    ]);
+
+    assert.strictEqual(result.succeeded, 1, 'Should delete 1');
+    assert.strictEqual(result.failed, 2, 'Should fail for 2');
+    assert.strictEqual(result.results[0]?.deleted, true);
+    assert.strictEqual(result.results[1]?.deleted, false);
+    assert.strictEqual(result.results[2]?.deleted, false);
+  });
+
+  void it('should handle empty array', () => {
+    const result = deleteMemories([]);
+
+    assert.strictEqual(result.succeeded, 0);
+    assert.strictEqual(result.failed, 0);
+    assert.strictEqual(result.results.length, 0);
+  });
+});
+
+void describe('MemoryService searchMemories with date filters', () => {
+  void it('should filter by createdAfter', () => {
+    // Create a memory with known content
+    create({ content: 'Date filter test memory after', tags: ['datetest'] });
+
+    // Get current timestamp for filtering
+    const pastDate = '2020-01-01T00:00:00.000Z';
+    const futureDate = '2099-12-31T23:59:59.999Z';
+
+    // Should find with past date (memory created after 2020)
+    const resultsAfterPast = searchMemories({
+      query: 'datetest',
+      createdAfter: pastDate,
+    });
+    assert.ok(
+      resultsAfterPast.length > 0,
+      'Should find memories created after 2020'
+    );
+
+    // Should not find with future date (no memories created after 2099)
+    const resultsAfterFuture = searchMemories({
+      query: 'datetest',
+      createdAfter: futureDate,
+    });
+    assert.strictEqual(
+      resultsAfterFuture.length,
+      0,
+      'Should find no memories created after 2099'
+    );
+  });
+
+  void it('should filter by createdBefore', () => {
+    create({ content: 'Date filter test memory before', tags: ['datetest2'] });
+
+    const pastDate = '2020-01-01T00:00:00.000Z';
+    const futureDate = '2099-12-31T23:59:59.999Z';
+
+    // Should find with future date (memory created before 2099)
+    const resultsBeforeFuture = searchMemories({
+      query: 'datetest2',
+      createdBefore: futureDate,
+    });
+    assert.ok(
+      resultsBeforeFuture.length > 0,
+      'Should find memories created before 2099'
+    );
+
+    // Should not find with past date (memory not created before 2020)
+    const resultsBeforePast = searchMemories({
+      query: 'datetest2',
+      createdBefore: pastDate,
+    });
+    assert.strictEqual(
+      resultsBeforePast.length,
+      0,
+      'Should find no memories created before 2020'
+    );
+  });
+
+  void it('should filter by date range (both createdAfter and createdBefore)', () => {
+    create({ content: 'Date range filter memory', tags: ['daterange'] });
+
+    // Valid range that includes current time
+    const resultsInRange = searchMemories({
+      query: 'daterange',
+      createdAfter: '2020-01-01T00:00:00.000Z',
+      createdBefore: '2099-12-31T23:59:59.999Z',
+    });
+    assert.ok(resultsInRange.length > 0, 'Should find memory in date range');
+
+    // Invalid range (before < after)
+    const resultsOutOfRange = searchMemories({
+      query: 'daterange',
+      createdAfter: '2099-01-01T00:00:00.000Z',
+      createdBefore: '2020-01-01T00:00:00.000Z',
+    });
+    assert.strictEqual(
+      resultsOutOfRange.length,
+      0,
+      'Should find no memories when range is inverted'
     );
   });
 });

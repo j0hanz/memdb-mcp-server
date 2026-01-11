@@ -70,10 +70,12 @@ void describe('tools registration', () => {
 
     const names = registrations.map((entry) => entry.name).sort();
     assert.deepStrictEqual(names, [
+      'delete_memories',
       'delete_memory',
       'get_memory',
       'memory_stats',
       'search_memories',
+      'store_memories',
       'store_memory',
       'update_memory',
     ]);

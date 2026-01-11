@@ -18,9 +18,28 @@ export const StoreMemoryInputSchema = z.strictObject({
   }),
 });
 
+const StoreMemoryItemSchema = z.strictObject({
+  content: contentSchema.meta({ description: 'The content of the memory' }),
+  tags: tagsSchema.min(1).max(100).meta({
+    description: 'Tags to categorize the memory',
+  }),
+});
+
+export const StoreMemoriesInputSchema = z.strictObject({
+  items: z.array(StoreMemoryItemSchema).min(1).max(50).meta({
+    description: 'Memories to store (1-50 items)',
+  }),
+});
+
 export const SearchMemoriesInputSchema = z.strictObject({
   query: querySchema.meta({
     description: 'Search query (searches content and tags)',
+  }),
+  createdAfter: z.iso.datetime().optional().meta({
+    description: 'Filter: only memories created after this ISO8601 datetime',
+  }),
+  createdBefore: z.iso.datetime().optional().meta({
+    description: 'Filter: only memories created before this ISO8601 datetime',
   }),
 });
 
@@ -30,6 +49,12 @@ export const GetMemoryInputSchema = z.strictObject({
 
 export const DeleteMemoryInputSchema = z.strictObject({
   hash: hashSchema.meta({ description: 'MD5 hash of the memory' }),
+});
+
+export const DeleteMemoriesInputSchema = z.strictObject({
+  hashes: z.array(hashSchema).min(1).max(50).meta({
+    description: 'MD5 hashes of memories to delete (1-50 hashes)',
+  }),
 });
 
 export const UpdateMemoryInputSchema = z.strictObject({

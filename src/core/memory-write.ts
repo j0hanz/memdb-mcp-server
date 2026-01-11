@@ -1,7 +1,12 @@
 import crypto from 'node:crypto';
 import type { StatementSync } from 'node:sqlite';
 
-import type { MemoryInsertResult, MemoryUpdateResult } from '../types.js';
+import type {
+  BatchStoreItemResult,
+  BatchStoreResult,
+  MemoryInsertResult,
+  MemoryUpdateResult,
+} from '../types.js';
 import {
   db,
   executeGet,
@@ -125,6 +130,30 @@ export const createMemory = (input: {
     insertTags(id, normalizedTags);
     return { id, hash, isNew };
   });
+
+export const createMemories = (
+  items: { content: string; tags?: readonly string[] }[]
+): BatchStoreResult => {
+  const results: BatchStoreItemResult[] = [];
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item) continue;
+    try {
+      const { hash, isNew } = createMemory(item);
+      results.push({ index: i, hash, isNew });
+      succeeded++;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      results.push({ index: i, error: message });
+      failed++;
+    }
+  }
+
+  return { results, succeeded, failed };
+};
 
 const stmtDeleteTagsForMemory = db.prepare(
   'DELETE FROM tags WHERE memory_id = ?'

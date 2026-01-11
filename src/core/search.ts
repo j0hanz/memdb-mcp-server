@@ -31,13 +31,45 @@ const buildTagPlaceholders = (count: number): string => {
   return Array.from({ length: count }, () => '?').join(', ');
 };
 
+interface DateFilters {
+  createdAfter?: string | undefined;
+  createdBefore?: string | undefined;
+}
+
+const buildDateConditions = (
+  filters: DateFilters
+): { conditions: string[]; params: string[] } => {
+  const conditions: string[] = [];
+  const params: string[] = [];
+
+  if (filters.createdAfter) {
+    conditions.push('datetime(m.created_at) >= datetime(?)');
+    params.push(filters.createdAfter);
+  }
+  if (filters.createdBefore) {
+    conditions.push('datetime(m.created_at) <= datetime(?)');
+    params.push(filters.createdBefore);
+  }
+
+  return { conditions, params };
+};
+
 // Search both content (FTS) and tags, deduplicated by memory id
 const buildSearchQuery = (
-  tokens: string[]
+  tokens: string[],
+  dateFilters: DateFilters = {}
 ): { sql: string; params: (number | string)[] } => {
   const ftsQuery = buildFtsQuery(tokens);
   const tagPlaceholders = buildTagPlaceholders(tokens.length);
   const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
+
+  const { conditions: dateConditions, params: dateParams } =
+    buildDateConditions(dateFilters);
+
+  // Build date filter clause (empty string if no filters)
+  const joinedConditions = dateConditions.join(' AND ');
+  const dateClause =
+    dateConditions.length > 0 ? ` AND ${joinedConditions}` : '';
 
   // Union of FTS content matches and tag matches, deduplicated
   const sql = `
@@ -45,13 +77,13 @@ const buildSearchQuery = (
       SELECT m.*, ${relevanceExpr} as relevance
       FROM memories m
       JOIN memories_fts ON m.id = memories_fts.rowid
-      WHERE memories_fts MATCH ?
+      WHERE memories_fts MATCH ?${dateClause}
     ),
     tag_matches AS (
       SELECT DISTINCT m.*, 0.5 as relevance
       FROM memories m
       JOIN tags t ON m.id = t.memory_id
-      WHERE t.tag IN (${tagPlaceholders})
+      WHERE t.tag IN (${tagPlaceholders})${dateClause}
     ),
     combined AS (
       SELECT * FROM content_matches
@@ -66,7 +98,11 @@ const buildSearchQuery = (
     LIMIT ?
   `;
 
-  return { sql, params: [ftsQuery, ...tokens, DEFAULT_LIMIT] };
+  // dateParams appear twice: once for content_matches CTE, once for tag_matches CTE
+  return {
+    sql,
+    params: [ftsQuery, ...dateParams, ...tokens, ...dateParams, DEFAULT_LIMIT],
+  };
 };
 
 const INDEX_MISSING_TOKENS = [
@@ -132,6 +168,8 @@ const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
 
 interface SearchInput {
   query: string;
+  createdAfter?: string | undefined;
+  createdBefore?: string | undefined;
 }
 
 export const searchMemories = (input: SearchInput): SearchResult[] => {
@@ -139,7 +177,11 @@ export const searchMemories = (input: SearchInput): SearchResult[] => {
   if (tokens.length === 0) {
     throw new Error('Query cannot be empty');
   }
-  const { sql, params } = buildSearchQuery(tokens);
+  const dateFilters: DateFilters = {
+    createdAfter: input.createdAfter,
+    createdBefore: input.createdBefore,
+  };
+  const { sql, params } = buildSearchQuery(tokens, dateFilters);
   const rows = executeSearch(sql, params);
   return rows.map((row) => mapRowToSearchResult(row));
 };

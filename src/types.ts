@@ -33,3 +33,28 @@ export interface MemoryStats {
   readonly oldestMemory: string | null;
   readonly newestMemory: string | null;
 }
+
+export interface BatchStoreItemResult {
+  readonly index: number;
+  readonly hash?: string;
+  readonly isNew?: boolean;
+  readonly error?: string;
+}
+
+export interface BatchStoreResult {
+  readonly results: BatchStoreItemResult[];
+  readonly succeeded: number;
+  readonly failed: number;
+}
+
+export interface BatchDeleteItemResult {
+  readonly hash: string;
+  readonly deleted: boolean;
+  readonly error?: string;
+}
+
+export interface BatchDeleteResult {
+  readonly results: BatchDeleteItemResult[];
+  readonly succeeded: number;
+  readonly failed: number;
+}
