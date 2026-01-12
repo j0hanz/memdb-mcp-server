@@ -22,6 +22,23 @@ const buildUnsupportedVersionMessage = (
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const rejectBatchIfPresent = (message: unknown, inner: Transport): boolean => {
+  if (!Array.isArray(message)) return false;
+  for (const item of message) {
+    if (!isObject(item)) continue;
+    const id: unknown = Reflect.get(item, 'id');
+    if (typeof id !== 'string' && typeof id !== 'number') continue;
+    void inner.send(
+      createLifecycleError(
+        id,
+        'Invalid request: JSON-RPC batching is not supported'
+      ),
+      { relatedRequestId: id }
+    );
+  }
+  return true;
+};
+
 const getInitializeInfo = (
   message: JSONRPCMessage
 ): { id: RequestId; protocolVersion: string } | undefined => {
@@ -108,6 +125,10 @@ export class ProtocolVersionGuardTransport implements Transport {
     message: JSONRPCMessage,
     extra?: MessageExtraInfo
   ): void {
+    if (rejectBatchIfPresent(message as unknown, this.inner)) {
+      return;
+    }
+
     const initializeInfo = getInitializeInfo(message);
     if (initializeInfo) {
       if (this.sawInitialize) {

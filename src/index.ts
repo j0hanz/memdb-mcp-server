@@ -3,7 +3,6 @@ import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   type CallToolResult,
@@ -13,6 +12,7 @@ import {
 import { closeDb } from './core/db.js';
 import { logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
+import { BatchRejectingStdioServerTransport } from './stdio-transport.js';
 import { registerAllTools } from './tools.js';
 
 const readPackageVersion = async (): Promise<string | undefined> => {
@@ -90,7 +90,7 @@ async function shutdown(signal: string): Promise<void> {
 
 const main = async (): Promise<void> => {
   try {
-    const stdioTransport = new StdioServerTransport();
+    const stdioTransport = new BatchRejectingStdioServerTransport();
     const guardedTransport = new ProtocolVersionGuardTransport(
       stdioTransport,
       SUPPORTED_PROTOCOL_VERSIONS
