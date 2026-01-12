@@ -3,7 +3,12 @@ import path from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 
 import { config } from '../config.js';
-import type { Memory, SearchResult } from '../types.js';
+import {
+  type Memory,
+  MEMORY_TYPES,
+  type MemoryType,
+  type SearchResult,
+} from '../types.js';
 
 export type DbRow = Record<string, unknown>;
 
@@ -272,6 +277,17 @@ const toString = (value: unknown, field: string): string => {
   throw createFieldError(field);
 };
 
+const isMemoryType = (value: string): value is MemoryType =>
+  MEMORY_TYPES.includes(value as MemoryType);
+
+const toMemoryType = (value: unknown, field: string): MemoryType => {
+  const str = toString(value, field);
+  if (!isMemoryType(str)) {
+    throw createFieldError(field);
+  }
+  return str;
+};
+
 const toOptionalString = (
   value: unknown,
   field: string
@@ -293,7 +309,7 @@ export const mapRowToMemory = (row: DbRow): Memory => ({
   content: toString(row.content, 'content'),
   summary: toOptionalString(row.summary, 'summary'),
   importance: toSafeInteger(row.importance ?? 0, 'importance'),
-  memory_type: toString(row.memory_type ?? 'general', 'memory_type'),
+  memory_type: toMemoryType(row.memory_type ?? 'general', 'memory_type'),
   created_at: toString(row.created_at, 'created_at'),
   accessed_at: toString(row.accessed_at, 'accessed_at'),
   hash: toString(row.hash, 'hash'),

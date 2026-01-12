@@ -12,6 +12,7 @@ import {
   executeRun,
   mapRowToMemory,
   toSafeInteger,
+  withImmediateTransaction,
 } from './db.js';
 
 const stmtGetMemoryByHash = db.prepare('SELECT * FROM memories WHERE hash = ?');
@@ -34,24 +35,26 @@ export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
   let succeeded = 0;
   let failed = 0;
 
-  for (const hash of hashes) {
-    try {
-      const result = deleteMemory(hash);
-      if (result.changes > 0) {
-        results.push({ hash, deleted: true });
-        succeeded++;
-      } else {
-        results.push({ hash, deleted: false, error: 'Memory not found' });
+  return withImmediateTransaction(() => {
+    for (const hash of hashes) {
+      try {
+        const result = deleteMemory(hash);
+        if (result.changes > 0) {
+          results.push({ hash, deleted: true });
+          succeeded++;
+        } else {
+          results.push({ hash, deleted: false, error: 'Memory not found' });
+          failed++;
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        results.push({ hash, deleted: false, error: message });
         failed++;
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      results.push({ hash, deleted: false, error: message });
-      failed++;
     }
-  }
 
-  return { results, succeeded, failed };
+    return { results, succeeded, failed };
+  });
 };
 
 const stmtMemoryCount = db.prepare('SELECT COUNT(*) as count FROM memories');

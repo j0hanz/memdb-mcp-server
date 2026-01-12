@@ -5,6 +5,7 @@ import type {
   BatchStoreItemResult,
   BatchStoreResult,
   MemoryInsertResult,
+  MemoryType,
   MemoryUpdateResult,
 } from '../types.js';
 import {
@@ -130,54 +131,62 @@ export const createMemory = (input: {
   content: string;
   tags?: readonly string[];
   importance?: number;
-  memory_type?: string;
+  memory_type?: MemoryType;
 }): MemoryInsertResult =>
-  withImmediateTransaction(() => {
-    const {
-      content,
-      tags = [],
-      importance = 0,
-      memory_type: memoryType = 'general',
-    } = input;
-    const hash = buildHash(content);
-    const normalizedTags = normalizeTags(tags, MAX_TAGS);
-    const { id, isNew } = resolveMemoryId(
-      content,
-      hash,
-      importance,
-      memoryType
-    );
-    insertTags(id, normalizedTags);
-    return { id, hash, isNew };
-  });
+  withImmediateTransaction(() => createMemoryInTransaction(input));
+
+const createMemoryInTransaction = (input: {
+  content: string;
+  tags?: readonly string[];
+  importance?: number;
+  memory_type?: MemoryType;
+}): MemoryInsertResult => {
+  const {
+    content,
+    tags = [],
+    importance = 0,
+    memory_type: memoryType = 'general',
+  } = input;
+  const hash = buildHash(content);
+  const normalizedTags = normalizeTags(tags, MAX_TAGS);
+  const { id, isNew } = resolveMemoryId(content, hash, importance, memoryType);
+  insertTags(id, normalizedTags);
+  return { id, hash, isNew };
+};
 
 export const createMemories = (
   items: {
     content: string;
     tags?: readonly string[];
     importance?: number;
-    memory_type?: string;
+    memory_type?: MemoryType;
   }[]
 ): BatchStoreResult => {
   const results: BatchStoreItemResult[] = [];
   let succeeded = 0;
   let failed = 0;
 
-  for (let i = 0; i < items.length; i++) {
-    const item = items[i];
-    if (!item) continue;
-    try {
-      const { hash, isNew } = createMemory(item);
-      results.push({ index: i, hash, isNew });
-      succeeded++;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
-      results.push({ index: i, error: message });
-      failed++;
+  return withImmediateTransaction(() => {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item) continue;
+      db.exec('SAVEPOINT mem_item');
+      try {
+        const { hash, isNew } = createMemoryInTransaction(item);
+        results.push({ ok: true, index: i, hash, isNew });
+        succeeded++;
+        db.exec('RELEASE mem_item');
+      } catch (err) {
+        db.exec('ROLLBACK TO mem_item');
+        db.exec('RELEASE mem_item');
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        results.push({ ok: false, index: i, error: message });
+        failed++;
+      }
     }
-  }
 
-  return { results, succeeded, failed };
+    return { results, succeeded, failed };
+  });
 };
 
 const stmtDeleteTagsForMemory = db.prepare(

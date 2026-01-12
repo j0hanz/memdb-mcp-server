@@ -39,10 +39,11 @@ const server = new McpServer(
 );
 
 const patchToolErrorResults = (target: McpServer): void => {
-  const patched = target as unknown as {
-    createToolError: (message: string) => CallToolResult;
-  };
-  patched.createToolError = (message: string): CallToolResult => {
+  const targetUnknown = target as unknown as Record<string, unknown>;
+  const existing: unknown = Reflect.get(targetUnknown, 'createToolError');
+  if (existing !== undefined && typeof existing !== 'function') return;
+
+  const createToolError = (message: string): CallToolResult => {
     const structured = {
       ok: false,
       error: { code: 'E_TOOL_ERROR', message },
@@ -53,6 +54,8 @@ const patchToolErrorResults = (target: McpServer): void => {
       isError: true,
     };
   };
+
+  Reflect.set(targetUnknown, 'createToolError', createToolError);
 };
 
 patchToolErrorResults(server);

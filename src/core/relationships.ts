@@ -118,6 +118,12 @@ const buildGetRelationshipsQuery = (
   }
 };
 
+const stmtGetRelationships = {
+  outgoing: db.prepare(buildGetRelationshipsQuery('outgoing')),
+  incoming: db.prepare(buildGetRelationshipsQuery('incoming')),
+  both: db.prepare(buildGetRelationshipsQuery('both')),
+} as const;
+
 export interface GetRelationshipsInput {
   hash: string;
   direction?: 'outgoing' | 'incoming' | 'both';
@@ -127,8 +133,7 @@ export const getRelationships = (
   input: GetRelationshipsInput
 ): Relationship[] => {
   const direction = input.direction ?? 'both';
-  const sql = buildGetRelationshipsQuery(direction);
-  const stmt = db.prepare(sql);
+  const stmt = stmtGetRelationships[direction];
 
   const params = direction === 'both' ? [input.hash, input.hash] : [input.hash];
   const rows = executeAll(stmt, ...params);

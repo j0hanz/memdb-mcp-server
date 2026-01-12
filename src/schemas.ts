@@ -1,5 +1,7 @@
 import { type RefinementCtx, z } from 'zod';
 
+import { MEMORY_TYPES } from './types.js';
+
 const hashSchema = z.string().regex(/^[a-f0-9]{32}$/i);
 const tagSchema = z
   .string()
@@ -10,16 +12,7 @@ const tagsSchema = z.array(tagSchema);
 const contentSchema = z.string().min(1).max(100000);
 const querySchema = z.string().trim().min(1).max(1000);
 const importanceSchema = z.number().int().min(0).max(10);
-const memoryTypeSchema = z.enum([
-  'general',
-  'fact',
-  'plan',
-  'decision',
-  'reflection',
-  'lesson',
-  'error',
-  'gradient',
-]);
+const memoryTypeSchema = z.enum(MEMORY_TYPES);
 const relationTypeSchema = z
   .string()
   .min(1)

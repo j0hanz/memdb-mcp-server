@@ -1,9 +1,22 @@
+export const MEMORY_TYPES = [
+  'general',
+  'fact',
+  'plan',
+  'decision',
+  'reflection',
+  'lesson',
+  'error',
+  'gradient',
+] as const;
+
+export type MemoryType = (typeof MEMORY_TYPES)[number];
+
 export interface Memory {
   readonly id: number;
   readonly content: string;
   readonly summary: string | undefined;
   readonly importance: number;
-  readonly memory_type: string;
+  readonly memory_type: MemoryType;
   readonly created_at: string;
   readonly accessed_at: string;
   readonly hash: string;
@@ -36,12 +49,18 @@ export interface MemoryStats {
   readonly newestMemory: string | null;
 }
 
-export interface BatchStoreItemResult {
-  readonly index: number;
-  readonly hash?: string;
-  readonly isNew?: boolean;
-  readonly error?: string;
-}
+export type BatchStoreItemResult =
+  | {
+      readonly ok: true;
+      readonly index: number;
+      readonly hash: string;
+      readonly isNew: boolean;
+    }
+  | {
+      readonly ok: false;
+      readonly index: number;
+      readonly error: string;
+    };
 
 export interface BatchStoreResult {
   readonly results: BatchStoreItemResult[];
