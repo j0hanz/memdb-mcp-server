@@ -2,6 +2,8 @@ export interface Memory {
   readonly id: number;
   readonly content: string;
   readonly summary: string | undefined;
+  readonly importance: number;
+  readonly memory_type: string;
   readonly created_at: string;
   readonly accessed_at: string;
   readonly hash: string;
@@ -57,4 +59,29 @@ export interface BatchDeleteResult {
   readonly results: BatchDeleteItemResult[];
   readonly succeeded: number;
   readonly failed: number;
+}
+
+export interface Relationship {
+  readonly id: number;
+  readonly from_hash: string;
+  readonly to_hash: string;
+  readonly relation_type: string;
+  readonly created_at: string;
+}
+
+export interface CreateRelationshipResult {
+  readonly id: number;
+  readonly isNew: boolean;
+}
+
+export interface RelationshipWithMemories {
+  readonly relationship: Relationship;
+  readonly from_memory: Memory;
+  readonly to_memory: Memory;
+}
+
+export interface RecallResult {
+  readonly memories: SearchResult[];
+  readonly relationships: Relationship[];
+  readonly depth: number;
 }

@@ -19,13 +19,22 @@ import {
   createMemory,
   updateMemory,
 } from './core/memory-write.js';
-import { searchMemories } from './core/search.js';
 import {
+  createRelationship,
+  deleteRelationship,
+  getRelationships,
+} from './core/relationships.js';
+import { recallMemories, searchMemories } from './core/search.js';
+import {
+  CreateRelationshipInputSchema,
   DefaultOutputSchema,
   DeleteMemoriesInputSchema,
   DeleteMemoryInputSchema,
+  DeleteRelationshipInputSchema,
   GetMemoryInputSchema,
+  GetRelationshipsInputSchema,
   MemoryStatsInputSchema,
+  RecallInputSchema,
   SearchMemoriesInputSchema,
   StoreMemoriesInputSchema,
   StoreMemoryInputSchema,
@@ -34,10 +43,13 @@ import {
 import type {
   BatchDeleteResult,
   BatchStoreResult,
+  CreateRelationshipResult,
   Memory,
   MemoryInsertResult,
   MemoryStats,
   MemoryUpdateResult,
+  RecallResult,
+  Relationship,
   SearchResult,
   StatementResult,
 } from './types.js';
@@ -49,6 +61,10 @@ type CreateMemoriesInput = Parameters<typeof createMemories>[0];
 type UpdateMemoryArgs = Parameters<typeof updateMemory>;
 type SearchInput = Parameters<typeof searchMemories>[0];
 type DeleteMemoriesInput = Parameters<typeof deleteMemories>[0];
+type CreateRelationshipInput = Parameters<typeof createRelationship>[0];
+type GetRelationshipsInput = Parameters<typeof getRelationships>[0];
+type DeleteRelationshipInput = Parameters<typeof deleteRelationship>[0];
+type RecallInput = Parameters<typeof recallMemories>[0];
 
 type ToolSchema = ZodRawShapeCompat | AnySchema;
 
@@ -65,6 +81,16 @@ export interface ToolDependencies {
   ) => MaybePromise<BatchDeleteResult>;
   searchMemories: (input: SearchInput) => MaybePromise<SearchResult[]>;
   getStats: () => MaybePromise<MemoryStats>;
+  createRelationship: (
+    input: CreateRelationshipInput
+  ) => MaybePromise<CreateRelationshipResult>;
+  getRelationships: (
+    input: GetRelationshipsInput
+  ) => MaybePromise<Relationship[]>;
+  deleteRelationship: (
+    input: DeleteRelationshipInput
+  ) => MaybePromise<StatementResult>;
+  recallMemories: (input: RecallInput) => MaybePromise<RecallResult>;
 }
 
 const defaultDeps: ToolDependencies = {
@@ -76,6 +102,10 @@ const defaultDeps: ToolDependencies = {
   deleteMemories,
   searchMemories,
   getStats,
+  createRelationship,
+  getRelationships,
+  deleteRelationship,
+  recallMemories,
 };
 
 type ErrorResponse = CallToolResult & {
@@ -161,6 +191,10 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
       const result = await deps.createMemory({
         content: input.content,
         tags: input.tags,
+        ...(input.importance !== undefined && { importance: input.importance }),
+        ...(input.memory_type !== undefined && {
+          memory_type: input.memory_type,
+        }),
       });
       return ok(result);
     }),
@@ -177,7 +211,15 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
     },
     handler: wrapHandler('E_STORE_MEMORIES', async (params) => {
       const input = StoreMemoriesInputSchema.parse(params);
-      const result = await deps.createMemories(input.items);
+      const items = input.items.map((item) => ({
+        content: item.content,
+        tags: item.tags,
+        ...(item.importance !== undefined && { importance: item.importance }),
+        ...(item.memory_type !== undefined && {
+          memory_type: item.memory_type,
+        }),
+      }));
+      const result = await deps.createMemories(items);
       return ok(result);
     }),
   },
@@ -270,6 +312,90 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
       return ok(result);
     }),
   },
+  {
+    name: 'recall',
+    options: {
+      title: 'Recall Memories',
+      description:
+        'Search for memories and traverse relationships to return a connected graph cluster. ' +
+        'Use this for deeper context retrieval that follows knowledge graph connections.',
+      inputSchema: RecallInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { readOnlyHint: true },
+    },
+    handler: wrapHandler('E_RECALL', async (params) => {
+      const input = RecallInputSchema.parse(params);
+      const result = await deps.recallMemories({
+        query: input.query,
+        ...(input.depth !== undefined && { depth: input.depth }),
+      });
+      return ok(result);
+    }),
+  },
+];
+
+const buildRelationshipTools = (deps: ToolDependencies): ToolDef[] => [
+  {
+    name: 'create_relationship',
+    options: {
+      title: 'Create Relationship',
+      description:
+        'Link two memories with a typed relationship. Creates a knowledge graph edge between memories.',
+      inputSchema: CreateRelationshipInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { idempotentHint: true },
+    },
+    handler: wrapHandler('E_CREATE_RELATIONSHIP', async (params) => {
+      const input = CreateRelationshipInputSchema.parse(params);
+      const result = await deps.createRelationship({
+        from_hash: normalizeHash(input.from_hash),
+        to_hash: normalizeHash(input.to_hash),
+        relation_type: input.relation_type,
+      });
+      return ok(result);
+    }),
+  },
+  {
+    name: 'get_relationships',
+    options: {
+      title: 'Get Relationships',
+      description:
+        'Get all relationships for a memory. Returns linked memories with relationship types.',
+      inputSchema: GetRelationshipsInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { readOnlyHint: true },
+    },
+    handler: wrapHandler('E_GET_RELATIONSHIPS', async (params) => {
+      const input = GetRelationshipsInputSchema.parse(params);
+      const result = await deps.getRelationships({
+        hash: normalizeHash(input.hash),
+        ...(input.direction !== undefined && { direction: input.direction }),
+      });
+      return ok(result);
+    }),
+  },
+  {
+    name: 'delete_relationship',
+    options: {
+      title: 'Delete Relationship',
+      description: 'Remove a relationship between two memories.',
+      inputSchema: DeleteRelationshipInputSchema,
+      outputSchema: DefaultOutputSchema,
+      annotations: { destructiveHint: true },
+    },
+    handler: wrapHandler('E_DELETE_RELATIONSHIP', async (params) => {
+      const input = DeleteRelationshipInputSchema.parse(params);
+      const result = await deps.deleteRelationship({
+        from_hash: normalizeHash(input.from_hash),
+        to_hash: normalizeHash(input.to_hash),
+        relation_type: input.relation_type,
+      });
+      if (result.changes === 0) {
+        return createErrorResponse('E_NOT_FOUND', 'Relationship not found');
+      }
+      return ok({ deleted: true });
+    }),
+  },
 ];
 
 const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
@@ -293,6 +419,7 @@ const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
 const buildTools = (deps: ToolDependencies): ToolDef[] => [
   ...buildCoreTools(deps),
   ...buildSearchTools(deps),
+  ...buildRelationshipTools(deps),
   ...buildStatsTools(deps),
 ];
 

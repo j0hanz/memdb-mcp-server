@@ -95,7 +95,7 @@ const buildHash = (content: string): string => {
 };
 
 const stmtInsertMemory = db.prepare(
-  'INSERT OR IGNORE INTO memories (content, hash) VALUES (?, ?) RETURNING id'
+  'INSERT OR IGNORE INTO memories (content, hash, importance, memory_type) VALUES (?, ?, ?, ?) RETURNING id'
 );
 
 const requireMemoryId = (id: number | undefined): number => {
@@ -107,9 +107,17 @@ const requireMemoryId = (id: number | undefined): number => {
 
 const resolveMemoryId = (
   content: string,
-  hash: string
+  hash: string,
+  importance: number,
+  memoryType: string
 ): { id: number; isNew: boolean } => {
-  const inserted = executeGet(stmtInsertMemory, content, hash);
+  const inserted = executeGet(
+    stmtInsertMemory,
+    content,
+    hash,
+    importance,
+    memoryType
+  );
   if (inserted) {
     return { id: toSafeInteger(inserted.id, 'id'), isNew: true };
   }
@@ -121,18 +129,35 @@ const resolveMemoryId = (
 export const createMemory = (input: {
   content: string;
   tags?: readonly string[];
+  importance?: number;
+  memory_type?: string;
 }): MemoryInsertResult =>
   withImmediateTransaction(() => {
-    const { content, tags = [] } = input;
+    const {
+      content,
+      tags = [],
+      importance = 0,
+      memory_type: memoryType = 'general',
+    } = input;
     const hash = buildHash(content);
     const normalizedTags = normalizeTags(tags, MAX_TAGS);
-    const { id, isNew } = resolveMemoryId(content, hash);
+    const { id, isNew } = resolveMemoryId(
+      content,
+      hash,
+      importance,
+      memoryType
+    );
     insertTags(id, normalizedTags);
     return { id, hash, isNew };
   });
 
 export const createMemories = (
-  items: { content: string; tags?: readonly string[] }[]
+  items: {
+    content: string;
+    tags?: readonly string[];
+    importance?: number;
+    memory_type?: string;
+  }[]
 ): BatchStoreResult => {
   const results: BatchStoreItemResult[] = [];
   let succeeded = 0;
