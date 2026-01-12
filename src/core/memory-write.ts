@@ -18,6 +18,7 @@ import {
 } from './db.js';
 
 const MAX_TAGS = 100;
+const TAG_PATTERN = /^\S+$/;
 
 const validateTag = (tag: string): void => {
   if (tag.length === 0) {
@@ -25,6 +26,9 @@ const validateTag = (tag: string): void => {
   }
   if (tag.length > 50) {
     throw new Error('Tag exceeds 50 characters');
+  }
+  if (!TAG_PATTERN.test(tag)) {
+    throw new Error('Tag must not contain whitespace');
   }
 };
 

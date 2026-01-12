@@ -22,7 +22,7 @@
     "sourceMap": true,
     "composite": true,
     "incremental": true,
-    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "tsBuildInfoFile": "./.tsbuildinfo/tsconfig.tsbuildinfo",
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "types": ["node"]

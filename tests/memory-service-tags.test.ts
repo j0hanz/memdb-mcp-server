@@ -63,6 +63,10 @@ void describe('MemoryService tags validation', () => {
       () => create({ content: 'invalid tag', tags: ['x'.repeat(51)] }),
       /exceeds 50 characters/i
     );
+    assert.throws(
+      () => create({ content: 'invalid tag', tags: ['has space'] }),
+      /whitespace/i
+    );
   });
 });
 

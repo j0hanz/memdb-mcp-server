@@ -7,26 +7,107 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { JSONRPCMessageSchema } from '@modelcontextprotocol/sdk/types.js';
 
+const MAX_LINE_BYTES = 16 * 1024 * 1024;
+
 class LineBuffer {
-  private buffer: Buffer | undefined;
+  private chunks: Buffer[] = [];
+  private totalLength = 0;
+
+  constructor(private readonly maxBytes: number) {}
 
   append(chunk: Buffer): void {
-    this.buffer = this.buffer ? Buffer.concat([this.buffer, chunk]) : chunk;
+    this.chunks.push(chunk);
+    this.totalLength += chunk.length;
   }
 
   readLine(): string | null {
-    if (!this.buffer) return null;
+    if (this.totalLength === 0) return null;
 
-    const index = this.buffer.indexOf('\n');
-    if (index === -1) return null;
+    const found = this.findNewline();
+    if (!found) {
+      this.assertLineLength(this.totalLength);
+      return null;
+    }
 
-    const line = this.buffer.toString('utf8', 0, index).replace(/\r$/, '');
-    this.buffer = this.buffer.subarray(index + 1);
-    return line;
+    const lineLength = found.offset + found.newlineIndex;
+    this.assertLineLength(lineLength);
+    const lineBuffer = this.buildLineBuffer(
+      found.chunkIndex,
+      found.newlineIndex,
+      lineLength
+    );
+    this.consumeLine(found.chunkIndex, found.newlineIndex, lineLength);
+    return lineBuffer.toString('utf8').replace(/\r$/, '');
+  }
+
+  private assertLineLength(length: number): void {
+    if (length > this.maxBytes) {
+      throw new Error('Input line exceeds maximum size');
+    }
+  }
+
+  private findNewline(): {
+    chunkIndex: number;
+    newlineIndex: number;
+    offset: number;
+  } | null {
+    let offset = 0;
+    for (let i = 0; i < this.chunks.length; i++) {
+      const chunk = this.chunks[i];
+      if (!chunk) continue;
+      const newlineIndex = chunk.indexOf('\n');
+      if (newlineIndex !== -1) {
+        return { chunkIndex: i, newlineIndex, offset };
+      }
+      offset += chunk.length;
+    }
+    return null;
+  }
+
+  private buildLineBuffer(
+    chunkIndex: number,
+    newlineIndex: number,
+    lineLength: number
+  ): Buffer {
+    const lineBuffer = Buffer.allocUnsafe(lineLength);
+    let writeOffset = 0;
+    for (let i = 0; i < chunkIndex; i++) {
+      const part = this.chunks[i];
+      if (!part) continue;
+      part.copy(lineBuffer, writeOffset);
+      writeOffset += part.length;
+    }
+    const chunk = this.chunks[chunkIndex];
+    if (chunk && newlineIndex > 0) {
+      chunk.copy(lineBuffer, writeOffset, 0, newlineIndex);
+    }
+    return lineBuffer;
+  }
+
+  private consumeLine(
+    chunkIndex: number,
+    newlineIndex: number,
+    lineLength: number
+  ): void {
+    const remaining: Buffer[] = [];
+    const chunk = this.chunks[chunkIndex];
+    if (chunk) {
+      const rest = chunk.subarray(newlineIndex + 1);
+      if (rest.length > 0) remaining.push(rest);
+    }
+    for (let i = chunkIndex + 1; i < this.chunks.length; i++) {
+      const tail = this.chunks[i];
+      if (!tail) continue;
+      remaining.push(tail);
+    }
+
+    this.chunks = remaining;
+    this.totalLength -= lineLength + 1;
   }
 
   clear(): void {
-    this.buffer = undefined;
+    this.chunks = [];
+    this.totalLength = 0;
   }
 }
 
@@ -88,13 +169,17 @@ export class BatchRejectingStdioServerTransport implements Transport {
 
   private readonly stdin: NodeJS.ReadableStream;
   private readonly stdout: NodeJS.WritableStream;
-  private readonly readBuffer = new LineBuffer();
+  private readonly readBuffer = new LineBuffer(MAX_LINE_BYTES);
   private started = false;
 
   // Arrow functions keep identity for off().
   private readonly onData = (chunk: Buffer): void => {
-    this.readBuffer.append(chunk);
-    this.processReadBuffer();
+    try {
+      this.readBuffer.append(chunk);
+      this.processReadBuffer();
+    } catch (error) {
+      this.onerror(error instanceof Error ? error : new Error(String(error)));
+    }
   };
 
   private readonly onStdinError = (error: Error): void => {
@@ -205,13 +290,23 @@ export class BatchRejectingStdioServerTransport implements Transport {
   }
 
   private processReadBuffer(): void {
-    let line: string | null;
-    while ((line = this.readBuffer.readLine()) !== null) {
-      try {
-        this.handleLine(line);
-      } catch (error) {
-        this.onerror(error instanceof Error ? error : new Error(String(error)));
+    try {
+      for (
+        let line = this.readBuffer.readLine();
+        line !== null;
+        line = this.readBuffer.readLine()
+      ) {
+        try {
+          this.handleLine(line);
+        } catch (error) {
+          this.onerror(
+            error instanceof Error ? error : new Error(String(error))
+          );
+        }
       }
+    } catch {
+      this.readBuffer.clear();
+      this.sendParseError();
     }
   }
 }
