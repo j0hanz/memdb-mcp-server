@@ -55,15 +55,11 @@ const stmtFindRelationshipId = db.prepare(`
   WHERE from_memory_id = ? AND to_memory_id = ? AND relation_type = ?
 `);
 
-export interface CreateRelationshipInput {
+export const createRelationship = (input: {
   from_hash: string;
   to_hash: string;
   relation_type: string;
-}
-
-export const createRelationship = (
-  input: CreateRelationshipInput
-): CreateRelationshipResult =>
+}): CreateRelationshipResult =>
   withImmediateTransaction(() => {
     const fromId = requireMemoryId(input.from_hash);
     const toId = requireMemoryId(input.to_hash);
@@ -124,14 +120,10 @@ const stmtGetRelationships = {
   both: db.prepare(buildGetRelationshipsQuery('both')),
 } as const;
 
-export interface GetRelationshipsInput {
+export const getRelationships = (input: {
   hash: string;
   direction?: 'outgoing' | 'incoming' | 'both';
-}
-
-export const getRelationships = (
-  input: GetRelationshipsInput
-): Relationship[] => {
+}): Relationship[] => {
   const direction = input.direction ?? 'both';
   const stmt = stmtGetRelationships[direction];
 
@@ -141,12 +133,6 @@ export const getRelationships = (
   return rows.map(mapRowToRelationship);
 };
 
-export interface DeleteRelationshipInput {
-  from_hash: string;
-  to_hash: string;
-  relation_type: string;
-}
-
 const stmtDeleteRelationship = db.prepare(`
   DELETE FROM relationships
   WHERE from_memory_id = (SELECT id FROM memories WHERE hash = ?)
@@ -154,9 +140,11 @@ const stmtDeleteRelationship = db.prepare(`
     AND relation_type = ?
 `);
 
-export const deleteRelationship = (
-  input: DeleteRelationshipInput
-): StatementResult => {
+export const deleteRelationship = (input: {
+  from_hash: string;
+  to_hash: string;
+  relation_type: string;
+}): StatementResult => {
   const result = executeRun(
     stmtDeleteRelationship,
     input.from_hash,

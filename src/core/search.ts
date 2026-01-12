@@ -224,12 +224,10 @@ const buildRelationshipsQuery = (memoryCount: number): { sql: string } => {
   return { sql };
 };
 
-export interface RecallInput {
+export const recallMemories = (input: {
   query: string;
   depth?: number;
-}
-
-export const recallMemories = (input: RecallInput): RecallResult => {
+}): RecallResult => {
   const depth = input.depth ?? 1;
 
   const searchResults = searchMemories({ query: input.query });

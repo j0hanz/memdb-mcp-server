@@ -93,12 +93,6 @@ export interface CreateRelationshipResult {
   readonly isNew: boolean;
 }
 
-export interface RelationshipWithMemories {
-  readonly relationship: Relationship;
-  readonly from_memory: Memory;
-  readonly to_memory: Memory;
-}
-
 export interface RecallResult {
   readonly memories: SearchResult[];
   readonly relationships: Relationship[];
