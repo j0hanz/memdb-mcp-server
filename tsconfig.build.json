@@ -2,7 +2,6 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "sourceMap": false,
-    "declarationMap": false,
-    "tsBuildInfoFile": "./.tsbuildinfo/tsconfig.build.tsbuildinfo"
+    "declarationMap": false
   }
 }
