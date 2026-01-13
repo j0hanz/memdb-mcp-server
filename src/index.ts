@@ -29,11 +29,27 @@ const readPackageVersion = async (): Promise<string | undefined> => {
   return typeof version === 'string' ? version : undefined;
 };
 
+const readServerInstructions = async (): Promise<string | undefined> => {
+  try {
+    const text = await readFile(new URL('./instructions.md', import.meta.url), {
+      encoding: 'utf-8',
+      signal: AbortSignal.timeout(5000),
+    });
+    const trimmed = text.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const packageVersion = await readPackageVersion();
+const serverInstructions =
+  (await readServerInstructions()) ??
+  'A Memory MCP Server for AI Assistants using node:sqlite';
 const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
-    instructions: 'A Memory MCP Server for AI Assistants using node:sqlite',
+    instructions: serverInstructions,
     capabilities: { tools: {} },
   }
 );
