@@ -1,92 +1,204 @@
-# memdb MCP Server Instructions
+# memdb MCP Server — AI Usage Instructions
 
-This server provides **local, SQLite-backed long-term memory**. Use it to store, retrieve, and organize short text memories (notes, facts, decisions, lessons) with tags and optional relationships.
+Use this server to store and retrieve persistent memories (facts, decisions, lessons, plans) in a local SQLite database. Prefer using these tools over "remembering" state in chat.
 
-## Scope & Constraints
+## Operating Rules
 
-- This server only manages memories in a local SQLite DB (default: `<cwd>/.memdb/memory.db`). It does not read/write project files.
-- All tool results return JSON in `structuredContent` with `{ ok: true, result }` or `{ ok: false, error }`.
-- Memory identity is an MD5 `hash` (32 hex chars). Changing content changes the hash.
-- Tags and relation types must not contain whitespace (use `kebab-case`).
+- Use tools only when the operation changes or verifies memory state.
+- Prefer `search_memories` or `memory_stats` to establish state before updating/deleting.
+- Operate by stable identifiers (`hash`, 32-char hex MD5) rather than ambiguous user text.
+- Batch operations when available: use `store_memories` / `delete_memories` for multiple items.
+- Treat destructive tools (`delete_memory`, `delete_memories`, `delete_relationship`) as destructive: require explicit user confirmation unless the user clearly requested deletion.
+- Keep operations atomic; if a request is vague, ask a clarifying question before calling tools.
 
-## Tool Guide
+### Quick Decision Rules
 
-### Store
+- If unsure what exists → call `search_memories` or `memory_stats` before mutation.
+- If the user provides multiple items → use `store_memories` (up to 50) or `delete_memories`.
+- If the user asks to delete without a specific target → list matches first and ask which hash.
+- Prefer `update_memory` over delete+recreate when correcting an existing memory.
 
-- `store_memory`: Create or deduplicate a single memory.
-  - Use when you have one clear item.
-  - Provide `tags` (1–100). Optional: `importance` (0–10), `memory_type`.
-- `store_memories`: Batch store up to 50 memories.
-  - Use for importing many items; supports partial success.
+### Client UX Notes (VS Code)
 
-### Find & Read
+- Non-read-only tools typically require user confirmation.
+- Tool lists can be cached; users can reset via **MCP: Reset Cached Tools**.
+- Only run MCP servers from trusted sources.
 
-- `search_memories`: Search across content + tags.
-  - Use first for discovery.
-  - Prefer specific queries and tags (include tag text in the query).
-- `get_memory`: Fetch a memory by `hash`.
-  - Use after search results identify a specific `hash`.
+## Data Model (What the Server Operates On)
 
-### Update
+### Memory
 
-- `update_memory`: Replace content (and optionally replace tags) for a given `hash`.
-  - Use to correct or refine a memory.
-  - Expect a new `hash` in the result.
+| Field         | Type       | Description                                                                 |
+| ------------- | ---------- | --------------------------------------------------------------------------- |
+| `id`          | int        | Auto-generated row ID                                                       |
+| `hash`        | string     | MD5 of content (32 hex chars); primary lookup key                           |
+| `content`     | string     | 1–100,000 chars; the stored text                                            |
+| `tags`        | string[]   | 1–100 tags; no whitespace; max 50 chars each; use `kebab-case`              |
+| `importance`  | int (0–10) | Priority (0=low, 10=critical); higher surfaces first in search              |
+| `memory_type` | enum       | `general` `fact` `plan` `decision` `reflection` `lesson` `error` `gradient` |
+| `created_at`  | ISO 8601   | Creation timestamp                                                          |
+| `accessed_at` | ISO 8601   | Last access timestamp                                                       |
 
-### Delete (Destructive)
+### Relationship (Knowledge Graph Edge)
 
-- `delete_memory`: Delete a single memory by `hash`.
-- `delete_memories`: Batch delete up to 50 hashes.
+| Field           | Type   | Description                                                       |
+| --------------- | ------ | ----------------------------------------------------------------- |
+| `from_hash`     | string | Source memory hash                                                |
+| `to_hash`       | string | Target memory hash                                                |
+| `relation_type` | string | No whitespace; e.g., `depends_on`, `causes`, `part_of`, `follows` |
 
-Use delete tools only when the user explicitly wants removal.
+### Constraints
 
-### Relationships (Knowledge Graph)
+- Changing content changes the hash (content-addressed).
+- Tags and `relation_type` must not contain whitespace.
+- Search query: 1–1,000 chars, max 50 terms.
+- Batch limits: 50 items for `store_memories` and `delete_memories`.
 
-- `create_relationship`: Create a typed edge `from_hash` → `to_hash`.
-  - Use to connect related memories (e.g., `depends_on`, `causes`, `part_of`).
-- `get_relationships`: List relationships for a memory.
-  - Use to inspect the local graph around one memory.
-- `delete_relationship`: Remove a relationship.
-  - Use when an edge is wrong/outdated.
+## Response Shape
 
-### Deep Recall
+All tools return JSON in `structuredContent`:
 
-- `recall`: Search + traverse relationships to return a connected cluster.
-  - Use when you need broader context beyond keyword matches.
-  - `depth` controls hops (0–3). Use 1–2 by default.
+```json
+// Success
+{ "ok": true, "result": { ... } }
 
-### Health / Overview
+// Error
+{ "ok": false, "error": { "code": "E_CODE", "message": "..." } }
+```
 
-- `memory_stats`: Returns database stats (counts, oldest/newest).
-  - Use to sanity-check the DB or report status.
+Error responses also set `isError: true` on the top-level tool result.
 
-## Recommended Workflows
+## Workflows (Recommended)
 
-### Capture a new memory (single)
+### 1) Capture a new memory
 
-1. Choose crisp content (1–3 sentences).
-2. Choose stable tags (topic + type), e.g. `auth`, `decision`, `bug`, `postgres`.
-3. Call `store_memory`.
+1. Prepare content (crisp, 1–3 sentences).
+2. Choose 2–6 tags: domain tags (`auth`, `postgres`) + intent tags (`decision`, `bug`).
+3. Call `store_memory`. Record the returned `hash` if you need to reference it later.
 
-### Retrieve context for a task
+### 2) Retrieve context for a task
 
-1. Use `search_memories` with a focused query.
-2. If you need related context, use `recall` (depth 1–2).
-3. Use `get_memory` for any specific hash you need verbatim.
+1. Call `search_memories` with a focused query (include relevant tag text in the query).
+2. If you need related context, call `recall` with `depth: 1` or `2`.
+3. For verbatim content of a specific hash, call `get_memory`.
 
-### Maintain quality over time
+### 3) Maintain quality over time
 
-1. Prefer `update_memory` over creating duplicates when you are correcting an existing item.
-2. Use `create_relationship` to connect durable facts/decisions.
-3. Use delete tools only with explicit user intent.
+1. Prefer `update_memory` over creating duplicates when correcting content.
+2. Use `create_relationship` to link durable facts/decisions in the knowledge graph.
+3. Use `delete_memory` / `delete_memories` only with explicit user intent.
 
-## Tagging & Memory Type Guidelines
+## Tools (What to Use, When)
 
-- Prefer 2–6 tags per memory: 1–2 domain tags + 1–2 intent tags.
-- `memory_type` is optional; use it when it helps retrieval: `fact`, `decision`, `plan`, `lesson`, `error`, `reflection`, `gradient`, `general`.
-- Use `importance` to surface critical items (0=low, 10=critical).
+### store_memory
+
+Store a single memory with tags.
+
+- **Use when:** You have one clear item to persist.
+- **Args:** `content` (req), `tags` (req, 1–100), `importance` (opt, 0–10), `memory_type` (opt).
+- **Returns:** `{ id, hash, isNew }`.
+- **Notes:** Idempotent (same content → same hash, `isNew: false`).
+
+### store_memories
+
+Batch store up to 50 memories.
+
+- **Use when:** Importing multiple items at once.
+- **Args:** `items[]` (each has `content`, `tags`, optional `importance`, `memory_type`).
+- **Returns:** `{ results, succeeded, failed }`.
+- **Notes:** Partial success supported.
+
+### search_memories
+
+Full-text + tag search.
+
+- **Use when:** Discovering what exists; start here before mutating.
+- **Args:** `query` (1–1,000 chars, max 50 terms).
+- **Returns:** Array of `Memory` + `relevance`, up to 100 results.
+- **Notes:** Read-only. Content matches rank higher than tag matches.
+
+### get_memory
+
+Fetch a single memory by hash.
+
+- **Use when:** You need verbatim content after search identified a hash.
+- **Args:** `hash` (32 hex chars).
+- **Returns:** `Memory`.
+- **Notes:** Read-only. Returns `E_NOT_FOUND` if missing.
+
+### update_memory
+
+Update content (and optionally replace tags).
+
+- **Use when:** Correcting or refining an existing memory.
+- **Args:** `hash` (req), `content` (req), `tags` (opt, replaces all if provided).
+- **Returns:** `{ updated: true, oldHash, newHash }`.
+- **Notes:** Hash changes because content changes. Idempotent.
+
+### delete_memory
+
+Delete a single memory by hash.
+
+- **Use when:** User explicitly wants removal.
+- **Args:** `hash`.
+- **Returns:** `{ deleted: true }` or `E_NOT_FOUND`.
+- **Notes:** Destructive. Confirm before calling.
+
+### delete_memories
+
+Batch delete up to 50 hashes.
+
+- **Use when:** Bulk cleanup with explicit user intent.
+- **Args:** `hashes[]`.
+- **Returns:** `{ results, succeeded, failed }`.
+- **Notes:** Destructive. Partial success supported.
+
+### create_relationship
+
+Link two memories with a typed edge.
+
+- **Use when:** Building a knowledge graph (e.g., `depends_on`, `causes`, `part_of`).
+- **Args:** `from_hash`, `to_hash`, `relation_type`.
+- **Returns:** `{ id, isNew }`.
+- **Notes:** Idempotent.
+
+### get_relationships
+
+List relationships for a memory.
+
+- **Use when:** Inspecting local graph around one memory.
+- **Args:** `hash`, `direction` (opt: `outgoing`, `incoming`, `both`; default `both`).
+- **Returns:** Array of `Relationship`.
+- **Notes:** Read-only.
+
+### delete_relationship
+
+Remove a relationship edge.
+
+- **Use when:** An edge is wrong or outdated.
+- **Args:** `from_hash`, `to_hash`, `relation_type`.
+- **Returns:** `{ deleted: true }` or `E_NOT_FOUND`.
+- **Notes:** Destructive. Confirm before calling.
+
+### recall
+
+Search + traverse relationships to return a connected cluster.
+
+- **Use when:** You need broader context beyond keyword matches.
+- **Args:** `query`, `depth` (opt, 0–3; default 1).
+- **Returns:** `{ memories, relationships, depth }`.
+- **Notes:** Read-only. Use `depth: 1–2` by default.
+
+### memory_stats
+
+Database statistics and health.
+
+- **Use when:** Sanity-checking the DB or reporting status.
+- **Args:** (none).
+- **Returns:** `{ memoryCount, tagCount, oldestMemory, newestMemory }`.
+- **Notes:** Read-only.
 
 ## Safety
 
-- Do not store secrets (API keys, passwords, tokens, private keys) in memory content.
-- Confirm destructive operations (`delete_*`, `delete_relationship`) before calling them.
+- **Do not store secrets** (API keys, passwords, tokens, private keys) in memory content.
+- **Confirm destructive operations** (`delete_memory`, `delete_memories`, `delete_relationship`) before calling.
