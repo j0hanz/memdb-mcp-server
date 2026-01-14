@@ -131,58 +131,83 @@ export class ProtocolVersionGuardTransport implements Transport {
 
     const initializeInfo = getInitializeInfo(message);
     if (initializeInfo) {
-      if (this.sawInitialize) {
-        void this.inner.send(
-          createLifecycleError(
-            initializeInfo.id,
-            'Invalid request: initialize already received'
-          ),
-          { relatedRequestId: initializeInfo.id }
-        );
-        return;
-      }
-      if (!this.supportedVersions.includes(initializeInfo.protocolVersion)) {
-        void this.inner.send(
-          createUnsupportedVersionError(
-            initializeInfo.id,
-            initializeInfo.protocolVersion,
-            this.supportedVersions
-          ),
-          { relatedRequestId: initializeInfo.id }
-        );
-        return;
-      }
-      this.sawInitialize = true;
-      this.onmessage(message, extra);
+      this.handleInitialize(message, initializeInfo, extra);
       return;
     }
 
     if (isInitializedNotification(message)) {
-      if (this.sawInitialize && !this.ready) {
-        this.ready = true;
-        this.onmessage(message, extra);
-      }
+      this.handleInitializedNotification(message, extra);
       return;
     }
 
     if (!this.sawInitialize || !this.ready) {
-      if (isJSONRPCRequest(message)) {
-        void this.inner.send(
-          createLifecycleError(
-            message.id,
-            'Invalid request: initialize must be sent before other requests'
-          ),
-          { relatedRequestId: message.id }
-        );
-      } else if (
-        isJSONRPCResultResponse(message) ||
-        isJSONRPCErrorResponse(message)
-      ) {
-        this.onmessage(message, extra);
-      }
+      this.handleBeforeReady(message, extra);
       return;
     }
 
     this.onmessage(message, extra);
+  }
+
+  private handleInitialize(
+    message: JSONRPCMessage,
+    initializeInfo: { id: RequestId; protocolVersion: string },
+    extra?: MessageExtraInfo
+  ): void {
+    if (this.sawInitialize) {
+      void this.inner.send(
+        createLifecycleError(
+          initializeInfo.id,
+          'Invalid request: initialize already received'
+        ),
+        { relatedRequestId: initializeInfo.id }
+      );
+      return;
+    }
+
+    if (!this.supportedVersions.includes(initializeInfo.protocolVersion)) {
+      void this.inner.send(
+        createUnsupportedVersionError(
+          initializeInfo.id,
+          initializeInfo.protocolVersion,
+          this.supportedVersions
+        ),
+        { relatedRequestId: initializeInfo.id }
+      );
+      return;
+    }
+
+    this.sawInitialize = true;
+    this.onmessage(message, extra);
+  }
+
+  private handleInitializedNotification(
+    message: JSONRPCMessage,
+    extra?: MessageExtraInfo
+  ): void {
+    if (!this.sawInitialize) return;
+    if (this.ready) return;
+
+    this.ready = true;
+    this.onmessage(message, extra);
+  }
+
+  private handleBeforeReady(
+    message: JSONRPCMessage,
+    extra?: MessageExtraInfo
+  ): void {
+    if (isJSONRPCRequest(message)) {
+      void this.inner.send(
+        createLifecycleError(
+          message.id,
+          'Invalid request: initialize must be sent before other requests'
+        ),
+        { relatedRequestId: message.id }
+      );
+      return;
+    }
+
+    if (isJSONRPCResultResponse(message) || isJSONRPCErrorResponse(message)) {
+      this.onmessage(message, extra);
+    }
   }
 }

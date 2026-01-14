@@ -40,6 +40,24 @@ export const deleteMemory = (hash: string): StatementResult => {
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
 
+const deleteMemoryForBatch = (
+  hash: string
+): { item: BatchDeleteItemResult; succeeded: boolean } => {
+  try {
+    const result = deleteMemory(hash);
+    const deleted = result.changes > 0;
+    return deleted
+      ? { item: { hash, deleted: true }, succeeded: true }
+      : {
+          item: { hash, deleted: false, error: 'Memory not found' },
+          succeeded: false,
+        };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return { item: { hash, deleted: false, error: message }, succeeded: false };
+  }
+};
+
 export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
   const results: BatchDeleteItemResult[] = [];
   let succeeded = 0;
@@ -47,20 +65,10 @@ export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
 
   return withImmediateTransaction(() => {
     for (const hash of hashes) {
-      try {
-        const result = deleteMemory(hash);
-        if (result.changes > 0) {
-          results.push({ hash, deleted: true });
-          succeeded++;
-        } else {
-          results.push({ hash, deleted: false, error: 'Memory not found' });
-          failed++;
-        }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        results.push({ hash, deleted: false, error: message });
-        failed++;
-      }
+      const outcome = deleteMemoryForBatch(hash);
+      results.push(outcome.item);
+      succeeded += outcome.succeeded ? 1 : 0;
+      failed += outcome.succeeded ? 0 : 1;
     }
 
     return { results, succeeded, failed };

@@ -166,31 +166,74 @@ export const createMemories = (
     memory_type?: MemoryType;
   }[]
 ): BatchStoreResult => {
+  return withImmediateTransaction(() => createMemoriesInTransaction(items));
+};
+
+const withSavepoint = <T>(name: string, fn: () => T): T => {
+  db.exec(`SAVEPOINT ${name}`);
+  try {
+    const result = fn();
+    db.exec(`RELEASE ${name}`);
+    return result;
+  } catch (err) {
+    db.exec(`ROLLBACK TO ${name}`);
+    db.exec(`RELEASE ${name}`);
+    throw err;
+  }
+};
+
+const createMemoriesInTransaction = (
+  items: {
+    content: string;
+    tags?: readonly string[];
+    importance?: number;
+    memory_type?: MemoryType;
+  }[]
+): BatchStoreResult => {
   const results: BatchStoreItemResult[] = [];
   let succeeded = 0;
   let failed = 0;
 
-  return withImmediateTransaction(() => {
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (!item) continue;
-      db.exec('SAVEPOINT mem_item');
-      try {
-        const { hash, isNew } = createMemoryInTransaction(item);
-        results.push({ ok: true, index: i, hash, isNew });
-        succeeded++;
-        db.exec('RELEASE mem_item');
-      } catch (err) {
-        db.exec('ROLLBACK TO mem_item');
-        db.exec('RELEASE mem_item');
-        const message = err instanceof Error ? err.message : 'Unknown error';
-        results.push({ ok: false, index: i, error: message });
-        failed++;
-      }
-    }
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item) continue;
 
-    return { results, succeeded, failed };
-  });
+    const result = processCreateMemoriesItem(i, item);
+    results.push(result);
+    if (result.ok) {
+      succeeded++;
+    } else {
+      failed++;
+    }
+  }
+
+  return { results, succeeded, failed };
+};
+
+const processCreateMemoriesItem = (
+  index: number,
+  item: {
+    content: string;
+    tags?: readonly string[];
+    importance?: number;
+    memory_type?: MemoryType;
+  }
+): BatchStoreItemResult => {
+  const savepointName = `mem_item_${index}`;
+  try {
+    const created = withSavepoint(savepointName, () =>
+      createMemoryInTransaction(item)
+    );
+    return {
+      ok: true,
+      index,
+      hash: created.hash,
+      isNew: created.isNew,
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return { ok: false, index, error: message };
+  }
 };
 
 const stmtDeleteTagsForMemory = db.prepare(
@@ -211,6 +254,14 @@ const replaceTags = (memoryId: number, tags: readonly string[]): void => {
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
 
+const assertNoDuplicateOnUpdate = (oldHash: string, newHash: string): void => {
+  if (newHash === oldHash) return;
+  const existingId = findMemoryIdByHash(newHash);
+  if (existingId !== undefined) {
+    throw new Error('Content already exists as another memory');
+  }
+};
+
 export const updateMemory = (
   hash: string,
   options: UpdateMemoryOptions
@@ -222,12 +273,7 @@ export const updateMemory = (
     const newHash = buildHash(options.content);
 
     // Check if new content would create a duplicate
-    if (newHash !== hash) {
-      const existingId = findMemoryIdByHash(newHash);
-      if (existingId !== undefined) {
-        throw new Error('Content already exists as another memory');
-      }
-    }
+    assertNoDuplicateOnUpdate(hash, newHash);
 
     // Update content and hash
     executeRun(stmtUpdateContent, options.content, newHash, memoryId);

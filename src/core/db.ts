@@ -83,22 +83,17 @@ const withTimeout = async <T>(
   ms: number,
   message: string
 ): Promise<T> => {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => {
-    controller.abort();
-  }, ms);
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(message));
+    }, ms);
+  });
+
   try {
-    const result = await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        controller.signal.addEventListener('abort', () => {
-          reject(new Error(message));
-        });
-      }),
-    ]);
-    return result;
+    return await Promise.race([promise, timeoutPromise]);
   } finally {
-    clearTimeout(timeout);
+    if (timeout) clearTimeout(timeout);
   }
 };
 
@@ -177,26 +172,23 @@ const isDbRow = (value: unknown): value is DbRow => {
   return typeof value === 'object' && value !== null;
 };
 
-const toDbRowArray = (value: unknown): DbRow[] => {
-  if (!Array.isArray(value)) {
-    throw new Error('Expected rows array');
-  }
-  const rows: DbRow[] = [];
-  for (const row of value) {
-    if (!isDbRow(row)) {
-      throw new Error('Invalid row');
-    }
-    rows.push(row);
-  }
-  return rows;
-};
-
-const toDbRowOrUndefined = (value: unknown): DbRow | undefined => {
-  if (value === undefined) return undefined;
+const assertDbRow = (value: unknown): DbRow => {
   if (!isDbRow(value)) {
     throw new Error('Invalid row');
   }
   return value;
+};
+
+const toDbRowArray = (value: unknown): DbRow[] => {
+  if (!Array.isArray(value)) {
+    throw new Error('Expected rows array');
+  }
+  return value.map(assertDbRow);
+};
+
+const toDbRowOrUndefined = (value: unknown): DbRow | undefined => {
+  if (value === undefined) return undefined;
+  return assertDbRow(value);
 };
 
 const toRunResult = (value: unknown): { changes: number | bigint } => {
@@ -256,11 +248,19 @@ export const withImmediateTransaction = <T>(operation: () => T): T => {
 const createFieldError = (field: string): Error =>
   new Error(`Invalid ${field}`);
 
+const assertFiniteNumber = (value: number, field: string): number => {
+  if (!Number.isFinite(value)) {
+    throw createFieldError(field);
+  }
+  return value;
+};
+
 const toNumber = (value: unknown, field: string): number => {
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'number') {
+    return assertFiniteNumber(value, field);
+  }
   if (typeof value === 'bigint') {
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) return numeric;
+    return assertFiniteNumber(Number(value), field);
   }
   throw createFieldError(field);
 };
@@ -358,6 +358,15 @@ const dedupeIds = (ids: readonly number[]): number[] => {
   return unique;
 };
 
+const pushToMapArray = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
+  const existing = map.get(key);
+  if (existing) {
+    existing.push(value);
+    return;
+  }
+  map.set(key, [value]);
+};
+
 export const loadTagsForMemoryIds = (
   memoryIds: readonly number[]
 ): Map<number, string[]> => {
@@ -371,12 +380,7 @@ export const loadTagsForMemoryIds = (
   for (const row of rows) {
     const memoryId = toSafeInteger(row.memory_id, 'memory_id');
     const tag = toString(row.tag, 'tag');
-    const existing = tagsById.get(memoryId);
-    if (existing) {
-      existing.push(tag);
-    } else {
-      tagsById.set(memoryId, [tag]);
-    }
+    pushToMapArray(tagsById, memoryId, tag);
   }
   return tagsById;
 };

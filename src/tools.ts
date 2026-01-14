@@ -118,9 +118,12 @@ type ErrorResponse = CallToolResult & {
   isError: true;
 };
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0;
+
 const getErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string' && error.length > 0) return error;
+  if (isNonEmptyString(error)) return error;
   return 'Unknown error';
 };
 
@@ -149,17 +152,23 @@ const ok = (result: unknown): CallToolResult => {
   };
 };
 
+const runHandlerSafely = async (
+  code: string,
+  handler: (params: unknown) => MaybePromise<CallToolResult>,
+  params: unknown
+): Promise<CallToolResult> => {
+  try {
+    return await handler(params);
+  } catch (err) {
+    return createErrorResponse(code, getErrorMessage(err));
+  }
+};
+
 const wrapHandler = (
   code: string,
   handler: (params: unknown) => MaybePromise<CallToolResult>
 ): ((params: unknown) => Promise<CallToolResult>) => {
-  return async (params: unknown) => {
-    try {
-      return await handler(params);
-    } catch (err) {
-      return createErrorResponse(code, getErrorMessage(err));
-    }
-  };
+  return async (params: unknown) => runHandlerSafely(code, handler, params);
 };
 
 const normalizeHash = (hash: string): string => hash.toLowerCase();
@@ -176,123 +185,153 @@ interface ToolDef {
   handler: (params: unknown) => Promise<CallToolResult>;
 }
 
-const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
-  {
-    name: 'store_memory',
-    options: {
-      title: 'Store Memory',
-      description: 'Store a new memory with tags',
-      inputSchema: StoreMemoryInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { idempotentHint: true },
-    },
-    handler: wrapHandler('E_STORE_MEMORY', async (params) => {
-      const input = StoreMemoryInputSchema.parse(params);
-      const result = await deps.createMemory({
+interface CreateMemoryInputBuildParams {
+  content: string;
+  tags: readonly string[];
+  importance?: number | undefined;
+  memory_type?: CreateMemoryInput['memory_type'] | undefined;
+}
+
+const toCreateMemoryInput = (
+  input: CreateMemoryInputBuildParams
+): CreateMemoryInput => ({
+  content: input.content,
+  tags: input.tags,
+  ...(input.importance === undefined ? {} : { importance: input.importance }),
+  ...(input.memory_type === undefined
+    ? {}
+    : { memory_type: input.memory_type }),
+});
+
+const buildStoreMemoryTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'store_memory',
+  options: {
+    title: 'Store Memory',
+    description: 'Store a new memory with tags',
+    inputSchema: StoreMemoryInputSchema,
+    outputSchema: DefaultOutputSchema,
+    annotations: { idempotentHint: true },
+  },
+  handler: wrapHandler('E_STORE_MEMORY', async (params) => {
+    const input = StoreMemoryInputSchema.parse(params);
+    const result = await deps.createMemory(
+      toCreateMemoryInput({
         content: input.content,
         tags: input.tags,
-        ...(input.importance !== undefined && { importance: input.importance }),
-        ...(input.memory_type !== undefined && {
-          memory_type: input.memory_type,
-        }),
-      });
-      return ok(result);
-    }),
+        importance: input.importance,
+        memory_type: input.memory_type,
+      })
+    );
+    return ok(result);
+  }),
+});
+
+const buildStoreMemoriesTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'store_memories',
+  options: {
+    title: 'Store Multiple Memories',
+    description:
+      'Store multiple memories in a single batch operation. Returns per-item results with partial success support.',
+    inputSchema: StoreMemoriesInputSchema,
+    outputSchema: DefaultOutputSchema,
+    annotations: { idempotentHint: true },
   },
-  {
-    name: 'store_memories',
-    options: {
-      title: 'Store Multiple Memories',
-      description:
-        'Store multiple memories in a single batch operation. Returns per-item results with partial success support.',
-      inputSchema: StoreMemoriesInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { idempotentHint: true },
-    },
-    handler: wrapHandler('E_STORE_MEMORIES', async (params) => {
-      const input = StoreMemoriesInputSchema.parse(params);
-      const items = input.items.map((item) => ({
+  handler: wrapHandler('E_STORE_MEMORIES', async (params) => {
+    const input = StoreMemoriesInputSchema.parse(params);
+    const items = input.items.map((item) =>
+      toCreateMemoryInput({
         content: item.content,
         tags: item.tags,
-        ...(item.importance !== undefined && { importance: item.importance }),
-        ...(item.memory_type !== undefined && {
-          memory_type: item.memory_type,
-        }),
-      }));
-      const result = await deps.createMemories(items);
-      return ok(result);
-    }),
+        importance: item.importance,
+        memory_type: item.memory_type,
+      })
+    );
+    const result = await deps.createMemories(items);
+    return ok(result);
+  }),
+});
+
+const buildGetMemoryTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'get_memory',
+  options: {
+    title: 'Get Memory',
+    description: 'Retrieve memory by hash',
+    inputSchema: GetMemoryInputSchema,
+    outputSchema: DefaultOutputSchema,
   },
-  {
-    name: 'get_memory',
-    options: {
-      title: 'Get Memory',
-      description: 'Retrieve memory by hash',
-      inputSchema: GetMemoryInputSchema,
-      outputSchema: DefaultOutputSchema,
-    },
-    handler: wrapHandler('E_GET_MEMORY', async (params) => {
-      const input = GetMemoryInputSchema.parse(params);
-      const result = await deps.getMemory(normalizeHash(input.hash));
-      if (!result) {
-        return createErrorResponse('E_NOT_FOUND', 'Memory not found');
-      }
-      return ok(result);
-    }),
+  handler: wrapHandler('E_GET_MEMORY', async (params) => {
+    const input = GetMemoryInputSchema.parse(params);
+    const result = await deps.getMemory(normalizeHash(input.hash));
+    if (!result) {
+      return createErrorResponse('E_NOT_FOUND', 'Memory not found');
+    }
+    return ok(result);
+  }),
+});
+
+const buildDeleteMemoryTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'delete_memory',
+  options: {
+    title: 'Delete Memory',
+    description: 'Delete by hash',
+    inputSchema: DeleteMemoryInputSchema,
+    outputSchema: DefaultOutputSchema,
+    annotations: { destructiveHint: true },
   },
-  {
-    name: 'delete_memory',
-    options: {
-      title: 'Delete Memory',
-      description: 'Delete by hash',
-      inputSchema: DeleteMemoryInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { destructiveHint: true },
-    },
-    handler: wrapHandler('E_DELETE_MEMORY', async (params) => {
-      const input = DeleteMemoryInputSchema.parse(params);
-      const result = await deps.deleteMemory(normalizeHash(input.hash));
-      if (result.changes === 0) {
-        return createErrorResponse('E_NOT_FOUND', 'Memory not found');
-      }
-      return ok({ deleted: true });
-    }),
+  handler: wrapHandler('E_DELETE_MEMORY', async (params) => {
+    const input = DeleteMemoryInputSchema.parse(params);
+    const result = await deps.deleteMemory(normalizeHash(input.hash));
+    if (result.changes === 0) {
+      return createErrorResponse('E_NOT_FOUND', 'Memory not found');
+    }
+    return ok({ deleted: true });
+  }),
+});
+
+const buildDeleteMemoriesTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'delete_memories',
+  options: {
+    title: 'Delete Multiple Memories',
+    description:
+      'Delete multiple memories by hash in a single batch operation. Returns per-item results with partial success support.',
+    inputSchema: DeleteMemoriesInputSchema,
+    outputSchema: DefaultOutputSchema,
+    annotations: { destructiveHint: true },
   },
-  {
-    name: 'delete_memories',
-    options: {
-      title: 'Delete Multiple Memories',
-      description:
-        'Delete multiple memories by hash in a single batch operation. Returns per-item results with partial success support.',
-      inputSchema: DeleteMemoriesInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { destructiveHint: true },
-    },
-    handler: wrapHandler('E_DELETE_MEMORIES', async (params) => {
-      const input = DeleteMemoriesInputSchema.parse(params);
-      const result = await deps.deleteMemories(input.hashes.map(normalizeHash));
-      return ok(result);
-    }),
+  handler: wrapHandler('E_DELETE_MEMORIES', async (params) => {
+    const input = DeleteMemoriesInputSchema.parse(params);
+    const result = await deps.deleteMemories(input.hashes.map(normalizeHash));
+    return ok(result);
+  }),
+});
+
+const buildUpdateMemoryTool = (deps: ToolDependencies): ToolDef => ({
+  name: 'update_memory',
+  options: {
+    title: 'Update Memory',
+    description:
+      'Update memory content. Returns new hash since content change affects the hash.',
+    inputSchema: UpdateMemoryInputSchema,
+    outputSchema: DefaultOutputSchema,
+    annotations: { idempotentHint: true },
   },
-  {
-    name: 'update_memory',
-    options: {
-      title: 'Update Memory',
-      description:
-        'Update memory content. Returns new hash since content change affects the hash.',
-      inputSchema: UpdateMemoryInputSchema,
-      outputSchema: DefaultOutputSchema,
-      annotations: { idempotentHint: true },
-    },
-    handler: wrapHandler('E_UPDATE_MEMORY', async (params) => {
-      const input = UpdateMemoryInputSchema.parse(params);
-      const result = await deps.updateMemory(normalizeHash(input.hash), {
-        content: input.content,
-        tags: input.tags,
-      });
-      return ok(result);
-    }),
-  },
+  handler: wrapHandler('E_UPDATE_MEMORY', async (params) => {
+    const input = UpdateMemoryInputSchema.parse(params);
+    const result = await deps.updateMemory(normalizeHash(input.hash), {
+      content: input.content,
+      tags: input.tags,
+    });
+    return ok(result);
+  }),
+});
+
+const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
+  buildStoreMemoryTool(deps),
+  buildStoreMemoriesTool(deps),
+  buildGetMemoryTool(deps),
+  buildDeleteMemoryTool(deps),
+  buildDeleteMemoriesTool(deps),
+  buildUpdateMemoryTool(deps),
 ];
 
 const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [

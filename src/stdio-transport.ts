@@ -70,18 +70,31 @@ class LineBuffer {
     lineLength: number
   ): Buffer {
     const lineBuffer = Buffer.allocUnsafe(lineLength);
+    const writeOffset = this.copyChunksBeforeIndex(lineBuffer, chunkIndex);
+    this.copyChunkPrefix(lineBuffer, chunkIndex, newlineIndex, writeOffset);
+    return lineBuffer;
+  }
+
+  private copyChunksBeforeIndex(target: Buffer, chunkIndex: number): number {
     let writeOffset = 0;
     for (let i = 0; i < chunkIndex; i++) {
       const part = this.chunks[i];
       if (!part) continue;
-      part.copy(lineBuffer, writeOffset);
+      part.copy(target, writeOffset);
       writeOffset += part.length;
     }
+    return writeOffset;
+  }
+
+  private copyChunkPrefix(
+    target: Buffer,
+    chunkIndex: number,
+    newlineIndex: number,
+    writeOffset: number
+  ): void {
     const chunk = this.chunks[chunkIndex];
-    if (chunk && newlineIndex > 0) {
-      chunk.copy(lineBuffer, writeOffset, 0, newlineIndex);
-    }
-    return lineBuffer;
+    if (!chunk || newlineIndex <= 0) return;
+    chunk.copy(target, writeOffset, 0, newlineIndex);
   }
 
   private consumeLine(
@@ -89,6 +102,14 @@ class LineBuffer {
     newlineIndex: number,
     lineLength: number
   ): void {
+    this.chunks = this.buildRemainingChunks(chunkIndex, newlineIndex);
+    this.totalLength -= lineLength + 1;
+  }
+
+  private buildRemainingChunks(
+    chunkIndex: number,
+    newlineIndex: number
+  ): Buffer[] {
     const remaining: Buffer[] = [];
     const chunk = this.chunks[chunkIndex];
     if (chunk) {
@@ -100,9 +121,7 @@ class LineBuffer {
       if (!tail) continue;
       remaining.push(tail);
     }
-
-    this.chunks = remaining;
-    this.totalLength -= lineLength + 1;
+    return remaining;
   }
 
   clear(): void {
@@ -289,24 +308,34 @@ export class BatchRejectingStdioServerTransport implements Transport {
     this.onmessage(parsed.data);
   }
 
+  private handleLineSafely(line: string): void {
+    try {
+      this.handleLine(line);
+    } catch (error) {
+      this.onerror(error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+
+  private drainReadBuffer(): void {
+    for (
+      let line = this.readBuffer.readLine();
+      line !== null;
+      line = this.readBuffer.readLine()
+    ) {
+      this.handleLineSafely(line);
+    }
+  }
+
+  private handleReadBufferError(): void {
+    this.readBuffer.clear();
+    this.sendParseError();
+  }
+
   private processReadBuffer(): void {
     try {
-      for (
-        let line = this.readBuffer.readLine();
-        line !== null;
-        line = this.readBuffer.readLine()
-      ) {
-        try {
-          this.handleLine(line);
-        } catch (error) {
-          this.onerror(
-            error instanceof Error ? error : new Error(String(error))
-          );
-        }
-      }
+      this.drainReadBuffer();
     } catch {
-      this.readBuffer.clear();
-      this.sendParseError();
+      this.handleReadBufferError();
     }
   }
 }

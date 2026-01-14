@@ -29,23 +29,50 @@ const readPackageVersion = async (): Promise<string | undefined> => {
   return typeof version === 'string' ? version : undefined;
 };
 
-const readServerInstructions = async (): Promise<string | undefined> => {
+const toNonEmptyTrimmedOrUndefined = (text: string): string | undefined => {
+  const trimmed = text.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const readTextFileOrUndefined = async (
+  url: URL
+): Promise<string | undefined> => {
   try {
-    const text = await readFile(new URL('./instructions.md', import.meta.url), {
+    return await readFile(url, {
       encoding: 'utf-8',
       signal: AbortSignal.timeout(5000),
     });
-    const trimmed = text.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
   } catch {
     return undefined;
   }
 };
 
-const packageVersion = await readPackageVersion();
-const serverInstructions =
-  (await readServerInstructions()) ??
-  'A Memory MCP Server for AI Assistants using node:sqlite';
+const readServerInstructions = async (): Promise<string | undefined> => {
+  const text = await readTextFileOrUndefined(
+    new URL('./instructions.md', import.meta.url)
+  );
+  if (!text) return undefined;
+  return toNonEmptyTrimmedOrUndefined(text);
+};
+
+const loadServerMetadata = async (): Promise<{
+  packageVersion: string | undefined;
+  instructions: string;
+}> => {
+  const [packageVersion, instructions] = await Promise.all([
+    readPackageVersion(),
+    readServerInstructions(),
+  ]);
+  return {
+    packageVersion,
+    instructions:
+      instructions ?? 'A Memory MCP Server for AI Assistants using node:sqlite',
+  };
+};
+
+const { packageVersion, instructions: serverInstructions } =
+  await loadServerMetadata();
+
 const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
@@ -82,38 +109,71 @@ let shuttingDown = false;
 
 const SHUTDOWN_TIMEOUT = 5000;
 
-async function shutdown(signal: string): Promise<void> {
-  if (shuttingDown) return;
-  shuttingDown = true;
-
-  logger.info(`Received ${signal}, shutting down gracefully...`);
-
-  const forceExitTimer = setTimeout(() => {
+const createShutdownTimer = (): NodeJS.Timeout => {
+  return setTimeout(() => {
     logger.warn('Shutdown timeout exceeded, forcing exit');
     process.exit(1);
   }, SHUTDOWN_TIMEOUT);
-  try {
-    closeDb();
-    await transport?.close();
-    clearTimeout(forceExitTimer);
-    process.exit(0);
-  } catch (err) {
-    logger.error('Error during shutdown:', err);
-    clearTimeout(forceExitTimer);
-    process.exit(1);
+};
+
+const closeServerResources = async (): Promise<void> => {
+  closeDb();
+  await transport?.close();
+};
+
+const clearTimerAndExit = (timer: NodeJS.Timeout, code: number): never => {
+  clearTimeout(timer);
+  process.exit(code);
+};
+
+const exitWithShutdownTimer = (
+  timer: NodeJS.Timeout,
+  code: number,
+  error?: unknown
+): void => {
+  if (error !== undefined) {
+    logger.error('Error during shutdown:', error);
   }
+  clearTimerAndExit(timer, code);
+};
+
+const beginShutdown = (signal: NodeJS.Signals): void => {
+  logger.info(`Received ${signal}, shutting down gracefully...`);
+  const forceExitTimer = createShutdownTimer();
+
+  void closeServerResources()
+    .then(() => {
+      exitWithShutdownTimer(forceExitTimer, 0);
+    })
+    .catch((err: unknown) => {
+      exitWithShutdownTimer(forceExitTimer, 1, err);
+    });
+};
+
+function shutdown(signal: NodeJS.Signals): void {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  beginShutdown(signal);
 }
+
+const createTransport = (): Transport => {
+  const stdioTransport = new BatchRejectingStdioServerTransport();
+  return new ProtocolVersionGuardTransport(
+    stdioTransport,
+    SUPPORTED_PROTOCOL_VERSIONS
+  );
+};
+
+const connectServer = async (transportToUse: Transport): Promise<void> => {
+  transport = transportToUse;
+  await server.connect(transportToUse);
+  logger.info('Memory MCP Server running on stdio');
+};
 
 const main = async (): Promise<void> => {
   try {
-    const stdioTransport = new BatchRejectingStdioServerTransport();
-    const guardedTransport = new ProtocolVersionGuardTransport(
-      stdioTransport,
-      SUPPORTED_PROTOCOL_VERSIONS
-    );
-    transport = guardedTransport;
-    await server.connect(guardedTransport);
-    logger.info('Memory MCP Server running on stdio');
+    const guardedTransport = createTransport();
+    await connectServer(guardedTransport);
   } catch (error) {
     logger.error('Failed to start server', error);
     process.exit(1);
@@ -123,7 +183,9 @@ const main = async (): Promise<void> => {
 const registerSignalHandlers = (): void => {
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGBREAK'];
   for (const signal of signals) {
-    process.on(signal, () => void shutdown(signal));
+    process.on(signal, () => {
+      shutdown(signal);
+    });
   }
 };
 

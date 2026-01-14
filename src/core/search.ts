@@ -91,35 +91,20 @@ const isSearchQueryInvalid = (message: string): boolean =>
 const getErrorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : String(err);
 
-const SEARCH_ERROR_MAP: {
-  matches: (message: string) => boolean;
-  build: (message: string) => Error;
-}[] = [
-  {
-    matches: isSearchIndexMissing,
-    build: () =>
-      new Error(
-        'Search index unavailable. Ensure FTS5 is enabled and the index is ' +
-          'initialized.'
-      ),
-  },
-  {
-    matches: isSearchQueryInvalid,
-    build: (message) =>
-      new Error(
-        'Invalid search query syntax. Check for unbalanced quotes or special ' +
-          'characters. ' +
-          `Details: ${message}`
-      ),
-  },
-];
-
 const toSearchError = (err: unknown): Error | undefined => {
   const message = getErrorMessage(err);
-  for (const mapping of SEARCH_ERROR_MAP) {
-    if (mapping.matches(message)) {
-      return mapping.build(message);
-    }
+  if (isSearchIndexMissing(message)) {
+    return new Error(
+      'Search index unavailable. Ensure FTS5 is enabled and the index is ' +
+        'initialized.'
+    );
+  }
+  if (isSearchQueryInvalid(message)) {
+    return new Error(
+      'Invalid search query syntax. Check for unbalanced quotes or special ' +
+        'characters. ' +
+        `Details: ${message}`
+    );
   }
   return undefined;
 };
@@ -129,17 +114,22 @@ const executeSearch = (sql: string, params: (number | string)[]): DbRow[] => {
     const stmt = prepareCached(sql);
     return executeAll(stmt, ...params);
   } catch (err) {
-    const mappedError = toSearchError(err);
-    if (mappedError) {
-      throw mappedError;
-    }
-    throw err;
+    throw toSearchError(err) ?? err;
   }
 };
 
 interface SearchInput {
   query: string;
 }
+
+const mapRowsToSearchResultsWithTags = (rows: DbRow[]): SearchResult[] => {
+  const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
+  const tagsById = loadTagsForMemoryIds(ids);
+  return rows.map((row) => {
+    const id = toSafeInteger(row.id, 'id');
+    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
+  });
+};
 
 export const searchMemories = (input: SearchInput): SearchResult[] => {
   const tokens = tokenizeQuery(input.query);
@@ -148,12 +138,7 @@ export const searchMemories = (input: SearchInput): SearchResult[] => {
   }
   const { sql, params } = buildSearchQuery(tokens);
   const rows = executeSearch(sql, params);
-  const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
-  const tagsById = loadTagsForMemoryIds(ids);
-  return rows.map((row) => {
-    const id = toSafeInteger(row.id, 'id');
-    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
-  });
+  return mapRowsToSearchResultsWithTags(rows);
 };
 
 const MAX_RECALL_DEPTH = 3;
@@ -219,42 +204,75 @@ const buildRelationshipsQuery = (memoryCount: number): { sql: string } => {
   return { sql };
 };
 
+const executeWithSql = (
+  sql: string,
+  params: readonly (number | string)[]
+): DbRow[] => {
+  const stmt = db.prepare(sql);
+  return executeAll(stmt, ...params);
+};
+
+const executeRecall = (seedIds: readonly number[], depth: number): DbRow[] => {
+  const { sql } = buildRecallQuery(seedIds.length, depth);
+  return executeWithSql(sql, seedIds);
+};
+
+const loadRelationshipsForMemoryIds = (
+  memoryIds: readonly number[]
+): RecallResult['relationships'] => {
+  const { sql } = buildRelationshipsQuery(memoryIds.length);
+  const rows = executeWithSql(sql, [...memoryIds, ...memoryIds]);
+  return rows.map(mapRowToRelationship);
+};
+
+const getRecallDepth = (depth: number | undefined): number => depth ?? 1;
+
+const emptyRecallResult = (depth: number): RecallResult => ({
+  memories: [],
+  relationships: [],
+  depth,
+});
+
+const recallAtDepthZero = (
+  searchResults: SearchResult[],
+  depth: number
+): RecallResult | undefined => {
+  if (depth !== 0) return undefined;
+  return { memories: searchResults, relationships: [], depth };
+};
+
+const recallAtPositiveDepth = (
+  searchResults: SearchResult[],
+  depth: number
+): RecallResult => {
+  const seedIds = searchResults.map((m) => m.id);
+  const recallRows = executeRecall(seedIds, depth);
+  const memories = mapRowsToSearchResultsWithTags(recallRows);
+  if (memories.length === 0) {
+    return emptyRecallResult(depth);
+  }
+
+  const relationships = loadRelationshipsForMemoryIds(
+    memories.map((m) => m.id)
+  );
+  return { memories, relationships, depth };
+};
+
 export const recallMemories = (input: {
   query: string;
   depth?: number;
 }): RecallResult => {
-  const depth = input.depth ?? 1;
-
   const searchResults = searchMemories({ query: input.query });
   if (searchResults.length === 0) {
-    return { memories: [], relationships: [], depth };
+    return emptyRecallResult(getRecallDepth(input.depth));
   }
 
-  if (depth === 0) {
-    return { memories: searchResults, relationships: [], depth };
+  const depth = getRecallDepth(input.depth);
+
+  const depthZeroResult = recallAtDepthZero(searchResults, depth);
+  if (depthZeroResult) {
+    return depthZeroResult;
   }
 
-  const seedIds = searchResults.map((m) => m.id);
-
-  const { sql: recallSql } = buildRecallQuery(seedIds.length, depth);
-  const recallStmt = db.prepare(recallSql);
-  const recallRows = executeAll(recallStmt, ...seedIds);
-  const recallIds = recallRows.map((row) => toSafeInteger(row.id, 'id'));
-  const tagsById = loadTagsForMemoryIds(recallIds);
-  const memories = recallRows.map((row) => {
-    const id = toSafeInteger(row.id, 'id');
-    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
-  });
-
-  const allMemoryIds = memories.map((m) => m.id);
-  if (allMemoryIds.length === 0) {
-    return { memories: [], relationships: [], depth };
-  }
-
-  const { sql: relSql } = buildRelationshipsQuery(allMemoryIds.length);
-  const relStmt = db.prepare(relSql);
-  const relRows = executeAll(relStmt, ...allMemoryIds, ...allMemoryIds);
-  const relationships = relRows.map(mapRowToRelationship);
-
-  return { memories, relationships, depth };
+  return recallAtPositiveDepth(searchResults, depth);
 };
