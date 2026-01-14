@@ -5,10 +5,10 @@ import type {
 } from '../types.js';
 import {
   db,
-  type DbRow,
   executeAll,
   executeGet,
   executeRun,
+  mapRowToRelationship,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
@@ -30,19 +30,6 @@ const requireMemoryId = (hash: string): number => {
   }
   return id;
 };
-
-const toString = (value: unknown, field: string): string => {
-  if (typeof value === 'string') return value;
-  throw new Error(`Invalid ${field}`);
-};
-
-const mapRowToRelationship = (row: DbRow): Relationship => ({
-  id: toSafeInteger(row.id, 'id'),
-  from_hash: toString(row.from_hash, 'from_hash'),
-  to_hash: toString(row.to_hash, 'to_hash'),
-  relation_type: toString(row.relation_type, 'relation_type'),
-  created_at: toString(row.created_at, 'created_at'),
-});
 
 const stmtInsertRelationship = db.prepare(`
   INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type)

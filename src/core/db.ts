@@ -7,6 +7,7 @@ import {
   type Memory,
   MEMORY_TYPES,
   type MemoryType,
+  type Relationship,
   type SearchResult,
 } from '../types.js';
 
@@ -322,6 +323,14 @@ export const mapRowToSearchResult = (
 ): SearchResult => ({
   ...mapRowToMemory(row, tags),
   relevance: toOptionalNumber(row.relevance, 'relevance') ?? 0,
+});
+
+export const mapRowToRelationship = (row: DbRow): Relationship => ({
+  id: toSafeInteger(row.id, 'id'),
+  from_hash: toString(row.from_hash, 'from_hash'),
+  to_hash: toString(row.to_hash, 'to_hash'),
+  relation_type: toString(row.relation_type, 'relation_type'),
+  created_at: toString(row.created_at, 'created_at'),
 });
 
 const tagsSelectStatements: (StatementSync | undefined)[] = [];

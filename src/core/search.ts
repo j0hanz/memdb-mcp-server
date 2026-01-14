@@ -1,9 +1,10 @@
-import type { RecallResult, Relationship, SearchResult } from '../types.js';
+import type { RecallResult, SearchResult } from '../types.js';
 import {
   db,
   type DbRow,
   executeAll,
   loadTagsForMemoryIds,
+  mapRowToRelationship,
   mapRowToSearchResult,
   prepareCached,
   toSafeInteger,
@@ -157,19 +158,6 @@ export const searchMemories = (input: SearchInput): SearchResult[] => {
 
 const MAX_RECALL_DEPTH = 3;
 const MAX_RECALL_MEMORIES = 50;
-
-const toString = (value: unknown, field: string): string => {
-  if (typeof value === 'string') return value;
-  throw new Error(`Invalid ${field}`);
-};
-
-const mapRowToRelationship = (row: DbRow): Relationship => ({
-  id: toSafeInteger(row.id, 'id'),
-  from_hash: toString(row.from_hash, 'from_hash'),
-  to_hash: toString(row.to_hash, 'to_hash'),
-  relation_type: toString(row.relation_type, 'relation_type'),
-  created_at: toString(row.created_at, 'created_at'),
-});
 
 const buildRecallQuery = (
   seedCount: number,
