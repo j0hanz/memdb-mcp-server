@@ -52,7 +52,7 @@ const createJsonLineReader = (
 
 type JsonRpcError = {
   jsonrpc: '2.0';
-  id?: string | number;
+  id: string | number | null;
   error: {
     code: number;
     message: string;
@@ -60,7 +60,7 @@ type JsonRpcError = {
 };
 
 void describe('BatchRejectingStdioServerTransport', () => {
-  void it('responds to invalid Request.id types with -32600 and no id', async () => {
+  void it('responds to invalid Request.id types with -32600 and id=null', async () => {
     const stdin = new PassThrough();
     const stdout = new PassThrough();
 
@@ -76,7 +76,7 @@ void describe('BatchRejectingStdioServerTransport', () => {
 
       const message = (await reader.next()) as JsonRpcError;
       assert.strictEqual(message.jsonrpc, '2.0');
-      assert.ok(!('id' in message));
+      assert.strictEqual(message.id, null);
       assert.strictEqual(message.error.code, -32600);
     } finally {
       reader.close();
@@ -84,7 +84,7 @@ void describe('BatchRejectingStdioServerTransport', () => {
     }
   });
 
-  void it('responds to parse errors with -32700', async () => {
+  void it('responds to parse errors with -32700 and id=null', async () => {
     const stdin = new PassThrough();
     const stdout = new PassThrough();
 
@@ -96,7 +96,7 @@ void describe('BatchRejectingStdioServerTransport', () => {
 
       const message = (await reader.next()) as JsonRpcError;
       assert.strictEqual(message.jsonrpc, '2.0');
-      assert.ok(!('id' in message));
+      assert.strictEqual(message.id, null);
       assert.strictEqual(message.error.code, -32700);
     } finally {
       reader.close();
@@ -104,7 +104,7 @@ void describe('BatchRejectingStdioServerTransport', () => {
     }
   });
 
-  void it('rejects batch arrays with no usable ids by emitting one -32600', async () => {
+  void it('rejects batch arrays with no usable ids by emitting one -32600 with id=null', async () => {
     const stdin = new PassThrough();
     const stdout = new PassThrough();
 
@@ -119,7 +119,7 @@ void describe('BatchRejectingStdioServerTransport', () => {
 
       const message = (await reader.next()) as JsonRpcError;
       assert.strictEqual(message.jsonrpc, '2.0');
-      assert.ok(!('id' in message));
+      assert.strictEqual(message.id, null);
       assert.strictEqual(message.error.code, -32600);
     } finally {
       reader.close();

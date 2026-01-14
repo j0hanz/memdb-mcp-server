@@ -158,9 +158,12 @@ function shutdown(signal: NodeJS.Signals): void {
 
 const createTransport = (): Transport => {
   const stdioTransport = new BatchRejectingStdioServerTransport();
+  const supportedProtocolVersions = SUPPORTED_PROTOCOL_VERSIONS.filter(
+    (version) => version !== '2025-03-26'
+  );
   return new ProtocolVersionGuardTransport(
     stdioTransport,
-    SUPPORTED_PROTOCOL_VERSIONS
+    supportedProtocolVersions
   );
 };
 

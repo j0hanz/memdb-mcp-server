@@ -150,31 +150,25 @@ const getRequestIdResult = (value: unknown): RequestIdResult => {
   return { ok: false, reason: 'invalid-type' };
 };
 
-const invalidRequestError = (id?: RequestId): JSONRPCMessage =>
-  id === undefined
-    ? {
-        jsonrpc: '2.0',
-        error: {
-          code: -32600,
-          message: 'Invalid request',
-        },
-      }
-    : {
-        jsonrpc: '2.0',
-        id,
-        error: {
-          code: -32600,
-          message: 'Invalid request',
-        },
-      };
+const invalidRequestError = (id: RequestId | null): JSONRPCMessage =>
+  ({
+    jsonrpc: '2.0',
+    id,
+    error: {
+      code: -32600,
+      message: 'Invalid request',
+    },
+  }) as unknown as JSONRPCMessage;
 
-const parseError = (): JSONRPCMessage => ({
-  jsonrpc: '2.0',
-  error: {
-    code: -32700,
-    message: 'Parse error',
-  },
-});
+const parseError = (): JSONRPCMessage =>
+  ({
+    jsonrpc: '2.0',
+    id: null,
+    error: {
+      code: -32700,
+      message: 'Parse error',
+    },
+  }) as unknown as JSONRPCMessage;
 
 /**
  * Stdio transport that explicitly rejects JSON-RPC batch arrays.
@@ -255,7 +249,7 @@ export class BatchRejectingStdioServerTransport implements Transport {
   }
 
   private sendInvalidRequestUnknownId(): void {
-    void this.send(invalidRequestError());
+    void this.send(invalidRequestError(null));
   }
 
   private sendParseError(): void {
