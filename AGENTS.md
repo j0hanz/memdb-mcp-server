@@ -2,120 +2,127 @@
 
 ## Project Overview
 
-- **What this repo is:** `memdb` is a local, SQLite-backed **Model Context Protocol (MCP)** server that provides memory CRUD + search tools over **stdio**.
-- **Language / runtime:** TypeScript (ESM) targeting Node.js (see `package.json` `engines.node`).
-- **Key libraries:** `@modelcontextprotocol/sdk` (server), `zod` (schemas), Node built-in `node:sqlite` (storage).
-- **Entry point:** `src/index.ts` (compiled to `dist/index.js`, also used as the CLI `memdb`).
+- TypeScript MCP (Model Context Protocol) server that persists “memories” in a local SQLite database using Node’s built-in `node:sqlite`.
+- Runs as a CLI/stdio MCP server (entrypoint: `src/index.ts`; compiled output: `dist/index.js`).
+- Package: `@j0hanz/memdb` (CLI name: `memdb`).
 
 ## Repo Map / Structure
 
-- `src/`: MCP server implementation
-  - `src/index.ts`: stdio server bootstrap + shutdown handling
-  - `src/config.ts`: CLI/env config (DB path, log level)
-  - `src/schemas.ts`: Zod input/output schemas for tools
-  - `src/tools.ts`: MCP tool registration (wrapping core services)
-  - `src/core/`: SQLite access + domain logic
-    - `src/core/db.ts`: schema, DB init, statement helpers, FTS setup
-    - `src/core/memory-read.ts`: read operations
-    - `src/core/memory-write.ts`: write/update operations
-    - `src/core/search.ts`: search operations
-- `tests/`: Node.js test runner tests (`tests/*.test.ts`)
+- `src/`: MCP server implementation (stdio transport + tools)
+  - `src/index.ts`: server entrypoint (stdio)
+  - `src/tools.ts`: tool registration and handlers
+  - `src/schemas.ts`: Zod input/output schemas
+  - `src/types.ts`: shared TypeScript types
+  - `src/core/`: SQLite schema + CRUD/search logic
+  - `src/instructions.md`: instructions text embedded into the MCP server at runtime (copied to `dist/instructions.md` on build)
+- `tests/`: Node test-runner tests (`tests/*.test.ts`) + `tests/fixtures/`
+- `scripts/`: maintenance/quality automation
+  - `scripts/Quality-Gates.ps1`: metric capture/compare + “safe refactor” workflow
+- `metrics/`: captured quality-gate artifacts (snapshots)
 - `dist/`: build output (generated)
-- `.memdb/`: runtime database directory (created at runtime; gitignored)
-- `.github/workflows/publish.yml`: npm publish workflow (runs on GitHub Release publish)
-- `scripts/Quality-Gates.ps1`: PowerShell helper for metrics/quality gating (see file header)
 
 ## Setup & Environment
 
-- Required Node.js: see `package.json` `engines.node` (repo currently declares `>=22.0.0`).
-- Package manager: `npm` (repo includes `package-lock.json`).
+- Runtime: Node.js `>=22.0.0` (required for `node:sqlite`; declared in `package.json` `engines.node`).
+- Package manager: npm (repo includes `package-lock.json`; CI uses `npm ci`).
 
-Commands:
+Install dependencies:
 
-- Install deps (local): `npm install`
-- Install deps (CI): `npm ci`
+- `npm ci`
+  - Uses the lockfile; this is what CI runs.
+- `npm install`
+  - Documented in README under “From Source”.
 
-Runtime configuration:
+Environment configuration:
 
-- Default DB path: `<cwd>/.memdb/memory.db` (created automatically)
-- Env vars:
-  - `MEMDB_PATH`: override DB path (`:memory:` for in-memory)
-  - `MEMDB_LOG_LEVEL`: `info` | `warn` | `error`
-- CLI flags:
-  - `--db <path>`: override DB path
-  - `--memory`: use in-memory DB (`:memory:`)
-  - `--log-level <level>`
-
-Precedence: CLI flags > environment variables > defaults.
+- `MEMDB_PATH`: override SQLite DB path. Default is `<cwd>/.memdb/memory.db`.
+- `MEMDB_LOG_LEVEL`: `error|warn|info` (default `info`).
 
 ## Development Workflow
 
-- Dev (watch): `npm run dev` (uses `tsx watch src/index.ts`)
-- Build: `npm run build` (TypeScript build to `dist/`)
-- Run built server (stdio): `npm start` (runs `node dist/index.js`)
-- Inspector UI (for MCP): `npm run inspector` (see README / `@modelcontextprotocol/inspector`)
+- Run in watch mode (TypeScript, no build): `npm run dev`
+- Build to `dist/`: `npm run build`
+  - Also copies `src/instructions.md` → `dist/instructions.md` and sets executable bit on `dist/index.js`.
+- Run built server: `npm run start`
+- MCP Inspector (interactive client): `npm run inspector`
 
-Tip: when debugging an installed build, build first: `npm run build`.
+Suggested local “preflight” before a PR:
+
+- Format check: `npm run format:check`
+- Lint: `npm run lint`
+- Type-check: `npm run type-check`
+- Tests: `npm run test`
 
 ## Testing
 
-- Run all tests: `npm test`
-- Run coverage: `npm run test:coverage`
-- Type-check tests (includes `tests/`): `npm run type-check:test`
+- Run all tests: `npm run test`
+  - Uses Node’s built-in test runner with ESM TS loader: `node --import tsx/esm --test tests/*.test.ts`.
+- Coverage: `npm run test:coverage`
+  - Uses Node’s experimental coverage: `node --import tsx/esm --test --experimental-test-coverage tests/*.test.ts`.
 
-Notes:
+Test locations/patterns:
 
-- Tests use Node’s built-in test runner with `tsx` ESM loader: `node --import tsx/esm --test tests/*.test.ts`.
+- `tests/*.test.ts`
+- Fixtures: `tests/fixtures/`
 
 ## Code Style & Conventions
 
-- TypeScript:
-  - `module`/`moduleResolution`: `NodeNext` (ESM)
-  - Prefer type-only imports (`import { type X } from ...`) when applicable.
-  - Local imports use `.js` extensions (because NodeNext ESM output).
-- Lint: `npm run lint` (ESLint flat config in `eslint.config.mjs`; `src/**/*.ts` uses type-aware rules)
-- Format:
-  - `npm run format` (Prettier)
-  - `npm run format:check`
-  - Import ordering is enforced via `@trivago/prettier-plugin-sort-imports` (see `.prettierrc`).
+- Language: TypeScript (ESM; `package.json` has `"type": "module"`).
+- TS config: `module`/`moduleResolution` are `NodeNext`, strict mode enabled, and `noUncheckedIndexedAccess` enabled (`tsconfig.json`).
+- Local imports in TS source use `.js` extensions (see `src/index.ts`), consistent with NodeNext ESM.
+
+Linting:
+
+- Run ESLint: `npm run lint`
+- ESLint config: `eslint.config.mjs` (flat config; ignores `dist/`, `node_modules/`, and `*.config.*`).
+
+Formatting:
+
+- Apply formatting: `npm run format`
+- Check formatting: `npm run format:check`
+- Prettier config: `.prettierrc` (includes `@trivago/prettier-plugin-sort-imports` + `importOrder`).
 
 ## Build / Release
 
-- Build output: `dist/`
-- Package entrypoints:
+- Build command: `npm run build` → outputs `dist/`
+- Published entrypoints:
   - `main`: `dist/index.js`
   - `types`: `dist/index.d.ts`
-  - CLI: `memdb` → `dist/index.js`
-- Release/publish:
-  - `npm run prepublishOnly` runs `lint`, `type-check`, and `build`.
-  - GitHub Actions workflow `.github/workflows/publish.yml` publishes to npm on GitHub Release publish (Trusted Publishing / OIDC).
+  - CLI: `memdb` → `dist/index.js` (see `package.json` `bin`).
+
+Release automation (GitHub Actions):
+
+- Workflow: `.github/workflows/publish.yml`
+  - Trigger: GitHub Release “published”.
+  - Runs: `npm ci`, then `npm run lint`, `npm run type-check`, `npm run test`, `npm run test:coverage`, `npm run duplication`, `npm run build`.
+  - Updates package version from tag (`vX.Y.Z`) and publishes to npm via Trusted Publishing (OIDC).
 
 ## Security & Safety
 
-- This is a **local** database by default. The `.memdb/` directory is gitignored; don’t commit DB files.
-- The MCP server runs over **stdio**. Avoid adding any non-protocol output to **stdout**; use logging mechanisms that write to stderr.
-- Tool safety:
-  - Tools validate inputs with Zod schemas.
-  - `delete_memory` is destructive.
-  - DB path is resolved to an absolute path unless `:memory:` is used; null bytes are rejected.
+- Data is stored locally in a SQLite file under `.memdb/` by default. Avoid committing local DB files.
+- Do not store secrets/credentials in `src/instructions.md` or tests/fixtures.
+- Be careful with destructive DB operations when changing tool behavior (delete/update semantics are user-facing).
 
 ## Pull Request / Commit Guidelines
 
-- No repo-wide PR/commit convention is defined in tracked docs.
-- Before opening a PR, run at least:
+- No repo-specific commit format is defined; keep commits small and focused.
+- Before opening a PR, run the same checks as the publish workflow:
   - `npm run lint`
   - `npm run type-check`
-  - `npm test`
-- Keep changes small and focused; update README/tool schemas when changing tool behavior.
+  - `npm run test`
+  - `npm run test:coverage`
+  - `npm run duplication`
+
+Optional local quality-gates (PowerShell):
+
+- Script: `scripts/Quality-Gates.ps1` (PowerShell `>=5.1`)
+- Examples from the script:
+  - Measure: `./Quality-Gates.ps1 -Mode Measure`
+  - Compare: `./Quality-Gates.ps1 -Mode Compare -SkipCurrentCapture -PassThru`
+  - Safe refactor (supports `-WhatIf`): `./Quality-Gates.ps1 -Mode SafeRefactor -Command "npm run format" -WhatIf`
 
 ## Troubleshooting
 
-- **Node version errors:** This repo declares Node `>=22.0.0` in `package.json`. If commands fail under older Node, upgrade Node.
-- **Server won’t start / inspector issues:** build first (`npm run build`), then run (`npm start`).
-- **DB location surprises:** DB path is relative to the process working directory (`process.cwd()`) unless overridden by `--db` or `MEMDB_PATH`.
-
-## Open Questions / TODO
-
-- `.github/workflows/publish.yml` runs `npm run maintainability`, but `package.json` currently does **not** define a `maintainability` script.
-- `.github/workflows/publish.yml` pins Node `20`, while `package.json` declares `engines.node >=22.0.0`.
-- `.github/instructions/typescript-mcp-server.instructions.md` mentions Zod v3, but `package.json` depends on Zod v4.
+- `node:sqlite` / `DatabaseSync` not found: install Node.js `>=22.0.0`.
+- FTS/search issues: this server uses SQLite FTS5; if your SQLite build lacks FTS5, searches may fail.
+- Stale tool lists in clients: some MCP clients cache tool definitions; reset via the client’s MCP tool-cache reset (noted in `src/instructions.md`).
