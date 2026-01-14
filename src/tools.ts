@@ -230,7 +230,6 @@ const buildCoreTools = (deps: ToolDependencies): ToolDef[] => [
       description: 'Retrieve memory by hash',
       inputSchema: GetMemoryInputSchema,
       outputSchema: DefaultOutputSchema,
-      annotations: { readOnlyHint: true },
     },
     handler: wrapHandler('E_GET_MEMORY', async (params) => {
       const input = GetMemoryInputSchema.parse(params);

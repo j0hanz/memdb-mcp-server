@@ -10,19 +10,29 @@ import {
   type DbRow,
   executeGet,
   executeRun,
+  loadTagsForMemoryIds,
   mapRowToMemory,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
 
 const stmtGetMemoryByHash = db.prepare('SELECT * FROM memories WHERE hash = ?');
+const stmtTouchMemoryByHash = db.prepare(
+  'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
+);
 const stmtDeleteMemoryByHash = db.prepare(
   'DELETE FROM memories WHERE hash = ?'
 );
 
 export const getMemory = (hash: string): Memory | undefined => {
-  const row = executeGet(stmtGetMemoryByHash, hash);
-  return row ? mapRowToMemory(row) : undefined;
+  return withImmediateTransaction(() => {
+    executeRun(stmtTouchMemoryByHash, hash);
+    const row = executeGet(stmtGetMemoryByHash, hash);
+    if (!row) return undefined;
+    const id = toSafeInteger(row.id, 'id');
+    const tags = loadTagsForMemoryIds([id]).get(id) ?? [];
+    return mapRowToMemory(row, tags);
+  });
 };
 
 export const deleteMemory = (hash: string): StatementResult => {

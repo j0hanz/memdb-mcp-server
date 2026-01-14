@@ -161,7 +161,7 @@ Search memories by content and tags.
 | :-------- | :----- | :------- | :------ | :---------------------------------------- |
 | `query`   | string | Yes      | -       | Search query (1-1000 chars, max 50 terms) |
 
-**Returns:** Array of search results (`Memory` + `relevance`).
+**Returns:** Array of search results (`Memory` + `relevance`, includes `tags`).
 
 Notes:
 
@@ -177,7 +177,11 @@ Retrieve a specific memory by its hash.
 | :-------- | :----- | :------- | :------ | :------------------ |
 | `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
 
-**Returns:** `Memory`.
+**Returns:** `Memory` (includes `tags`).
+
+Notes:
+
+- Updates `accessed_at` on read.
 
 ### `delete_memory`
 
@@ -242,6 +246,7 @@ All memory-shaped responses include:
 - `id`: integer ID
 - `content`: original content string
 - `summary`: optional summary (currently unset by tools)
+- `tags`: string array
 - `created_at`: timestamp string
 - `accessed_at`: timestamp string
 - `hash`: MD5 hash

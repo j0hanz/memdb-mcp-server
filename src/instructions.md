@@ -24,6 +24,7 @@ Use this server to store and retrieve persistent memories (facts, decisions, les
   - `tags` (1–100 items, no whitespace, `kebab-case`)
   - `importance` (0–10, 10=critical)
   - `memory_type` (`general`, `fact`, `plan`, `decision`, `reflection`, `lesson`, `error`, `gradient`)
+  - `accessed_at` is updated when you call `get_memory`
 - **Relationship:** Directed edge (`from_hash` → `to_hash`) with a typed label (`relation_type`).
 
 ## Workflows
@@ -71,6 +72,7 @@ Full-text + tag search.
 - **Use when:** Discovering what exists; start here before mutating.
 - **Args:** `query` (1–1,000 chars).
 - **Returns:** Array of `Memory` + `relevance`, up to 100 results.
+- **Returns:** Array of `Memory` + `relevance`, up to 100 results (includes `tags`).
 - **Notes:** Content matches rank higher than tag matches.
 
 ### get_memory
@@ -79,7 +81,8 @@ Fetch a single memory by hash.
 
 - **Use when:** You need verbatim content after search identified a hash.
 - **Args:** `hash` (32 hex chars).
-- **Returns:** `Memory` object.
+- **Returns:** `Memory` object (includes `tags`).
+- **Notes:** Updates `accessed_at` on read.
 
 ### update_memory
 
@@ -136,7 +139,7 @@ Search + traverse relationships to return a connected cluster.
 
 - **Use when:** You need broader context beyond keyword matches.
 - **Args:** `query`, `depth` (opt, 0–3; default 1).
-- **Returns:** `{ memories, relationships, depth }`.
+- **Returns:** `{ memories, relationships, depth }` where `memories` include `tags`.
 
 ### memory_stats
 

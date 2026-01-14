@@ -104,13 +104,16 @@ const buildGetRelationshipsQuery = (
     JOIN memories mt ON r.to_memory_id = mt.id
   `;
 
+  const orderBy =
+    ' ORDER BY r.relation_type, mf.hash, mt.hash, r.created_at, r.id';
+
   switch (direction) {
     case 'outgoing':
-      return `${baseSelect} WHERE mf.hash = ?`;
+      return `${baseSelect} WHERE mf.hash = ?${orderBy}`;
     case 'incoming':
-      return `${baseSelect} WHERE mt.hash = ?`;
+      return `${baseSelect} WHERE mt.hash = ?${orderBy}`;
     case 'both':
-      return `${baseSelect} WHERE mf.hash = ? OR mt.hash = ?`;
+      return `${baseSelect} WHERE mf.hash = ? OR mt.hash = ?${orderBy}`;
   }
 };
 

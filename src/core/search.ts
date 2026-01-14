@@ -3,6 +3,7 @@ import {
   db,
   type DbRow,
   executeAll,
+  loadTagsForMemoryIds,
   mapRowToSearchResult,
   prepareCached,
   toSafeInteger,
@@ -146,7 +147,12 @@ export const searchMemories = (input: SearchInput): SearchResult[] => {
   }
   const { sql, params } = buildSearchQuery(tokens);
   const rows = executeSearch(sql, params);
-  return rows.map((row) => mapRowToSearchResult(row));
+  const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
+  const tagsById = loadTagsForMemoryIds(ids);
+  return rows.map((row) => {
+    const id = toSafeInteger(row.id, 'id');
+    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
+  });
 };
 
 const MAX_RECALL_DEPTH = 3;
@@ -219,6 +225,7 @@ const buildRelationshipsQuery = (memoryCount: number): { sql: string } => {
     JOIN memories mt ON r.to_memory_id = mt.id
     WHERE r.from_memory_id IN (${placeholders})
       AND r.to_memory_id IN (${placeholders})
+    ORDER BY r.relation_type, mf.hash, mt.hash, r.created_at, r.id
   `;
 
   return { sql };
@@ -244,7 +251,12 @@ export const recallMemories = (input: {
   const { sql: recallSql } = buildRecallQuery(seedIds.length, depth);
   const recallStmt = db.prepare(recallSql);
   const recallRows = executeAll(recallStmt, ...seedIds);
-  const memories = recallRows.map(mapRowToSearchResult);
+  const recallIds = recallRows.map((row) => toSafeInteger(row.id, 'id'));
+  const tagsById = loadTagsForMemoryIds(recallIds);
+  const memories = recallRows.map((row) => {
+    const id = toSafeInteger(row.id, 'id');
+    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
+  });
 
   const allMemoryIds = memories.map((m) => m.id);
   if (allMemoryIds.length === 0) {

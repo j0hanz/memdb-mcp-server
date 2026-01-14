@@ -15,6 +15,7 @@ export interface Memory {
   readonly id: number;
   readonly content: string;
   readonly summary: string | undefined;
+  readonly tags: string[];
   readonly importance: number;
   readonly memory_type: MemoryType;
   readonly created_at: string;

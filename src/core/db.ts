@@ -304,10 +304,11 @@ const toOptionalNumber = (
   return toNumber(value, field);
 };
 
-export const mapRowToMemory = (row: DbRow): Memory => ({
+export const mapRowToMemory = (row: DbRow, tags: string[] = []): Memory => ({
   id: toSafeInteger(row.id, 'id'),
   content: toString(row.content, 'content'),
   summary: toOptionalString(row.summary, 'summary'),
+  tags,
   importance: toSafeInteger(row.importance ?? 0, 'importance'),
   memory_type: toMemoryType(row.memory_type ?? 'general', 'memory_type'),
   created_at: toString(row.created_at, 'created_at'),
@@ -315,7 +316,58 @@ export const mapRowToMemory = (row: DbRow): Memory => ({
   hash: toString(row.hash, 'hash'),
 });
 
-export const mapRowToSearchResult = (row: DbRow): SearchResult => ({
-  ...mapRowToMemory(row),
+export const mapRowToSearchResult = (
+  row: DbRow,
+  tags: string[] = []
+): SearchResult => ({
+  ...mapRowToMemory(row, tags),
   relevance: toOptionalNumber(row.relevance, 'relevance') ?? 0,
 });
+
+const tagsSelectStatements: (StatementSync | undefined)[] = [];
+
+const getSelectTagsStatement = (idCount: number): StatementSync => {
+  const cached = tagsSelectStatements[idCount];
+  if (cached) return cached;
+
+  const placeholders = Array.from({ length: idCount }, () => '?').join(', ');
+  const stmt = db.prepare(
+    `SELECT memory_id, tag FROM tags WHERE memory_id IN (${placeholders}) ORDER BY memory_id, tag`
+  );
+  tagsSelectStatements[idCount] = stmt;
+  return stmt;
+};
+
+const dedupeIds = (ids: readonly number[]): number[] => {
+  const seen = new Set<number>();
+  const unique: number[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    unique.push(id);
+  }
+  return unique;
+};
+
+export const loadTagsForMemoryIds = (
+  memoryIds: readonly number[]
+): Map<number, string[]> => {
+  const uniqueIds = dedupeIds(memoryIds);
+  if (uniqueIds.length === 0) return new Map();
+
+  const stmt = getSelectTagsStatement(uniqueIds.length);
+  const rows = executeAll(stmt, ...uniqueIds);
+
+  const tagsById = new Map<number, string[]>();
+  for (const row of rows) {
+    const memoryId = toSafeInteger(row.memory_id, 'memory_id');
+    const tag = toString(row.tag, 'tag');
+    const existing = tagsById.get(memoryId);
+    if (existing) {
+      existing.push(tag);
+    } else {
+      tagsById.set(memoryId, [tag]);
+    }
+  }
+  return tagsById;
+};

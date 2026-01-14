@@ -57,7 +57,7 @@ const server = new McpServer(
 const patchToolErrorResults = (target: McpServer): void => {
   const targetUnknown = target as unknown as Record<string, unknown>;
   const existing: unknown = Reflect.get(targetUnknown, 'createToolError');
-  if (existing !== undefined && typeof existing !== 'function') return;
+  if (typeof existing !== 'function') return;
 
   const createToolError = (message: string): CallToolResult => {
     const structured = {

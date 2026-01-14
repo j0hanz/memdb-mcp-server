@@ -57,6 +57,11 @@ const getHash = (result: CallToolResult): string => {
   return structured.result.hash;
 };
 
+const getTags = (result: CallToolResult): string[] => {
+  const structured = result.structuredContent as { result: { tags: string[] } };
+  return structured.result.tags;
+};
+
 const setupRegistrations = (): ToolRegistration[] => {
   const { server, registrations } = createServerStub();
   registerAllTools(server);
@@ -104,6 +109,7 @@ void describe('tools responses store/get/delete', () => {
 
     const fetched = await getMemory.handler({ hash });
     assertOk(fetched);
+    assert.deepStrictEqual(getTags(fetched), ['test']);
 
     const deleted = await deleteMemory.handler({ hash });
     assertOk(deleted);
@@ -175,13 +181,20 @@ void describe('tools responses search/update', () => {
 
     const stored = await store.handler({
       content: 'Searchable memory',
-      tags: ['testtag'],
+      tags: ['testtag', 'othertag'],
     });
     assertOk(stored);
     const hash = getHash(stored);
 
     const searched = await search.handler({ query: 'Searchable' });
     assertOk(searched);
+
+    const searchStructured = searched.structuredContent as {
+      result: Array<{ hash: string; tags: string[] }>;
+    };
+    const found = searchStructured.result.find((r) => r.hash === hash);
+    assert.ok(found, 'Expected to find stored memory in results');
+    assert.deepStrictEqual(found.tags, ['othertag', 'testtag']);
 
     const updated = await update.handler({ hash, content: 'Updated memory' });
     assertOk(updated);
