@@ -25,7 +25,7 @@ const readPackageVersion = async (): Promise<string | undefined> => {
   );
   const parsed: unknown = JSON.parse(packageJsonText);
   if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const version: unknown = Reflect.get(parsed, 'version');
+  const { version } = parsed as { version?: unknown };
   return typeof version === 'string' ? version : undefined;
 };
 

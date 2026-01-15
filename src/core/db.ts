@@ -106,21 +106,18 @@ const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   );
 };
 
-const isEnableDefensive = (
-  value: unknown
-): value is (active: boolean) => void => {
-  return typeof value === 'function';
-};
+interface ExtendedDatabaseSync extends DatabaseSync {
+  enableDefensive?: (active: boolean) => void;
+}
 
 const enableDefensiveMode = (database: DatabaseSync): void => {
-  const enableDefensive: unknown = Reflect.get(database, 'enableDefensive');
-  if (!isEnableDefensive(enableDefensive)) return;
-  enableDefensive(true);
+  const extended = database as ExtendedDatabaseSync;
+  if (typeof extended.enableDefensive !== 'function') return;
+  extended.enableDefensive(true);
 };
 
 const isInTransaction = (database: DatabaseSync): boolean => {
-  const prop: unknown = Reflect.get(database, 'isTransaction');
-  return typeof prop === 'boolean' ? prop : false;
+  return database.isTransaction;
 };
 
 const initializeSchema = (database: DatabaseSync): void => {
@@ -158,14 +155,24 @@ export type SqlParam = string | number | bigint | null | Uint8Array;
 
 const MAX_CACHED_STATEMENTS = 200;
 const statementCache = new Map<string, StatementSync>();
-const statementCacheOrder: string[] = [];
 
-const enforceStatementCacheLimit = (): void => {
-  if (statementCacheOrder.length <= MAX_CACHED_STATEMENTS) return;
-  const oldestSql = statementCacheOrder.shift();
-  if (!oldestSql) return;
+export const prepareCached = (sql: string): StatementSync => {
+  const cached = statementCache.get(sql);
+  if (cached) {
+    statementCache.delete(sql);
+    statementCache.set(sql, cached);
+    return cached;
+  }
 
-  statementCache.delete(oldestSql);
+  const stmt = db.prepare(sql);
+  statementCache.set(sql, stmt);
+
+  if (statementCache.size > MAX_CACHED_STATEMENTS) {
+    const oldestKey = statementCache.keys().next().value;
+    if (oldestKey) statementCache.delete(oldestKey);
+  }
+
+  return stmt;
 };
 
 const isDbRow = (value: unknown): value is DbRow => {
@@ -195,24 +202,12 @@ const toRunResult = (value: unknown): { changes: number | bigint } => {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Invalid run result');
   }
-  const changes: unknown = Reflect.get(value, 'changes');
+  const result = value as { changes?: unknown };
+  const { changes } = result;
   if (typeof changes !== 'number' && typeof changes !== 'bigint') {
     throw new Error('Invalid run result');
   }
   return { changes };
-};
-
-export const prepareCached = (sql: string): StatementSync => {
-  const cached = statementCache.get(sql);
-  if (cached) return cached;
-
-  const stmt = db.prepare(sql);
-  statementCache.set(sql, stmt);
-  statementCacheOrder.push(sql);
-
-  enforceStatementCacheLimit();
-
-  return stmt;
 };
 
 export const executeAll = (
@@ -333,19 +328,9 @@ export const mapRowToRelationship = (row: DbRow): Relationship => ({
   created_at: toString(row.created_at, 'created_at'),
 });
 
-const tagsSelectStatements: (StatementSync | undefined)[] = [];
-
-const getSelectTagsStatement = (idCount: number): StatementSync => {
-  const cached = tagsSelectStatements[idCount];
-  if (cached) return cached;
-
-  const placeholders = Array.from({ length: idCount }, () => '?').join(', ');
-  const stmt = db.prepare(
-    `SELECT memory_id, tag FROM tags WHERE memory_id IN (${placeholders}) ORDER BY memory_id, tag`
-  );
-  tagsSelectStatements[idCount] = stmt;
-  return stmt;
-};
+const stmtSelectTags = db.prepare(
+  'SELECT memory_id, tag FROM tags WHERE memory_id IN (SELECT value FROM json_each(?)) ORDER BY memory_id, tag'
+);
 
 const dedupeIds = (ids: readonly number[]): number[] => {
   const seen = new Set<number>();
@@ -373,8 +358,7 @@ export const loadTagsForMemoryIds = (
   const uniqueIds = dedupeIds(memoryIds);
   if (uniqueIds.length === 0) return new Map();
 
-  const stmt = getSelectTagsStatement(uniqueIds.length);
-  const rows = executeAll(stmt, ...uniqueIds);
+  const rows = executeAll(stmtSelectTags, JSON.stringify(uniqueIds));
 
   const tagsById = new Map<number, string[]>();
   for (const row of rows) {

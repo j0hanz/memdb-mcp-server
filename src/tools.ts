@@ -41,57 +41,30 @@ import {
   StoreMemoryInputSchema,
   UpdateMemoryInputSchema,
 } from './schemas.js';
-import type {
-  BatchDeleteResult,
-  BatchStoreResult,
-  CreateRelationshipResult,
-  Memory,
-  MemoryInsertResult,
-  MemoryStats,
-  MemoryUpdateResult,
-  RecallResult,
-  Relationship,
-  SearchResult,
-  StatementResult,
-} from './types.js';
 
 type MaybePromise<T> = T | Promise<T>;
 
 type CreateMemoryInput = Parameters<typeof createMemory>[0];
-type CreateMemoriesInput = Parameters<typeof createMemories>[0];
-type UpdateMemoryArgs = Parameters<typeof updateMemory>;
-type SearchInput = Parameters<typeof searchMemories>[0];
-type DeleteMemoriesInput = Parameters<typeof deleteMemories>[0];
-type CreateRelationshipInput = Parameters<typeof createRelationship>[0];
-type GetRelationshipsInput = Parameters<typeof getRelationships>[0];
-type DeleteRelationshipInput = Parameters<typeof deleteRelationship>[0];
-type RecallInput = Parameters<typeof recallMemories>[0];
+
+type Dependency<T> = T extends (...args: infer A) => infer R
+  ? (...args: A) => MaybePromise<R>
+  : never;
 
 type ToolSchema = ZodRawShapeCompat | AnySchema;
 
 export interface ToolDependencies {
-  createMemory: (input: CreateMemoryInput) => MaybePromise<MemoryInsertResult>;
-  createMemories: (
-    input: CreateMemoriesInput
-  ) => MaybePromise<BatchStoreResult>;
-  updateMemory: (...args: UpdateMemoryArgs) => MaybePromise<MemoryUpdateResult>;
-  getMemory: (hash: string) => MaybePromise<Memory | undefined>;
-  deleteMemory: (hash: string) => MaybePromise<StatementResult>;
-  deleteMemories: (
-    input: DeleteMemoriesInput
-  ) => MaybePromise<BatchDeleteResult>;
-  searchMemories: (input: SearchInput) => MaybePromise<SearchResult[]>;
-  getStats: () => MaybePromise<MemoryStats>;
-  createRelationship: (
-    input: CreateRelationshipInput
-  ) => MaybePromise<CreateRelationshipResult>;
-  getRelationships: (
-    input: GetRelationshipsInput
-  ) => MaybePromise<Relationship[]>;
-  deleteRelationship: (
-    input: DeleteRelationshipInput
-  ) => MaybePromise<StatementResult>;
-  recallMemories: (input: RecallInput) => MaybePromise<RecallResult>;
+  createMemory: Dependency<typeof createMemory>;
+  createMemories: Dependency<typeof createMemories>;
+  updateMemory: Dependency<typeof updateMemory>;
+  getMemory: Dependency<typeof getMemory>;
+  deleteMemory: Dependency<typeof deleteMemory>;
+  deleteMemories: Dependency<typeof deleteMemories>;
+  searchMemories: Dependency<typeof searchMemories>;
+  getStats: Dependency<typeof getStats>;
+  createRelationship: Dependency<typeof createRelationship>;
+  getRelationships: Dependency<typeof getRelationships>;
+  deleteRelationship: Dependency<typeof deleteRelationship>;
+  recallMemories: Dependency<typeof recallMemories>;
 }
 
 const defaultDeps: ToolDependencies = {

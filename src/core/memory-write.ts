@@ -1,5 +1,4 @@
 import crypto from 'node:crypto';
-import type { StatementSync } from 'node:sqlite';
 
 import type {
   BatchStoreItemResult,
@@ -12,7 +11,6 @@ import {
   db,
   executeGet,
   executeRun,
-  type SqlParam,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
@@ -57,29 +55,9 @@ const stmtFindMemoryIdByHash = db.prepare(
   'SELECT id FROM memories WHERE hash = ?'
 );
 
-const buildTagInsert = (
-  memoryId: number,
-  tags: readonly string[]
-): { params: SqlParam[] } => {
-  const params: SqlParam[] = tags.flatMap((tag) => [memoryId, tag]);
-  return { params };
-};
-
-const tagInsertStatements: (StatementSync | undefined)[] = [];
-
-const getInsertTagsStatement = (tagCount: number): StatementSync => {
-  const cached = tagInsertStatements[tagCount];
-  if (cached) return cached;
-
-  const placeholders = Array.from({ length: tagCount }, () => '(?, ?)').join(
-    ', '
-  );
-  const stmt = db.prepare(
-    `INSERT OR IGNORE INTO tags (memory_id, tag) VALUES ${placeholders}`
-  );
-  tagInsertStatements[tagCount] = stmt;
-  return stmt;
-};
+const stmtInsertTags = db.prepare(
+  'INSERT OR IGNORE INTO tags (memory_id, tag) SELECT ?, value FROM json_each(?)'
+);
 
 const findMemoryIdByHash = (hash: string): number | undefined => {
   const row = executeGet(stmtFindMemoryIdByHash, hash);
@@ -89,9 +67,7 @@ const findMemoryIdByHash = (hash: string): number | undefined => {
 
 const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
-  const { params } = buildTagInsert(memoryId, tags);
-  const stmt = getInsertTagsStatement(tags.length);
-  executeRun(stmt, ...params);
+  executeRun(stmtInsertTags, memoryId, JSON.stringify(tags));
 };
 
 const buildHash = (content: string): string => {
