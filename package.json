@@ -1,6 +1,6 @@
 {
   "name": "@j0hanz/memdb",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "mcpName": "io.github.j0hanz/memdb",
   "description": "A SQLite-backed MCP memory server with local workspace storage.",
   "type": "module",
