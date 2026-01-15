@@ -10,7 +10,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/db.js';
-import { logger } from './logger.js';
+import { attachProtocolLogger, logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { BatchRejectingStdioServerTransport } from './stdio-transport.js';
 import { registerAllTools } from './tools.js';
@@ -77,7 +77,7 @@ const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: serverInstructions,
-    capabilities: { tools: {} },
+    capabilities: { tools: {}, logging: {} },
   }
 );
 
@@ -167,9 +167,23 @@ const createTransport = (): Transport => {
   );
 };
 
+const attachMcpLogger = (target: McpServer): void => {
+  attachProtocolLogger((level, message) => {
+    if (!target.isConnected()) return;
+    void target
+      .sendLoggingMessage({
+        level,
+        data: message,
+        logger: 'memdb',
+      })
+      .catch(() => {});
+  });
+};
+
 const connectServer = async (transportToUse: Transport): Promise<void> => {
   transport = transportToUse;
   await server.connect(transportToUse);
+  attachMcpLogger(server);
   logger.info('Memory MCP Server running on stdio');
 };
 

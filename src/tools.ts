@@ -8,6 +8,7 @@ import type {
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { config } from './config.js';
 import {
   deleteMemories,
   deleteMemory,
@@ -118,6 +119,8 @@ type ErrorResponse = CallToolResult & {
   isError: true;
 };
 
+const TOOL_TIMEOUT_MS = config.toolTimeoutMs;
+
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
 
@@ -144,6 +147,32 @@ const createErrorResponse = (
   };
 };
 
+const withTimeout = async <T>(
+  promise: Promise<T>,
+  ms: number,
+  onTimeout: () => T
+): Promise<T> => {
+  if (ms <= 0) return await promise;
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeout = setTimeout(() => {
+      resolve(onTimeout());
+    }, ms);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+};
+
+const createTimeoutResponse = (): ErrorResponse =>
+  createErrorResponse(
+    'E_TIMEOUT',
+    `Tool execution timed out after ${TOOL_TIMEOUT_MS}ms`,
+    { timeoutMs: TOOL_TIMEOUT_MS }
+  );
+
 const ok = (result: unknown): CallToolResult => {
   const structured = { ok: true, result };
   return {
@@ -158,7 +187,12 @@ const runHandlerSafely = async (
   params: unknown
 ): Promise<CallToolResult> => {
   try {
-    return await handler(params);
+    const resultPromise = Promise.resolve().then(() => handler(params));
+    return await withTimeout(
+      resultPromise,
+      TOOL_TIMEOUT_MS,
+      createTimeoutResponse
+    );
   } catch (err) {
     return createErrorResponse(code, getErrorMessage(err));
   }

@@ -5,6 +5,7 @@ type LogLevel = 'error' | 'info' | 'warn';
 
 const DEFAULT_DB_PATH = path.join(process.cwd(), '.memdb', 'memory.db');
 const DEFAULT_LOG_LEVEL: LogLevel = 'info';
+const DEFAULT_TOOL_TIMEOUT_MS = 15000;
 
 const hasNullByte = (value: string): boolean => value.includes('\0');
 
@@ -25,6 +26,21 @@ const parseLogLevel = (value: string | undefined): LogLevel | undefined => {
   }
 };
 
+const parseTimeoutMs = (
+  value: string | undefined,
+  name: string
+): number | undefined => {
+  if (value === undefined) return undefined;
+  if (hasNullByte(value)) {
+    throw new Error(`Invalid ${name}: null byte detected`);
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+    throw new Error(`Invalid ${name}: expected a non-negative integer`);
+  }
+  return parsed;
+};
+
 const resolveDbPath = (env: NodeJS.ProcessEnv): string => {
   const envPath = env.MEMDB_PATH;
   if (envPath !== undefined) {
@@ -40,4 +56,9 @@ const resolveDbPath = (env: NodeJS.ProcessEnv): string => {
 export const config = {
   dbPath: resolveDbPath(process.env),
   logLevel: parseLogLevel(process.env.MEMDB_LOG_LEVEL) ?? DEFAULT_LOG_LEVEL,
+  toolTimeoutMs:
+    parseTimeoutMs(
+      process.env.MEMDB_TOOL_TIMEOUT_MS,
+      'MEMDB_TOOL_TIMEOUT_MS'
+    ) ?? DEFAULT_TOOL_TIMEOUT_MS,
 };

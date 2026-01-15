@@ -22,6 +22,9 @@ const buildUnsupportedVersionMessage = (
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
+const isPingRequest = (message: JSONRPCMessage): boolean =>
+  isJSONRPCRequest(message) && message.method === 'ping';
+
 const rejectBatchIfPresent = (message: unknown, inner: Transport): boolean => {
   if (!Array.isArray(message)) return false;
   for (const item of message) {
@@ -165,14 +168,18 @@ export class ProtocolVersionGuardTransport implements Transport {
     }
 
     if (!this.supportedVersions.includes(initializeInfo.protocolVersion)) {
-      void this.inner.send(
-        createUnsupportedVersionError(
-          initializeInfo.id,
-          initializeInfo.protocolVersion,
-          this.supportedVersions
-        ),
-        { relatedRequestId: initializeInfo.id }
-      );
+      void this.inner
+        .send(
+          createUnsupportedVersionError(
+            initializeInfo.id,
+            initializeInfo.protocolVersion,
+            this.supportedVersions
+          ),
+          { relatedRequestId: initializeInfo.id }
+        )
+        .finally(() => {
+          void this.inner.close();
+        });
       return;
     }
 
@@ -196,6 +203,10 @@ export class ProtocolVersionGuardTransport implements Transport {
     extra?: MessageExtraInfo
   ): void {
     if (isJSONRPCRequest(message)) {
+      if (isPingRequest(message)) {
+        this.onmessage(message, extra);
+        return;
+      }
       void this.inner.send(
         createLifecycleError(
           message.id,

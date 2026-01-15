@@ -275,9 +275,7 @@ export class BatchRejectingStdioServerTransport implements Transport {
       this.sendInvalidRequest(idResult.id);
       return;
     }
-    if (idResult.reason === 'invalid-type') {
-      this.sendInvalidRequestUnknownId();
-    }
+    this.sendInvalidRequestUnknownId();
   }
 
   private handleLine(line: string): void {
