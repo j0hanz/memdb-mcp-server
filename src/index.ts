@@ -7,10 +7,7 @@ import {
   ResourceTemplate,
 } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import {
-  type CallToolResult,
-  SUPPORTED_PROTOCOL_VERSIONS,
-} from '@modelcontextprotocol/sdk/types.js';
+import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
 import { closeDb } from './core/db.js';
 import { attachProtocolLogger, logger } from './logger.js';
@@ -80,7 +77,7 @@ const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: serverInstructions,
-    capabilities: { tools: {}, logging: {} },
+    capabilities: { tools: {}, logging: {}, resources: {} },
   }
 );
 
@@ -109,27 +106,6 @@ server.registerResource(
   }
 );
 
-const patchToolErrorResults = (target: McpServer): void => {
-  const targetUnknown = target as unknown as Record<string, unknown>;
-  const existing: unknown = Reflect.get(targetUnknown, 'createToolError');
-  if (typeof existing !== 'function') return;
-
-  const createToolError = (message: string): CallToolResult => {
-    const structured = {
-      ok: false,
-      error: { code: 'E_TOOL_ERROR', message },
-    };
-    return {
-      content: [{ type: 'text', text: JSON.stringify(structured) }],
-      structuredContent: structured,
-      isError: true,
-    };
-  };
-
-  Reflect.set(targetUnknown, 'createToolError', createToolError);
-};
-
-patchToolErrorResults(server);
 registerAllTools(server);
 
 let transport: Transport | undefined;
