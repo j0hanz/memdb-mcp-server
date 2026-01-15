@@ -2,7 +2,10 @@
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  McpServer,
+  ResourceTemplate,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import {
   type CallToolResult,
@@ -78,6 +81,31 @@ const server = new McpServer(
   {
     instructions: serverInstructions,
     capabilities: { tools: {}, logging: {} },
+  }
+);
+
+const instructionsResource = new ResourceTemplate('internal://instructions', {
+  list: undefined,
+});
+
+server.registerResource(
+  'internal://instructions',
+  instructionsResource,
+  { title: 'Instructions', mimeType: 'text/markdown' },
+  async (uri) => {
+    const text =
+      (await readTextFileOrUndefined(
+        new URL('./instructions.md', import.meta.url)
+      )) ?? serverInstructions;
+    return {
+      contents: [
+        {
+          uri: uri.href,
+          text,
+          mimeType: 'text/markdown',
+        },
+      ],
+    };
   }
 );
 
