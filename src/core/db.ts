@@ -209,15 +209,16 @@ const toRunResult = (value: unknown): { changes: number | bigint } => {
   return { changes };
 };
 
-export const executeAll = (
+export const executeAll = <T = DbRow>(
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow[] => toDbRowArray(stmt.all(...params));
+): T[] => toDbRowArray(stmt.all(...params)) as T[];
 
-export const executeGet = (
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
+export const executeGet = <T = DbRow>(
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow | undefined => toDbRowOrUndefined(stmt.get(...params));
+): T | undefined => toDbRowOrUndefined(stmt.get(...params)) as T | undefined;
 
 export const executeRun = (
   stmt: StatementSync,
