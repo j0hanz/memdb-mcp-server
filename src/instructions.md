@@ -1,6 +1,6 @@
 # memdb Instructions
 
-> **Guidance for the Agent:** These instructions are available as a resource (`internal://instructions`). Load them when you are confused about tool usage.
+> **Guidance for the Agent:** These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are unsure about tool usage.
 
 ## 1. Core Capability
 
@@ -9,34 +9,43 @@
 
 ## 2. The "Golden Path" Workflows (Critical)
 
-_Describe the standard order of operations. Do not assume the agent knows this._
+_Describe the standard order of operations using ONLY tools that exist._
 
 ### Workflow A: Find relevant context
 
 1. Call `search_memories` with a focused query.
-2. Call `recall` with `depth: 1`–`2` if you need connected graph context.
-3. Call `get_memory` using the `hash` from results.
+2. Call `recall` for connected graph exploration (depth 1–2).
+3. Call `get_memory` using the `hash` (MD5/SHA-256) from results.
    > **Constraint:** Never guess hashes. Always search or recall first.
 
 ### Workflow B: Store or revise knowledge
 
 1. Call `store_memory` (single) or `store_memories` (batch).
-2. Use `update_memory` to revise; the response returns `{ newHash }`.
-3. Call `create_relationship` to link memories when needed.
-4. Call `delete_memory` / `delete_memories` / `delete_relationship` only with explicit user intent.
+2. Call `update_memory` to revise; returns `{ newHash }` (content changes change hash).
+3. Call `create_relationship` to link memories.
+4. Call `delete_memory` / `delete_memories` / `delete_relationship` only with explicit user permission.
 
-## 3. Tool Nuances & "Gotchas"
+## 3. Tool Nuances & Gotchas
 
-- **`search_memories`**: Query is 1–1000 chars and max 50 terms; whitespace-only is invalid.
-- **`recall`**: `depth` is 0–3; depth 0 returns no relationships.
-- **`update_memory`**: Content changes produce a new hash; the tool returns `{ newHash: string }`.
-- **`delete_*` tools**: Destructive—confirm user intent before calling.
-- **Tags**: 1–100 tags, no whitespace, max 50 chars; prefer `kebab-case`.
-- **Hashes**: 32 hex chars; case-insensitive but normalized to lowercase.
+_Focus on behavior and pitfalls._
+
+- **`search_memories`** / **`recall`**
+  - **Inputs:** Query 1–1000 chars; `recall` depth 0–3 (default 1).
+  - **Returns:** List of memories (scored).
+
+- **`store_memory`** / **`update_memory`**
+  - **Inputs:** `content` (max 100k chars), `tags` (1–100, no whitespace, max 50 chars).
+  - **Side effects:** Writes to SQLiteFTS; `update` creates new hash if content changes.
+
+- **`create_relationship`**
+  - **Inputs:** `from_hash`, `to_hash`, `relation_type` (no whitespace).
+  - **Constraint:** Relationships are directed edges.
+
+- **`delete_*`**
+  - **Side effects:** Destructive; returns `changes: 0` if not found.
 
 ## 4. Error Handling Strategy
 
-- If you receive `E_NOT_FOUND`, re-run `search_memories` or `get_relationships` to confirm the `hash`.
-- If `E_INVALID_ARG`, check tag formatting, term limits, or batch size (max 50).
-- If `E_TOOL_ERROR` (e.g., FTS issues), call `memory_stats` and retry later.
-- If `E_TIMEOUT`, reduce batch size or split the request.
+- **`E_NOT_FOUND`**: Re-run search/recall to get valid hash.
+- **`E_INVALID_ARG`**: Check tags (no spaces), limits (batch max 50), or hash format.
+- **`E_TIMEOUT`**: Reduce batch size or complexity.
