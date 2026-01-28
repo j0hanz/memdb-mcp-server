@@ -123,12 +123,16 @@ const createErrorResponse = (
 const withTimeout = async <T>(
   promise: Promise<T>,
   ms: number,
-  onTimeout: () => T
+  onTimeout: () => T,
+  signal?: AbortSignal
 ): Promise<T> => {
   if (ms <= 0) return await promise;
   let timeout: NodeJS.Timeout | undefined;
   const timeoutPromise = new Promise<T>((resolve) => {
     timeout = setTimeout(() => {
+      if (signal && typeof signal.dispatchEvent === 'function') {
+        signal.dispatchEvent(new Event('abort'));
+      }
       resolve(onTimeout());
     }, ms);
   });
@@ -156,15 +160,22 @@ const createSuccessResponse = (result: unknown): CallToolResult => {
 
 const runHandlerSafely = async (
   code: string,
-  handler: (params: unknown) => MaybePromise<CallToolResult>,
+  handler: (
+    params: unknown,
+    signal?: AbortSignal
+  ) => MaybePromise<CallToolResult>,
   params: unknown
 ): Promise<CallToolResult> => {
   try {
-    const resultPromise = Promise.resolve().then(() => handler(params));
+    const controller = new AbortController();
+    const resultPromise = Promise.resolve().then(() =>
+      handler(params, controller.signal)
+    );
     return await withTimeout(
       resultPromise,
       TOOL_TIMEOUT_MS,
-      createTimeoutResponse
+      createTimeoutResponse,
+      controller.signal
     );
   } catch (err) {
     return createErrorResponse(code, getErrorMessage(err));
@@ -173,7 +184,10 @@ const runHandlerSafely = async (
 
 const wrapHandler = (
   code: string,
-  handler: (params: unknown) => MaybePromise<CallToolResult>
+  handler: (
+    params: unknown,
+    signal?: AbortSignal
+  ) => MaybePromise<CallToolResult>
 ): ((params: unknown) => Promise<CallToolResult>) => {
   return async (params: unknown) => runHandlerSafely(code, handler, params);
 };
@@ -351,9 +365,9 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
+    handler: wrapHandler('E_SEARCH_MEMORIES', async (params, signal) => {
       const input = SearchMemoriesInputSchema.parse(params);
-      const result = await deps.searchMemories({ query: input.query });
+      const result = await deps.searchMemories({ query: input.query }, signal);
       return createSuccessResponse(result);
     }),
   },
@@ -368,12 +382,15 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
       outputSchema: DefaultOutputSchema,
       annotations: { readOnlyHint: true },
     },
-    handler: wrapHandler('E_RECALL', async (params) => {
+    handler: wrapHandler('E_RECALL', async (params, signal) => {
       const input = RecallInputSchema.parse(params);
-      const result = await deps.recallMemories({
-        query: input.query,
-        ...(input.depth !== undefined && { depth: input.depth }),
-      });
+      const result = await deps.recallMemories(
+        {
+          query: input.query,
+          ...(input.depth !== undefined && { depth: input.depth }),
+        },
+        signal
+      );
       return createSuccessResponse(result);
     }),
   },

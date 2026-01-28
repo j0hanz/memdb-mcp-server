@@ -124,7 +124,13 @@ interface SearchInput {
   query: string;
 }
 
-const enrichSearchResultsWithTags = (rows: DbRow[]): SearchResult[] => {
+const enrichSearchResultsWithTags = (
+  rows: DbRow[],
+  signal?: AbortSignal
+): SearchResult[] => {
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
   const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
   const tagsById = loadTagsForMemoryIds(ids);
   return rows.map((row) => {
@@ -133,14 +139,23 @@ const enrichSearchResultsWithTags = (rows: DbRow[]): SearchResult[] => {
   });
 };
 
-export const searchMemories = (input: SearchInput): SearchResult[] => {
+export const searchMemories = (
+  input: SearchInput,
+  signal?: AbortSignal
+): SearchResult[] => {
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
   const tokens = tokenizeQuery(input.query);
   if (tokens.length === 0) {
     throw new Error('Query cannot be empty');
   }
   const { sql, params } = buildSearchQuery(tokens);
   const rows = executeSearch(sql, params);
-  return enrichSearchResultsWithTags(rows);
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
+  return enrichSearchResultsWithTags(rows, signal);
 };
 
 const MAX_RECALL_DEPTH = 3;
@@ -245,26 +260,42 @@ const recallAtDepthZero = (
 
 const recallAtPositiveDepth = (
   searchResults: SearchResult[],
-  depth: number
+  depth: number,
+  signal?: AbortSignal
 ): RecallResult => {
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
   const seedIds = searchResults.map((m) => m.id);
   const recallRows = executeRecall(seedIds, depth);
-  const memories = enrichSearchResultsWithTags(recallRows);
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
+  const memories = enrichSearchResultsWithTags(recallRows, signal);
   if (memories.length === 0) {
     return emptyRecallResult(depth);
   }
 
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
   const relationships = loadRelationshipsForMemoryIds(
     memories.map((m) => m.id)
   );
   return { memories, relationships, depth };
 };
 
-export const recallMemories = (input: {
-  query: string;
-  depth?: number;
-}): RecallResult => {
-  const searchResults = searchMemories({ query: input.query });
+export const recallMemories = (
+  input: {
+    query: string;
+    depth?: number;
+  },
+  signal?: AbortSignal
+): RecallResult => {
+  if (signal && typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+  }
+  const searchResults = searchMemories({ query: input.query }, signal);
   if (searchResults.length === 0) {
     return emptyRecallResult(getRecallDepth(input.depth));
   }
@@ -276,5 +307,5 @@ export const recallMemories = (input: {
     return depthZeroResult;
   }
 
-  return recallAtPositiveDepth(searchResults, depth);
+  return recallAtPositiveDepth(searchResults, depth, signal);
 };

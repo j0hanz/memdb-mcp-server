@@ -377,6 +377,97 @@ void describe('tools responses recall', () => {
       'Expected relationship to be included in depth=1 recall'
     );
   });
+
+  void it('get_relationships returns empty when no relationships exist', async () => {
+    const registrations = setupRegistrations();
+    const store = getTool(registrations, 'store_memory');
+    const getRelationships = getTool(registrations, 'get_relationships');
+
+    const stored = await store.handler({
+      content: 'Isolated memory',
+      tags: ['test'],
+    });
+    assertOk(stored);
+    const hash = getHash(stored);
+
+    const result = await getRelationships.handler({ hash });
+    assertOk(result);
+    const structured = result.structuredContent as {
+      result: unknown[];
+    };
+
+    assert.deepStrictEqual(structured.result, []);
+  });
+
+  void it('get_relationships returns relationships with consistent ordering', async () => {
+    const registrations = setupRegistrations();
+    const store = getTool(registrations, 'store_memory');
+    const createRelationship = getTool(registrations, 'create_relationship');
+    const getRelationships = getTool(registrations, 'get_relationships');
+
+    const storedA = await store.handler({
+      content: 'Node A',
+      tags: ['test'],
+    });
+    assertOk(storedA);
+    const hashA = getHash(storedA);
+
+    const storedB = await store.handler({
+      content: 'Node B',
+      tags: ['test'],
+    });
+    assertOk(storedB);
+    const hashB = getHash(storedB);
+
+    const storedC = await store.handler({
+      content: 'Node C',
+      tags: ['test'],
+    });
+    assertOk(storedC);
+    const hashC = getHash(storedC);
+
+    await createRelationship.handler({
+      from_hash: hashA,
+      to_hash: hashB,
+      relation_type: 'precedes',
+    });
+    await createRelationship.handler({
+      from_hash: hashA,
+      to_hash: hashC,
+      relation_type: 'blocks',
+    });
+    await createRelationship.handler({
+      from_hash: hashC,
+      to_hash: hashA,
+      relation_type: 'depends_on',
+    });
+
+    const result = await getRelationships.handler({ hash: hashA });
+    assertOk(result);
+    const structured = result.structuredContent as {
+      result: Array<{
+        from_hash: string;
+        to_hash: string;
+        relation_type: string;
+      }>;
+    };
+
+    // Filter relationships by direction
+    const outgoing = structured.result.filter((r) => r.from_hash === hashA);
+    const incoming = structured.result.filter((r) => r.to_hash === hashA);
+
+    assert.strictEqual(outgoing.length, 2);
+    assert.strictEqual(incoming.length, 1);
+
+    // Verify deterministic ordering (alphabetic by relation_type for outgoing)
+    assert.strictEqual(outgoing[0].relation_type, 'blocks');
+    assert.strictEqual(outgoing[0].to_hash, hashC);
+    assert.strictEqual(outgoing[1].relation_type, 'precedes');
+    assert.strictEqual(outgoing[1].to_hash, hashB);
+
+    assert.strictEqual(incoming[0].relation_type, 'depends_on');
+    assert.strictEqual(incoming[0].from_hash, hashC);
+  });
 });
 
 void describe('tools responses stats', () => {
