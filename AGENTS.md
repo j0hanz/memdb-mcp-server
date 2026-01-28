@@ -1,65 +1,70 @@
 # AGENTS.md
 
-> **Purpose:** Context and strict guidelines for AI agents working in this repository.
+> Purpose: High-signal context and strict guidelines for AI agents working in this repository.
 
-## 1. Project Context
+## 1) Project Context
 
-- **Domain:** Local, SQLite-backed MCP “memory server” (stdio) for storing/searching tagged text memories.
-- **Tech Stack:**
-  - **Language:** TypeScript (strict) targeting Node.js ESM (NodeNext)
-  - **Runtime:** Node.js `>= 22.0.0` (uses `node:sqlite`)
-  - **Key Libraries:** `@modelcontextprotocol/sdk` (MCP server), `zod` (schemas/validation)
-- **Architecture:** Layered: MCP wiring (`src/`) → DB/operations (`src/core/`) → schemas/types.
+- **Domain:** SQLite-backed MCP memory server with local workspace storage ([README.md](README.md)).
+- **Tech Stack (Verified):**
+  - **Languages:** TypeScript 5.9+ ([package.json](package.json), [tsconfig.json](tsconfig.json)).
+  - **Runtime:** Node.js >= 22 ([package.json](package.json), [README.md](README.md)).
+  - **Frameworks/Protocols:** MCP SDK v1.x ([package.json](package.json)).
+  - **Key Libraries:** @modelcontextprotocol/sdk, zod ([package.json](package.json)).
+- **Architecture:** Single-package MCP server with stdio entrypoint and tool registry layered over a SQLite core ([src/index.ts](src/index.ts), [src/tools.ts](src/tools.ts), [src/core/db.ts](src/core/db.ts)).
 
-## 2. Repository Map (High-Level Only)
+## 2) Repository Map (High-Level)
 
-- `src/`: MCP server entrypoint, stdio transport, tool registration, schemas, config, logging.
-- `src/core/`: SQLite schema/init + memory CRUD/search + relationship graph.
-- `tests/`: Node.js test runner tests for tools/core behavior (uses in-memory DB via `MEMDB_PATH=':memory:'`).
-- `.github/`: CI workflow, agent prompts/instructions used by automated tooling.
-- `scripts/`, `metrics/`: Quality gate scripts and metric snapshots.
+- [src/](src/): Server entrypoint, tool registration, schemas, and SQLite core.
+- [tests/](tests/): Node.js test runner specs.
+- [scripts/](scripts/): Quality metrics artifacts and scripts.
+- [.github/workflows/](.github/workflows/): CI/CD automation.
+  > Ignore generated/vendor dirs like [dist/](dist/), [build/](build/), [node_modules/](node_modules/), [.venv/](.venv/), [\_\_pycache\_\_/](__pycache__/).
 
-> Note: ignore `dist/`, `node_modules/`, and local `.memdb/` databases.
+## 3) Operational Commands (Verified)
 
-## 3. Operational Commands
+- **Environment:** Node.js >= 22 ([package.json](package.json)).
+- **Install:** `npm ci` ([.github/workflows/publish.yml](.github/workflows/publish.yml)).
+- **Dev:** `npm run dev` ([package.json](package.json)).
+- **Test:** `npm run test` ([package.json](package.json), [.github/workflows/publish.yml](.github/workflows/publish.yml)).
+- **Build:** `npm run build` ([package.json](package.json), [.github/workflows/publish.yml](.github/workflows/publish.yml)).
+- **Lint/Format:** `npm run lint`, `npm run format`, `npm run format:check` ([package.json](package.json)).
+- **Type-check:** `npm run type-check` ([package.json](package.json)).
 
-- **Environment:** Requires Node.js `>= 22.0.0`.
-- **Install:** `npm install` (or `npm ci` in CI)
-- **Dev Server:** `npm run dev` (watches `src/index.ts` via `tsx`)
-- **Test:** `npm run test` (Node’s built-in runner via `node --test`)
-- **Build:** `npm run build` (emits `dist/`)
+## 4) Coding Standards (Style & Patterns)
 
-## 4. Coding Standards (Style & Patterns)
+- **Naming:** camelCase for variables/defaults, PascalCase for types, UPPER_CASE allowed for constants (ESLint rules in [eslint.config.mjs](eslint.config.mjs)).
+- **Structure:**
+  - Entry + transport wiring in [src/index.ts](src/index.ts).
+  - Tool definitions and handlers in [src/tools.ts](src/tools.ts).
+  - DB schema + data access in [src/core/](src/core/).
+  - Zod schemas in [src/schemas.ts](src/schemas.ts).
+- **Typing/Strictness:** TypeScript strict mode with NodeNext ESM, isolatedModules, and noUncheckedIndexedAccess ([tsconfig.json](tsconfig.json)).
+- **Patterns Observed:**
+  - Zod `z.strictObject()` schemas with constraints for tool inputs/outputs ([src/schemas.ts](src/schemas.ts)).
+  - Tool handlers return structured responses with `content` + `structuredContent` ([src/tools.ts](src/tools.ts)).
+  - SQLite access via node:sqlite with schema and row mappers ([src/core/db.ts](src/core/db.ts)).
 
-- **Naming:** `camelCase` for vars/functions, `PascalCase` for types/classes.
-- **Typing:** Strict TypeScript (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`).
-- **Imports:** ESM + NodeNext; local imports use `.js` extensions. Prefer type-only imports (`import { type X } ...`).
-- **Tool Responses:** Tools return `structuredContent` and also mirror it as JSON in `content[0].text` for backward compatibility.
-- **Preferred Patterns:**
-  - Parse/validate tool inputs with Zod (`z.strictObject(...)`), reject unknown fields.
-  - Centralized helpers for error normalization (convert `unknown` → message) and consistent `{ ok, result | error }` outputs.
+## 5) Agent Behavioral Rules (Do Nots)
 
-## 5. Agent Behavioral Rules (The “Do Nots”)
+- Do not introduce new dependencies without updating manifests/lockfiles via the package manager ([package.json](package.json), [package-lock.json](package-lock.json)).
+- Do not edit lockfiles manually ([package-lock.json](package-lock.json)).
+- Do not commit secrets; never print `.env` values; use existing config mechanisms.
+- Do not change public APIs without updating docs/tests and noting migration impact.
+- Do not remove the shebang or change the entrypoint contract in [src/index.ts](src/index.ts).
+- Do not drop `.js` extensions in local ESM imports (see [src/index.ts](src/index.ts), [src/tools.ts](src/tools.ts)).
 
-- **Prohibited:** Do not write anything except MCP protocol traffic to stdout (log to stderr).
-- **Prohibited:** Do not introduce `any` (lint forbids it).
-- **Prohibited:** Do not remove `.js` extensions from local imports or switch away from NodeNext ESM.
-- **Prohibited:** Do not change tool output shape casually; keep `structuredContent` + JSON string mirror.
-- **Prohibited:** Do not edit lockfiles manually (`package-lock.json`).
-- **Handling Secrets:** Never hardcode secrets; do not print or persist credentials/tokens.
-- **Stateful/Destructive Ops:** Treat delete operations as destructive; require explicit user intent before deletion.
+## 6) Testing Strategy (Verified)
 
-## 6. Testing Strategy
+- **Framework:** Node.js built-in test runner (`node:test`) with `node:assert/strict` ([tests/memory-service-core.test.ts](tests/memory-service-core.test.ts)).
+- **Where tests live:** [tests/](tests/) (`*.test.ts`).
+- **Approach:** In-memory SQLite via `MEMDB_PATH=':memory:'` for unit-level core tests ([tests/memory-service-core.test.ts](tests/memory-service-core.test.ts)).
 
-- **Framework:** Node.js built-in test runner (`node:test`) with `tsx` ESM loader.
-- **Approach:** Mostly integration-style unit tests around tool handlers and core DB behavior; tests commonly stub `McpServer.registerTool` and use `MEMDB_PATH=':memory:'`.
+## 7) Common Pitfalls (Optional; Verified Only)
 
-## 7. Evolution & Maintenance
+- Node < 22 lacks `node:sqlite` → upgrade Node to >= 22 ([README.md](README.md)).
+- Missing FTS5 support causes search failures → ensure SQLite build includes FTS5 ([README.md](README.md)).
 
-- **Update Rule:** If conventions or commands change, update this file in the same PR.
-- **Feedback Loop:** If a build/test/lint command fails twice, record the root cause + fix under “Common Pitfalls”.
+## 8) Evolution Rules
 
-### Common Pitfalls
-
-- Node version drift: `node:sqlite` requires Node `>= 22.0.0`; ensure CI/dev match `package.json` engines.
-- Search depends on SQLite FTS5 availability; missing FTS5 manifests as index/FTS errors.
+- If conventions change, include an AGENTS.md update in the same PR.
+- If a command is corrected after failures, record the final verified command here.
