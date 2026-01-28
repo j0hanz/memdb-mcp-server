@@ -8,9 +8,9 @@ import type {
   MemoryUpdateResult,
 } from '../types.js';
 import {
-  db,
   executeGet,
   executeRun,
+  prepareCached,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
@@ -51,15 +51,10 @@ const normalizeTags = (tags: readonly string[], maxTags: number): string[] => {
   return dedupeTags(tags);
 };
 
-const stmtFindMemoryIdByHash = db.prepare(
-  'SELECT id FROM memories WHERE hash = ?'
-);
-
-const stmtInsertTags = db.prepare(
-  'INSERT OR IGNORE INTO tags (memory_id, tag) SELECT ?, value FROM json_each(?)'
-);
-
 const findMemoryIdByHash = (hash: string): number | undefined => {
+  const stmtFindMemoryIdByHash = prepareCached(
+    'SELECT id FROM memories WHERE hash = ?'
+  );
   const row = executeGet(stmtFindMemoryIdByHash, hash);
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
@@ -67,16 +62,15 @@ const findMemoryIdByHash = (hash: string): number | undefined => {
 
 const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
+  const stmtInsertTags = prepareCached(
+    'INSERT OR IGNORE INTO tags (memory_id, tag) SELECT ?, value FROM json_each(?)'
+  );
   executeRun(stmtInsertTags, memoryId, JSON.stringify(tags));
 };
 
 const buildHash = (content: string): string => {
   return crypto.createHash('sha256').update(content).digest('hex');
 };
-
-const stmtInsertMemory = db.prepare(
-  'INSERT OR IGNORE INTO memories (content, hash, importance, memory_type) VALUES (?, ?, ?, ?) RETURNING id'
-);
 
 const requireMemoryId = (id: number | undefined): number => {
   if (id === undefined) {
@@ -91,6 +85,9 @@ const resolveMemoryId = (
   importance: number,
   memoryType: string
 ): { id: number; isNew: boolean } => {
+  const stmtInsertMemory = prepareCached(
+    'INSERT OR IGNORE INTO memories (content, hash, importance, memory_type) VALUES (?, ?, ?, ?) RETURNING id'
+  );
   const inserted = executeGet(
     stmtInsertMemory,
     content,
@@ -145,14 +142,14 @@ export const createMemories = (
 };
 
 const withSavepoint = <T>(name: string, fn: () => T): T => {
-  db.exec(`SAVEPOINT ${name}`);
+  executeRun(prepareCached(`SAVEPOINT ${name}`));
   try {
     const result = fn();
-    db.exec(`RELEASE ${name}`);
+    executeRun(prepareCached(`RELEASE ${name}`));
     return result;
   } catch (err) {
-    db.exec(`ROLLBACK TO ${name}`);
-    db.exec(`RELEASE ${name}`);
+    executeRun(prepareCached(`ROLLBACK TO ${name}`));
+    executeRun(prepareCached(`RELEASE ${name}`));
     throw err;
   }
 };
@@ -211,20 +208,15 @@ const processCreateMemoriesItem = (
   }
 };
 
-const stmtDeleteTagsForMemory = db.prepare(
-  'DELETE FROM tags WHERE memory_id = ?'
-);
-
-const stmtUpdateContent = db.prepare(
-  'UPDATE memories SET content = ?, hash = ? WHERE id = ?'
-);
-
 interface UpdateMemoryOptions {
   content: string;
   tags?: readonly string[] | undefined;
 }
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
+  const stmtDeleteTagsForMemory = prepareCached(
+    'DELETE FROM tags WHERE memory_id = ?'
+  );
   executeRun(stmtDeleteTagsForMemory, memoryId);
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
@@ -251,6 +243,9 @@ export const updateMemory = (
     assertNoDuplicateOnUpdate(hash, newHash);
 
     // Update content and hash
+    const stmtUpdateContent = prepareCached(
+      'UPDATE memories SET content = ?, hash = ? WHERE id = ?'
+    );
     executeRun(stmtUpdateContent, options.content, newHash, memoryId);
 
     // Update tags if provided, otherwise preserve existing tags

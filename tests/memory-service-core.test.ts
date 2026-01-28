@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { closeDb, withImmediateTransaction } = await import('../src/core/db.js');
+const { closeDb, initDb, withImmediateTransaction } =
+  await import('../src/core/db.js');
 const { createMemory, createMemories } =
   await import('../src/core/memory-write.js');
 const { deleteMemory, deleteMemories, getMemory } =
@@ -29,6 +30,10 @@ const search = (input: SearchInput): ReturnType<typeof searchMemories> =>
   searchMemories({
     query: input.query,
   });
+
+before(async () => {
+  await initDb();
+});
 
 after(() => {
   closeDb();

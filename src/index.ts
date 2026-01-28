@@ -10,7 +10,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
 import pkg from '../package.json' with { type: 'json' };
-import { closeDb } from './core/db.js';
+import { closeDb, initDb } from './core/db.js';
 import { attachProtocolLogger, logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { BatchRejectingStdioServerTransport } from './stdio-transport.js';
@@ -185,6 +185,7 @@ const connectServer = async (transportToUse: Transport): Promise<void> => {
 
 const main = async (): Promise<void> => {
   try {
+    await initDb();
     const guardedTransport = createTransport();
     await connectServer(guardedTransport);
   } catch (error) {

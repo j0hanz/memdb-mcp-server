@@ -4,20 +4,19 @@ import type {
   StatementResult,
 } from '../types.js';
 import {
-  db,
   executeAll,
   executeGet,
   executeRun,
   mapRowToRelationship,
+  prepareCached,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
 
-const stmtFindMemoryIdByHash = db.prepare(
-  'SELECT id FROM memories WHERE hash = ?'
-);
-
 const findMemoryIdByHash = (hash: string): number | undefined => {
+  const stmtFindMemoryIdByHash = prepareCached(
+    'SELECT id FROM memories WHERE hash = ?'
+  );
   const row = executeGet(stmtFindMemoryIdByHash, hash);
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
@@ -30,17 +29,6 @@ const requireMemoryId = (hash: string): number => {
   }
   return id;
 };
-
-const stmtInsertRelationship = db.prepare(`
-  INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type)
-  VALUES (?, ?, ?)
-  RETURNING id
-`);
-
-const stmtFindRelationshipId = db.prepare(`
-  SELECT id FROM relationships
-  WHERE from_memory_id = ? AND to_memory_id = ? AND relation_type = ?
-`);
 
 export const createRelationship = (input: {
   from_hash: string;
@@ -55,6 +43,12 @@ export const createRelationship = (input: {
       throw new Error('Cannot create self-referential relationship');
     }
 
+    const stmtInsertRelationship = prepareCached(`
+  INSERT OR IGNORE INTO relationships (from_memory_id, to_memory_id, relation_type)
+  VALUES (?, ?, ?)
+  RETURNING id
+`);
+
     const inserted = executeGet(
       stmtInsertRelationship,
       fromId,
@@ -67,6 +61,10 @@ export const createRelationship = (input: {
     }
 
     // Relationship already exists, find its ID
+    const stmtFindRelationshipId = prepareCached(`
+  SELECT id FROM relationships
+  WHERE from_memory_id = ? AND to_memory_id = ? AND relation_type = ?
+`);
     const existing = executeGet(
       stmtFindRelationshipId,
       fromId,
@@ -104,18 +102,12 @@ const buildGetRelationshipsQuery = (
   }
 };
 
-const stmtGetRelationships = {
-  outgoing: db.prepare(buildGetRelationshipsQuery('outgoing')),
-  incoming: db.prepare(buildGetRelationshipsQuery('incoming')),
-  both: db.prepare(buildGetRelationshipsQuery('both')),
-} as const;
-
 export const getRelationships = (input: {
   hash: string;
   direction?: 'outgoing' | 'incoming' | 'both';
 }): Relationship[] => {
   const direction = input.direction ?? 'both';
-  const stmt = stmtGetRelationships[direction];
+  const stmt = prepareCached(buildGetRelationshipsQuery(direction));
 
   const params = direction === 'both' ? [input.hash, input.hash] : [input.hash];
   const rows = executeAll(stmt, ...params);
@@ -123,18 +115,17 @@ export const getRelationships = (input: {
   return rows.map(mapRowToRelationship);
 };
 
-const stmtDeleteRelationship = db.prepare(`
-  DELETE FROM relationships
-  WHERE from_memory_id = (SELECT id FROM memories WHERE hash = ?)
-    AND to_memory_id = (SELECT id FROM memories WHERE hash = ?)
-    AND relation_type = ?
-`);
-
 export const deleteRelationship = (input: {
   from_hash: string;
   to_hash: string;
   relation_type: string;
 }): StatementResult => {
+  const stmtDeleteRelationship = prepareCached(`
+  DELETE FROM relationships
+  WHERE from_memory_id = (SELECT id FROM memories WHERE hash = ?)
+    AND to_memory_id = (SELECT id FROM memories WHERE hash = ?)
+    AND relation_type = ?
+`);
   const result = executeRun(
     stmtDeleteRelationship,
     input.from_hash,

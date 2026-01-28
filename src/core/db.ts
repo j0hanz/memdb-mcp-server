@@ -135,19 +135,34 @@ const createDatabase = (dbPath: string): DatabaseSync => {
   return database;
 };
 
-try {
-  await ensureDbDirectory(config.dbPath);
-} catch (err) {
-  const message = err instanceof Error ? err.message : String(err);
-  console.error(`[ERROR] Failed to create database directory: ${message}`);
-  throw err;
-}
+let dbInstance: DatabaseSync | undefined;
 
-export const db = createDatabase(config.dbPath);
+export const initDb = async (): Promise<void> => {
+  if (dbInstance) return;
+
+  try {
+    await ensureDbDirectory(config.dbPath);
+    dbInstance = createDatabase(config.dbPath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[ERROR] Failed to initialize database: ${message}`);
+    throw err;
+  }
+};
+
+export const getDb = (): DatabaseSync => {
+  if (!dbInstance) {
+    throw new Error('Database not initialized. Call initDb() first.');
+  }
+  return dbInstance;
+};
 
 export const closeDb = (): void => {
-  if (!db.isOpen) return;
-  db.close();
+  if (dbInstance?.isOpen) {
+    dbInstance.close();
+    dbInstance = undefined;
+    statementCache.clear();
+  }
 };
 
 export type SqlParam = string | number | bigint | null | Uint8Array;
@@ -163,7 +178,7 @@ export const prepareCached = (sql: string): StatementSync => {
     return cached;
   }
 
-  const stmt = db.prepare(sql);
+  const stmt = getDb().prepare(sql);
   statementCache.set(sql, stmt);
 
   if (statementCache.size > MAX_CACHED_STATEMENTS) {
@@ -226,6 +241,7 @@ export const executeRun = (
 ): { changes: number | bigint } => toRunResult(stmt.run(...params));
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
+  const db = getDb();
   if (isInTransaction(db)) {
     throw new Error('Cannot start nested transaction');
   }
@@ -328,10 +344,6 @@ export const mapRowToRelationship = (row: DbRow): Relationship => ({
   created_at: toString(row.created_at, 'created_at'),
 });
 
-const stmtSelectTags = db.prepare(
-  'SELECT memory_id, tag FROM tags WHERE memory_id IN (SELECT value FROM json_each(?)) ORDER BY memory_id, tag'
-);
-
 const dedupeIds = (ids: readonly number[]): number[] => {
   const seen = new Set<number>();
   const unique: number[] = [];
@@ -358,6 +370,9 @@ export const loadTagsForMemoryIds = (
   const uniqueIds = dedupeIds(memoryIds);
   if (uniqueIds.length === 0) return new Map();
 
+  const stmtSelectTags = prepareCached(
+    'SELECT memory_id, tag FROM tags WHERE memory_id IN (SELECT value FROM json_each(?)) ORDER BY memory_id, tag'
+  );
   const rows = executeAll(stmtSelectTags, JSON.stringify(uniqueIds));
 
   const tagsById = new Map<number, string[]>();

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
@@ -7,7 +7,7 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 process.env.MEMDB_PATH = ':memory:';
 
 const { registerAllTools } = await import('../src/tools.js');
-const { closeDb } = await import('../src/core/db.js');
+const { closeDb, initDb } = await import('../src/core/db.js');
 
 interface ToolRegistration {
   name: string;
@@ -81,6 +81,10 @@ const setupRegistrations = (): ToolRegistration[] => {
   registerAllTools(server);
   return registrations;
 };
+
+before(async () => {
+  await initDb();
+});
 
 void describe('tools registration', () => {
   void it('registers all tools', () => {

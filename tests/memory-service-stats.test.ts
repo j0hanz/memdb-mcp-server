@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 process.env.MEMDB_PATH = ':memory:';
 
-const { closeDb } = await import('../src/core/db.js');
+const { closeDb, initDb } = await import('../src/core/db.js');
 const { getStats } = await import('../src/core/memory-read.js');
+
+before(async () => {
+  await initDb();
+});
 
 after(() => {
   closeDb();

@@ -6,28 +6,28 @@ import type {
   StatementResult,
 } from '../types.js';
 import {
-  db,
   type DbRow,
   executeGet,
   executeRun,
   loadTagsForMemoryIds,
   mapRowToMemory,
+  prepareCached,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
 
-const stmtGetMemoryByHash = db.prepare('SELECT * FROM memories WHERE hash = ?');
-const stmtTouchMemoryByHash = db.prepare(
-  'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
-);
-const stmtDeleteMemoryByHash = db.prepare(
-  'DELETE FROM memories WHERE hash = ?'
-);
-
 export const getMemory = (hash: string): Memory | undefined => {
   return withImmediateTransaction(() => {
+    const stmtTouchMemoryByHash = prepareCached(
+      'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
+    );
     executeRun(stmtTouchMemoryByHash, hash);
+
+    const stmtGetMemoryByHash = prepareCached(
+      'SELECT * FROM memories WHERE hash = ?'
+    );
     const row = executeGet(stmtGetMemoryByHash, hash);
+
     if (!row) return undefined;
     const id = toSafeInteger(row.id, 'id');
     const tags = loadTagsForMemoryIds([id]).get(id) ?? [];
@@ -36,6 +36,9 @@ export const getMemory = (hash: string): Memory | undefined => {
 };
 
 export const deleteMemory = (hash: string): StatementResult => {
+  const stmtDeleteMemoryByHash = prepareCached(
+    'DELETE FROM memories WHERE hash = ?'
+  );
   const result = executeRun(stmtDeleteMemoryByHash, hash);
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
@@ -75,14 +78,6 @@ export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
   });
 };
 
-const stmtMemoryCount = db.prepare('SELECT COUNT(*) as count FROM memories');
-const stmtTagCount = db.prepare(
-  'SELECT COUNT(DISTINCT tag) as count FROM tags'
-);
-const stmtDateRange = db.prepare(
-  'SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM memories'
-);
-
 const toDateString = (value: unknown): string | null => {
   if (value == null) return null;
   if (typeof value === 'string') return value;
@@ -94,8 +89,16 @@ const queryCounts = (): {
   memoryRow: DbRow;
   tagRow: DbRow;
 } => {
+  const stmtMemoryCount = prepareCached(
+    'SELECT COUNT(*) as count FROM memories'
+  );
   const memoryRow = executeGet(stmtMemoryCount);
+
+  const stmtTagCount = prepareCached(
+    'SELECT COUNT(DISTINCT tag) as count FROM tags'
+  );
   const tagRow = executeGet(stmtTagCount);
+
   if (!memoryRow) throw new Error('Failed to load memory stats');
   if (!tagRow) throw new Error('Failed to load tag stats');
   return { memoryRow, tagRow };
@@ -103,6 +106,10 @@ const queryCounts = (): {
 
 export const getStats = (): MemoryStats => {
   const { memoryRow, tagRow } = queryCounts();
+
+  const stmtDateRange = prepareCached(
+    'SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM memories'
+  );
   const dateRow = executeGet(stmtDateRange);
 
   return {

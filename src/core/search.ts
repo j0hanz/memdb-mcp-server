@@ -1,6 +1,5 @@
 import type { RecallResult, SearchResult } from '../types.js';
 import {
-  db,
   type DbRow,
   executeAll,
   loadTagsForMemoryIds,
@@ -208,7 +207,7 @@ const executeWithSql = (
   sql: string,
   params: readonly (number | string)[]
 ): DbRow[] => {
-  const stmt = db.prepare(sql);
+  const stmt = prepareCached(sql);
   return executeAll(stmt, ...params);
 };
 
