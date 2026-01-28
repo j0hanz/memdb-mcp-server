@@ -106,14 +106,13 @@ const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   );
 };
 
-interface ExtendedDatabaseSync extends DatabaseSync {
-  enableDefensive?: (active: boolean) => void;
-}
-
 const enableDefensiveMode = (database: DatabaseSync): void => {
-  const extended = database as ExtendedDatabaseSync;
-  if (typeof extended.enableDefensive !== 'function') return;
-  extended.enableDefensive(true);
+  const extended = database as unknown as {
+    enableDefensive?: (active: boolean) => void;
+  };
+  if (typeof extended.enableDefensive === 'function') {
+    extended.enableDefensive(true);
+  }
 };
 
 const isInTransaction = (database: DatabaseSync): boolean => {

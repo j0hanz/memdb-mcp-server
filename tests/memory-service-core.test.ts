@@ -45,8 +45,8 @@ void describe('MemoryService createMemory', () => {
     assert.ok(result.id > 0, 'Should return valid ID');
     assert.strictEqual(
       result.hash.length,
-      32,
-      'MD5 hash should be 32 characters'
+      64,
+      'SHA256 hash should be 64 characters'
     );
     assert.strictEqual(result.isNew, true, 'Should be new memory');
   });

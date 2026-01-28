@@ -94,11 +94,13 @@ void describe('input schema search constraints', () => {
 
 void describe('input schema hash length constraints', () => {
   void it('validates hash length constraints', () => {
-    const hash = repeat(32);
-    assert.ok(GetMemoryInputSchema.safeParse({ hash }).success);
-    assert.ok(DeleteMemoryInputSchema.safeParse({ hash }).success);
+    assert.ok(GetMemoryInputSchema.safeParse({ hash: repeat(32) }).success);
+    assert.ok(GetMemoryInputSchema.safeParse({ hash: repeat(64) }).success);
+    assert.ok(DeleteMemoryInputSchema.safeParse({ hash: repeat(32) }).success);
 
     assert.ok(!GetMemoryInputSchema.safeParse({ hash: repeat(31) }).success);
     assert.ok(!DeleteMemoryInputSchema.safeParse({ hash: repeat(33) }).success);
+    assert.ok(!DeleteMemoryInputSchema.safeParse({ hash: repeat(63) }).success);
+    assert.ok(!DeleteMemoryInputSchema.safeParse({ hash: repeat(65) }).success);
   });
 });

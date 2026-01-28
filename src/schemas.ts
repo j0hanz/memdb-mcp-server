@@ -2,7 +2,7 @@ import { type RefinementCtx, z } from 'zod';
 
 import { MEMORY_TYPES } from './types.js';
 
-const hashSchema = z.string().regex(/^[a-f0-9]{32}$/i);
+const hashSchema = z.string().regex(/^([a-f0-9]{32}|[a-f0-9]{64})$/i);
 const tagSchema = z
   .string()
   .min(1)
@@ -62,21 +62,21 @@ export const SearchMemoriesInputSchema = z.strictObject({
 });
 
 export const GetMemoryInputSchema = z.strictObject({
-  hash: hashSchema.meta({ description: 'MD5 hash of the memory' }),
+  hash: hashSchema.meta({ description: 'Hash of the memory (MD5/SHA-256)' }),
 });
 
 export const DeleteMemoryInputSchema = z.strictObject({
-  hash: hashSchema.meta({ description: 'MD5 hash of the memory' }),
+  hash: hashSchema.meta({ description: 'Hash of the memory (MD5/SHA-256)' }),
 });
 
 export const DeleteMemoriesInputSchema = z.strictObject({
   hashes: z.array(hashSchema).min(1).max(50).meta({
-    description: 'MD5 hashes of memories to delete (1-50 hashes)',
+    description: 'Hashes of memories to delete (1-50 hashes)',
   }),
 });
 
 export const UpdateMemoryInputSchema = z.strictObject({
-  hash: hashSchema.meta({ description: 'MD5 hash of the memory to update' }),
+  hash: hashSchema.meta({ description: 'Hash of the memory to update' }),
   content: contentSchema.meta({ description: 'New content for the memory' }),
   tags: tagsSchema
     .max(100)

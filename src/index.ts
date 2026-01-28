@@ -9,24 +9,16 @@ import {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
+import pkg from '../package.json' with { type: 'json' };
 import { closeDb } from './core/db.js';
 import { attachProtocolLogger, logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { BatchRejectingStdioServerTransport } from './stdio-transport.js';
 import { registerAllTools } from './tools.js';
 
-const readPackageVersion = async (): Promise<string | undefined> => {
-  const packageJsonText = await readFile(
-    new URL('../package.json', import.meta.url),
-    {
-      encoding: 'utf-8',
-      signal: AbortSignal.timeout(5000),
-    }
-  );
-  const parsed: unknown = JSON.parse(packageJsonText);
-  if (typeof parsed !== 'object' || parsed === null) return undefined;
-  const { version } = parsed as { version?: unknown };
-  return typeof version === 'string' ? version : undefined;
+const readPackageVersion = (): Promise<string | undefined> => {
+  const { version } = pkg as { version?: unknown };
+  return Promise.resolve(typeof version === 'string' ? version : undefined);
 };
 
 const toNonEmptyTrimmedOrUndefined = (text: string): string | undefined => {

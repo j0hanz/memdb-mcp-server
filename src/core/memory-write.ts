@@ -71,8 +71,7 @@ const insertTags = (memoryId: number, tags: readonly string[]): void => {
 };
 
 const buildHash = (content: string): string => {
-  // eslint-disable-next-line sonarjs/hashing -- MD5 used for non-security deduplication only.
-  return crypto.createHash('md5').update(content).digest('hex');
+  return crypto.createHash('sha256').update(content).digest('hex');
 };
 
 const stmtInsertMemory = db.prepare(

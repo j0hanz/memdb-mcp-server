@@ -52,6 +52,7 @@
 - Do not change public APIs without updating docs/tests and noting migration impact.
 - Do not remove the shebang or change the entrypoint contract in [src/index.ts](src/index.ts).
 - Do not drop `.js` extensions in local ESM imports (see [src/index.ts](src/index.ts), [src/tools.ts](src/tools.ts)).
+- Do not disable or bypass existing ESLint/TypeScript rules without explicit approval.
 
 ## 6) Testing Strategy (Verified)
 
