@@ -26,10 +26,13 @@ const tokenizeQuery = (query: string): string[] => {
   return parts;
 };
 
+const escapeFtsToken = (token: string): string => {
+  return `"${token.replace(/"/g, '""')}"`;
+};
+
 const buildFtsQuery = (tokens: string[]): string => {
   if (tokens.length === 0) return '""';
-  const escaped = tokens.map((t) => `"${t.replace(/"/g, '""')}"`);
-  return escaped.join(' OR ');
+  return tokens.map(escapeFtsToken).join(' OR ');
 };
 
 const buildTagPlaceholders = (count: number): string => {
@@ -121,7 +124,7 @@ interface SearchInput {
   query: string;
 }
 
-const mapRowsToSearchResultsWithTags = (rows: DbRow[]): SearchResult[] => {
+const enrichSearchResultsWithTags = (rows: DbRow[]): SearchResult[] => {
   const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
   const tagsById = loadTagsForMemoryIds(ids);
   return rows.map((row) => {
@@ -137,7 +140,7 @@ export const searchMemories = (input: SearchInput): SearchResult[] => {
   }
   const { sql, params } = buildSearchQuery(tokens);
   const rows = executeSearch(sql, params);
-  return mapRowsToSearchResultsWithTags(rows);
+  return enrichSearchResultsWithTags(rows);
 };
 
 const MAX_RECALL_DEPTH = 3;
@@ -246,7 +249,7 @@ const recallAtPositiveDepth = (
 ): RecallResult => {
   const seedIds = searchResults.map((m) => m.id);
   const recallRows = executeRecall(seedIds, depth);
-  const memories = mapRowsToSearchResultsWithTags(recallRows);
+  const memories = enrichSearchResultsWithTags(recallRows);
   if (memories.length === 0) {
     return emptyRecallResult(depth);
   }

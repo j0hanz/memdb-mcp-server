@@ -146,7 +146,7 @@ const createTimeoutResponse = (): ErrorResponse =>
     { timeoutMs: TOOL_TIMEOUT_MS }
   );
 
-const ok = (result: unknown): CallToolResult => {
+const createSuccessResponse = (result: unknown): CallToolResult => {
   const structured = { ok: true, result };
   return {
     content: [{ type: 'text', text: JSON.stringify(structured) }],
@@ -229,7 +229,7 @@ const buildStoreMemoryTool = (deps: ToolDependencies): ToolDef => ({
         memory_type: input.memory_type,
       })
     );
-    return ok(result);
+    return createSuccessResponse(result);
   }),
 });
 
@@ -254,7 +254,7 @@ const buildStoreMemoriesTool = (deps: ToolDependencies): ToolDef => ({
       })
     );
     const result = await deps.createMemories(items);
-    return ok(result);
+    return createSuccessResponse(result);
   }),
 });
 
@@ -272,7 +272,7 @@ const buildGetMemoryTool = (deps: ToolDependencies): ToolDef => ({
     if (!result) {
       return createErrorResponse('E_NOT_FOUND', 'Memory not found');
     }
-    return ok(result);
+    return createSuccessResponse(result);
   }),
 });
 
@@ -291,7 +291,7 @@ const buildDeleteMemoryTool = (deps: ToolDependencies): ToolDef => ({
     if (result.changes === 0) {
       return createErrorResponse('E_NOT_FOUND', 'Memory not found');
     }
-    return ok({ deleted: true });
+    return createSuccessResponse({ deleted: true });
   }),
 });
 
@@ -308,7 +308,7 @@ const buildDeleteMemoriesTool = (deps: ToolDependencies): ToolDef => ({
   handler: wrapHandler('E_DELETE_MEMORIES', async (params) => {
     const input = DeleteMemoriesInputSchema.parse(params);
     const result = await deps.deleteMemories(input.hashes.map(normalizeHash));
-    return ok(result);
+    return createSuccessResponse(result);
   }),
 });
 
@@ -328,7 +328,7 @@ const buildUpdateMemoryTool = (deps: ToolDependencies): ToolDef => ({
       content: input.content,
       tags: input.tags,
     });
-    return ok(result);
+    return createSuccessResponse(result);
   }),
 });
 
@@ -354,7 +354,7 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
     handler: wrapHandler('E_SEARCH_MEMORIES', async (params) => {
       const input = SearchMemoriesInputSchema.parse(params);
       const result = await deps.searchMemories({ query: input.query });
-      return ok(result);
+      return createSuccessResponse(result);
     }),
   },
   {
@@ -374,7 +374,7 @@ const buildSearchTools = (deps: ToolDependencies): ToolDef[] => [
         query: input.query,
         ...(input.depth !== undefined && { depth: input.depth }),
       });
-      return ok(result);
+      return createSuccessResponse(result);
     }),
   },
 ];
@@ -397,7 +397,7 @@ const buildRelationshipTools = (deps: ToolDependencies): ToolDef[] => [
         to_hash: normalizeHash(input.to_hash),
         relation_type: input.relation_type,
       });
-      return ok(result);
+      return createSuccessResponse(result);
     }),
   },
   {
@@ -416,7 +416,7 @@ const buildRelationshipTools = (deps: ToolDependencies): ToolDef[] => [
         hash: normalizeHash(input.hash),
         ...(input.direction !== undefined && { direction: input.direction }),
       });
-      return ok(result);
+      return createSuccessResponse(result);
     }),
   },
   {
@@ -438,7 +438,7 @@ const buildRelationshipTools = (deps: ToolDependencies): ToolDef[] => [
       if (result.changes === 0) {
         return createErrorResponse('E_NOT_FOUND', 'Relationship not found');
       }
-      return ok({ deleted: true });
+      return createSuccessResponse({ deleted: true });
     }),
   },
 ];
@@ -456,7 +456,7 @@ const buildStatsTools = (deps: ToolDependencies): ToolDef[] => [
     handler: wrapHandler('E_MEMORY_STATS', async (params) => {
       MemoryStatsInputSchema.parse(params);
       const result = await deps.getStats();
-      return ok(result);
+      return createSuccessResponse(result);
     }),
   },
 ];

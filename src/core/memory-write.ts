@@ -170,7 +170,7 @@ const createMemoriesInTransaction = (
     const item = items[i];
     if (!item) continue;
 
-    const result = processCreateMemoriesItem(i, item);
+    const result = createMemoryWithSavepoint(i, item);
     results.push(result);
     if (result.ok) {
       succeeded++;
@@ -182,7 +182,7 @@ const createMemoriesInTransaction = (
   return { results, succeeded, failed };
 };
 
-const processCreateMemoriesItem = (
+const createMemoryWithSavepoint = (
   index: number,
   item: {
     content: string;
