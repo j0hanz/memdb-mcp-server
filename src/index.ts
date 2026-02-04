@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 
@@ -65,11 +66,34 @@ const loadServerMetadata = async (): Promise<{
 const { packageVersion, instructions: serverInstructions } =
   await loadServerMetadata();
 
+const getLocalIconData = (): string | undefined => {
+  const candidates = ['../assets/logo.svg', './assets/logo.svg'];
+  for (const path of candidates) {
+    try {
+      const url = new URL(path, import.meta.url);
+      const content = readFileSync(url, { encoding: 'base64' });
+      return `data:image/svg+xml;base64,${content}`;
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
+};
+
+const localIcon = getLocalIconData();
+
 const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: serverInstructions,
     capabilities: { tools: {}, logging: {}, resources: {} },
+    ...(localIcon
+      ? {
+          icons: [
+            { src: localIcon, mimeType: 'image/svg+xml', sizes: ['any'] },
+          ],
+        }
+      : {}),
   }
 );
 
@@ -80,7 +104,17 @@ const instructionsResource = new ResourceTemplate('internal://instructions', {
 server.registerResource(
   'internal://instructions',
   instructionsResource,
-  { title: 'Instructions', mimeType: 'text/markdown' },
+  {
+    title: 'Instructions',
+    mimeType: 'text/markdown',
+    ...(localIcon
+      ? {
+          icons: [
+            { src: localIcon, mimeType: 'image/svg+xml', sizes: ['any'] },
+          ],
+        }
+      : {}),
+  },
   async (uri) => {
     const text =
       (await readTextFileOrUndefined(
@@ -98,7 +132,7 @@ server.registerResource(
   }
 );
 
-registerAllTools(server);
+registerAllTools(server, localIcon);
 
 let transport: Transport | undefined;
 let shuttingDown = false;

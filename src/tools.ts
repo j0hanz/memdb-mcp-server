@@ -487,10 +487,21 @@ const buildTools = (deps: ToolDependencies): ToolDef[] => [
 
 export function registerAllTools(
   server: McpServer,
+  localIcon?: string,
   deps: ToolDependencies = defaultDeps
 ): void {
   const tools = buildTools(deps);
+  const iconMetadata = localIcon
+    ? {
+        icons: [{ src: localIcon, mimeType: 'image/svg+xml', sizes: ['any'] }],
+      }
+    : {};
+
   for (const tool of tools) {
-    server.registerTool(tool.name, tool.options, tool.handler);
+    server.registerTool(
+      tool.name,
+      { ...tool.options, ...iconMetadata },
+      tool.handler
+    );
   }
 }
