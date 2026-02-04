@@ -156,15 +156,16 @@ interface ToolContext {
   signal: AbortSignal;
 }
 
-const createTimeoutResponse = (): ErrorResponse =>
+const createTimeoutResponse = (timeoutMs: number): ErrorResponse =>
   createErrorResponse(
     'E_TIMEOUT',
-    `Tool execution timed out after ${TOOL_TIMEOUT_MS}ms`,
-    { timeoutMs: TOOL_TIMEOUT_MS }
+    `Tool execution timed out after ${timeoutMs}ms`,
+    { timeoutMs }
   );
 
 const createTimedToolHandler = (
   defaultErrorCode: string,
+  timeoutMs: number,
   run: (params: unknown, ctx: ToolContext) => MaybePromise<CallToolResult>
 ): ((params: unknown) => Promise<CallToolResult>) => {
   return async (params: unknown) => {
@@ -173,7 +174,7 @@ const createTimedToolHandler = (
 
     const execution = Promise.resolve().then(() => run(params, ctx));
 
-    if (TOOL_TIMEOUT_MS <= 0) {
+    if (timeoutMs <= 0) {
       try {
         return await execution;
       } catch (err) {
@@ -188,8 +189,8 @@ const createTimedToolHandler = (
     const timeoutPromise = new Promise<CallToolResult>((resolve) => {
       timeout = setTimeout(() => {
         controller.abort();
-        resolve(createTimeoutResponse());
-      }, TOOL_TIMEOUT_MS);
+        resolve(createTimeoutResponse(timeoutMs));
+      }, timeoutMs);
     });
 
     try {
@@ -227,6 +228,7 @@ const defineTool = <TInput, TResult>(spec: {
   outputSchema: ToolSchema;
   annotations?: ToolAnnotations;
   errorCode: string;
+  timeoutMs?: number;
   run: (input: TInput, ctx: ToolContext) => MaybePromise<TResult>;
 }): ToolDef => {
   return {
@@ -238,11 +240,15 @@ const defineTool = <TInput, TResult>(spec: {
       outputSchema: spec.outputSchema,
       ...(spec.annotations ? { annotations: spec.annotations } : {}),
     },
-    handler: createTimedToolHandler(spec.errorCode, async (params, ctx) => {
-      const input = spec.inputSchema.parse(params);
-      const result = await spec.run(input, ctx);
-      return createSuccessResponse(result);
-    }),
+    handler: createTimedToolHandler(
+      spec.errorCode,
+      spec.timeoutMs ?? TOOL_TIMEOUT_MS,
+      async (params, ctx) => {
+        const input = spec.inputSchema.parse(params);
+        const result = await spec.run(input, ctx);
+        return createSuccessResponse(result);
+      }
+    ),
   };
 };
 

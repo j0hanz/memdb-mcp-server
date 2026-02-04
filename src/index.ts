@@ -86,7 +86,7 @@ const server = new McpServer(
   { name: 'memdb', version: packageVersion ?? '0.0.0' },
   {
     instructions: serverInstructions,
-    capabilities: { tools: {}, logging: {}, resources: {} },
+    capabilities: { tools: { listChanged: true }, logging: {}, resources: {} },
     ...(localIcon
       ? {
           icons: [
