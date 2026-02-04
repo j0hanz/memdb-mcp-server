@@ -16,30 +16,35 @@ import {
   withImmediateTransaction,
 } from './db.js';
 
+const touchMemoryAccessTime = (hash: string): void => {
+  const stmt = prepareCached(
+    'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
+  );
+  executeRun(stmt, hash);
+};
+
+const loadMemoryRowByHash = (hash: string): DbRow | undefined => {
+  const stmt = prepareCached('SELECT * FROM memories WHERE hash = ?');
+  return executeGet(stmt, hash);
+};
+
 export const getMemory = (hash: string): Memory | undefined => {
   return withImmediateTransaction(() => {
-    const stmtTouchMemoryByHash = prepareCached(
-      'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
-    );
-    executeRun(stmtTouchMemoryByHash, hash);
+    touchMemoryAccessTime(hash);
 
-    const stmtGetMemoryByHash = prepareCached(
-      'SELECT * FROM memories WHERE hash = ?'
-    );
-    const row = executeGet(stmtGetMemoryByHash, hash);
-
+    const row = loadMemoryRowByHash(hash);
     if (!row) return undefined;
+
     const id = toSafeInteger(row.id, 'id');
     const tags = loadTagsForMemoryIds([id]).get(id) ?? [];
+
     return mapRowToMemory(row, tags);
   });
 };
 
 export const deleteMemory = (hash: string): StatementResult => {
-  const stmtDeleteMemoryByHash = prepareCached(
-    'DELETE FROM memories WHERE hash = ?'
-  );
-  const result = executeRun(stmtDeleteMemoryByHash, hash);
+  const stmt = prepareCached('DELETE FROM memories WHERE hash = ?');
+  const result = executeRun(stmt, hash);
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
 
@@ -49,12 +54,15 @@ const deleteMemoryForBatch = (
   try {
     const result = deleteMemory(hash);
     const deleted = result.changes > 0;
-    return deleted
-      ? { item: { hash, deleted: true }, succeeded: true }
-      : {
-          item: { hash, deleted: false, error: 'Memory not found' },
-          succeeded: false,
-        };
+
+    if (!deleted) {
+      return {
+        item: { hash, deleted: false, error: 'Memory not found' },
+        succeeded: false,
+      };
+    }
+
+    return { item: { hash, deleted: true }, succeeded: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { item: { hash, deleted: false, error: message }, succeeded: false };
@@ -62,11 +70,11 @@ const deleteMemoryForBatch = (
 };
 
 export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
-  const results: BatchDeleteItemResult[] = [];
-  let succeeded = 0;
-  let failed = 0;
-
   return withImmediateTransaction(() => {
+    const results: BatchDeleteItemResult[] = [];
+    let succeeded = 0;
+    let failed = 0;
+
     for (const hash of hashes) {
       const outcome = deleteMemoryForBatch(hash);
       results.push(outcome.item);
@@ -85,10 +93,7 @@ const toDateString = (value: unknown): string | null => {
   return null;
 };
 
-const queryCounts = (): {
-  memoryRow: DbRow;
-  tagRow: DbRow;
-} => {
+const queryCounts = (): { memoryRow: DbRow; tagRow: DbRow } => {
   const stmtMemoryCount = prepareCached(
     'SELECT COUNT(*) as count FROM memories'
   );
@@ -101,6 +106,7 @@ const queryCounts = (): {
 
   if (!memoryRow) throw new Error('Failed to load memory stats');
   if (!tagRow) throw new Error('Failed to load tag stats');
+
   return { memoryRow, tagRow };
 };
 

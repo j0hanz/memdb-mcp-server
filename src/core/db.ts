@@ -12,6 +12,7 @@ import {
 } from '../types.js';
 
 export type DbRow = Record<string, unknown>;
+export type SqlParam = string | number | bigint | null | Uint8Array;
 
 const SCHEMA_SQL = `
   PRAGMA journal_mode = WAL;
@@ -84,6 +85,7 @@ const withTimeout = async <T>(
   message: string
 ): Promise<T> => {
   let timeout: NodeJS.Timeout | undefined;
+
   const timeoutPromise = new Promise<never>((_, reject) => {
     timeout = setTimeout(() => {
       reject(new Error(message));
@@ -99,6 +101,7 @@ const withTimeout = async <T>(
 
 const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   if (dbPath === ':memory:') return;
+
   await withTimeout(
     mkdir(path.dirname(dbPath), { recursive: true }),
     5000,
@@ -115,10 +118,6 @@ const enableDefensiveMode = (database: DatabaseSync): void => {
   }
 };
 
-const isInTransaction = (database: DatabaseSync): boolean => {
-  return database.isTransaction;
-};
-
 const initializeSchema = (database: DatabaseSync): void => {
   database.exec(SCHEMA_SQL);
   database.exec(FTS_SYNC_SQL);
@@ -130,8 +129,10 @@ const createDatabase = (dbPath: string): DatabaseSync => {
     enableForeignKeyConstraints: true,
     allowExtension: false,
   });
+
   enableDefensiveMode(database);
   initializeSchema(database);
+
   return database;
 };
 
@@ -157,53 +158,68 @@ export const getDb = (): DatabaseSync => {
   return dbInstance;
 };
 
-export const closeDb = (): void => {
-  if (dbInstance?.isOpen) {
-    dbInstance.close();
-    dbInstance = undefined;
-    statementCache.clear();
-  }
-};
-
-export type SqlParam = string | number | bigint | null | Uint8Array;
-
 const MAX_CACHED_STATEMENTS = 200;
-const statementCache = new Map<string, StatementSync>();
+
+class LruStatementCache {
+  private readonly cache = new Map<string, StatementSync>();
+
+  constructor(private readonly maxSize: number) {}
+
+  get(sql: string): StatementSync | undefined {
+    const hit = this.cache.get(sql);
+    if (!hit) return undefined;
+
+    // Refresh LRU order
+    this.cache.delete(sql);
+    this.cache.set(sql, hit);
+
+    return hit;
+  }
+
+  set(sql: string, stmt: StatementSync): void {
+    this.cache.set(sql, stmt);
+
+    if (this.cache.size <= this.maxSize) return;
+
+    const oldestKey = this.cache.keys().next().value;
+    if (oldestKey) this.cache.delete(oldestKey);
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const statementCache = new LruStatementCache(MAX_CACHED_STATEMENTS);
+
+export const closeDb = (): void => {
+  if (!dbInstance?.isOpen) return;
+
+  dbInstance.close();
+  dbInstance = undefined;
+  statementCache.clear();
+};
 
 export const prepareCached = (sql: string): StatementSync => {
   const cached = statementCache.get(sql);
-  if (cached) {
-    statementCache.delete(sql);
-    statementCache.set(sql, cached);
-    return cached;
-  }
+  if (cached) return cached;
 
   const stmt = getDb().prepare(sql);
   statementCache.set(sql, stmt);
 
-  if (statementCache.size > MAX_CACHED_STATEMENTS) {
-    const oldestKey = statementCache.keys().next().value;
-    if (oldestKey) statementCache.delete(oldestKey);
-  }
-
   return stmt;
 };
 
-const isDbRow = (value: unknown): value is DbRow => {
-  return typeof value === 'object' && value !== null;
-};
+const isDbRow = (value: unknown): value is DbRow =>
+  typeof value === 'object' && value !== null;
 
 const assertDbRow = (value: unknown): DbRow => {
-  if (!isDbRow(value)) {
-    throw new Error('Invalid row');
-  }
+  if (!isDbRow(value)) throw new Error('Invalid row');
   return value;
 };
 
 const toDbRowArray = (value: unknown): DbRow[] => {
-  if (!Array.isArray(value)) {
-    throw new Error('Expected rows array');
-  }
+  if (!Array.isArray(value)) throw new Error('Expected rows array');
   return value.map(assertDbRow);
 };
 
@@ -216,24 +232,26 @@ const toRunResult = (value: unknown): { changes: number | bigint } => {
   if (typeof value !== 'object' || value === null) {
     throw new Error('Invalid run result');
   }
+
   const result = value as { changes?: unknown };
   const { changes } = result;
+
   if (typeof changes !== 'number' && typeof changes !== 'bigint') {
     throw new Error('Invalid run result');
   }
+
   return { changes };
 };
 
-export const executeAll = <T = DbRow>(
+export const executeAll = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): T[] => toDbRowArray(stmt.all(...params)) as T[];
+): DbRow[] => toDbRowArray(stmt.all(...params));
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters
-export const executeGet = <T = DbRow>(
+export const executeGet = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): T | undefined => toDbRowOrUndefined(stmt.get(...params)) as T | undefined;
+): DbRow | undefined => toDbRowOrUndefined(stmt.get(...params));
 
 export const executeRun = (
   stmt: StatementSync,
@@ -242,16 +260,40 @@ export const executeRun = (
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
   const db = getDb();
-  if (isInTransaction(db)) {
+
+  if (db.isTransaction) {
     throw new Error('Cannot start nested transaction');
   }
+
   db.exec('BEGIN IMMEDIATE');
+
   try {
     const result = operation();
     db.exec('COMMIT');
     return result;
   } catch (err) {
     db.exec('ROLLBACK');
+    throw err;
+  }
+};
+
+const SAVEPOINT_NAME_PATTERN = /^[A-Za-z_]\w*$/;
+
+export const withSavepoint = <T>(name: string, operation: () => T): T => {
+  if (!SAVEPOINT_NAME_PATTERN.test(name)) {
+    throw new Error(`Invalid savepoint name: ${name}`);
+  }
+
+  const db = getDb();
+  db.exec(`SAVEPOINT ${name}`);
+
+  try {
+    const result = operation();
+    db.exec(`RELEASE ${name}`);
+    return result;
+  } catch (err) {
+    db.exec(`ROLLBACK TO ${name}`);
+    db.exec(`RELEASE ${name}`);
     throw err;
   }
 };
@@ -289,17 +331,6 @@ const toString = (value: unknown, field: string): string => {
   throw createFieldError(field);
 };
 
-const isMemoryType = (value: string): value is MemoryType =>
-  MEMORY_TYPES.includes(value as MemoryType);
-
-const toMemoryType = (value: unknown, field: string): MemoryType => {
-  const str = toString(value, field);
-  if (!isMemoryType(str)) {
-    throw createFieldError(field);
-  }
-  return str;
-};
-
 const toOptionalString = (
   value: unknown,
   field: string
@@ -314,6 +345,15 @@ const toOptionalNumber = (
 ): number | undefined => {
   if (value === null || value === undefined) return undefined;
   return toNumber(value, field);
+};
+
+const isMemoryType = (value: string): value is MemoryType =>
+  MEMORY_TYPES.includes(value as MemoryType);
+
+const toMemoryType = (value: unknown, field: string): MemoryType => {
+  const str = toString(value, field);
+  if (!isMemoryType(str)) throw createFieldError(field);
+  return str;
 };
 
 export const mapRowToMemory = (row: DbRow, tags: string[] = []): Memory => ({
@@ -344,14 +384,32 @@ export const mapRowToRelationship = (row: DbRow): Relationship => ({
   created_at: toString(row.created_at, 'created_at'),
 });
 
+export const findMemoryIdByHash = (hash: string): number | undefined => {
+  const stmt = prepareCached('SELECT id FROM memories WHERE hash = ?');
+  const row = executeGet(stmt, hash);
+  if (!row) return undefined;
+  return toSafeInteger(row.id, 'id');
+};
+
+export const requireMemoryIdByHash = (
+  hash: string,
+  message = `Memory not found: ${hash}`
+): number => {
+  const id = findMemoryIdByHash(hash);
+  if (id === undefined) throw new Error(message);
+  return id;
+};
+
 const dedupeIds = (ids: readonly number[]): number[] => {
   const seen = new Set<number>();
   const unique: number[] = [];
+
   for (const id of ids) {
     if (seen.has(id)) continue;
     seen.add(id);
     unique.push(id);
   }
+
   return unique;
 };
 
@@ -370,10 +428,11 @@ export const loadTagsForMemoryIds = (
   const uniqueIds = dedupeIds(memoryIds);
   if (uniqueIds.length === 0) return new Map();
 
-  const stmtSelectTags = prepareCached(
+  const stmt = prepareCached(
     'SELECT memory_id, tag FROM tags WHERE memory_id IN (SELECT value FROM json_each(?)) ORDER BY memory_id, tag'
   );
-  const rows = executeAll(stmtSelectTags, JSON.stringify(uniqueIds));
+
+  const rows = executeAll(stmt, JSON.stringify(uniqueIds));
 
   const tagsById = new Map<number, string[]>();
   for (const row of rows) {
@@ -381,5 +440,6 @@ export const loadTagsForMemoryIds = (
     const tag = toString(row.tag, 'tag');
     pushToMapArray(tagsById, memoryId, tag);
   }
+
   return tagsById;
 };
