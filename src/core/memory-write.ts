@@ -20,6 +20,17 @@ import {
 const MAX_TAGS = 100;
 const TAG_PATTERN = /^\S+$/;
 
+const throwIfAborted = (signal?: AbortSignal): void => {
+  if (!signal) return;
+  if (typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+    return;
+  }
+  if (signal.aborted) {
+    throw new Error('Operation aborted');
+  }
+};
+
 const validateTag = (tag: string): void => {
   if (tag.length === 0) throw new Error('Tag must be at least 1 character');
   if (tag.length > 50) throw new Error('Tag exceeds 50 characters');
@@ -133,11 +144,13 @@ const createMemoryWithSavepoint = (
     tags?: readonly string[];
     importance?: number;
     memory_type?: MemoryType;
-  }
+  },
+  signal?: AbortSignal
 ): BatchStoreItemResult => {
   const savepointName = `mem_item_${index}`;
 
   try {
+    throwIfAborted(signal);
     const created = withSavepoint(savepointName, () =>
       createMemoryInTransaction(item)
     );
@@ -160,17 +173,20 @@ const createMemoriesInTransaction = (
     tags?: readonly string[];
     importance?: number;
     memory_type?: MemoryType;
-  }[]
+  }[],
+  signal?: AbortSignal
 ): BatchStoreResult => {
   const results: BatchStoreItemResult[] = [];
   let succeeded = 0;
   let failed = 0;
 
+  throwIfAborted(signal);
   for (let i = 0; i < items.length; i++) {
+    throwIfAborted(signal);
     const item = items[i];
     if (!item) continue;
 
-    const result = createMemoryWithSavepoint(i, item);
+    const result = createMemoryWithSavepoint(i, item, signal);
     results.push(result);
 
     if (result.ok) succeeded++;
@@ -186,9 +202,10 @@ export const createMemories = (
     tags?: readonly string[];
     importance?: number;
     memory_type?: MemoryType;
-  }[]
+  }[],
+  signal?: AbortSignal
 ): BatchStoreResult =>
-  withImmediateTransaction(() => createMemoriesInTransaction(items));
+  withImmediateTransaction(() => createMemoriesInTransaction(items, signal));
 
 interface UpdateMemoryOptions {
   content: string;

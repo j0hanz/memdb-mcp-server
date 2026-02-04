@@ -2,7 +2,7 @@ import { type RefinementCtx, z } from 'zod';
 
 import { MEMORY_TYPES } from './types.js';
 
-const hashSchema = z.string().regex(/^([a-f0-9]{32}|[a-f0-9]{64})$/i);
+const hashSchema = z.string().regex(/^[a-f0-9]{64}$/i);
 const tagSchema = z
   .string()
   .min(1)
@@ -62,11 +62,15 @@ export const SearchMemoriesInputSchema = z.strictObject({
 });
 
 export const GetMemoryInputSchema = z.strictObject({
-  hash: hashSchema.meta({ description: 'Hash of the memory (MD5/SHA-256)' }),
+  hash: hashSchema.meta({
+    description: 'Hash of the memory (SHA-256, 64 hex chars)',
+  }),
 });
 
 export const DeleteMemoryInputSchema = z.strictObject({
-  hash: hashSchema.meta({ description: 'Hash of the memory (MD5/SHA-256)' }),
+  hash: hashSchema.meta({
+    description: 'Hash of the memory (SHA-256, 64 hex chars)',
+  }),
 });
 
 export const DeleteMemoriesInputSchema = z.strictObject({
@@ -90,10 +94,10 @@ export const MemoryStatsInputSchema = z
 
 export const CreateRelationshipInputSchema = z.strictObject({
   from_hash: hashSchema.meta({
-    description: 'MD5 hash of the source memory',
+    description: 'SHA-256 hash of the source memory',
   }),
   to_hash: hashSchema.meta({
-    description: 'MD5 hash of the target memory',
+    description: 'SHA-256 hash of the target memory',
   }),
   relation_type: relationTypeSchema.meta({
     description:
@@ -103,7 +107,7 @@ export const CreateRelationshipInputSchema = z.strictObject({
 
 export const GetRelationshipsInputSchema = z.strictObject({
   hash: hashSchema.meta({
-    description: 'MD5 hash of the memory to get relationships for',
+    description: 'SHA-256 hash of the memory to get relationships for',
   }),
   direction: z.enum(['outgoing', 'incoming', 'both']).optional().meta({
     description:
@@ -113,10 +117,10 @@ export const GetRelationshipsInputSchema = z.strictObject({
 
 export const DeleteRelationshipInputSchema = z.strictObject({
   from_hash: hashSchema.meta({
-    description: 'MD5 hash of the source memory',
+    description: 'SHA-256 hash of the source memory',
   }),
   to_hash: hashSchema.meta({
-    description: 'MD5 hash of the target memory',
+    description: 'SHA-256 hash of the target memory',
   }),
   relation_type: relationTypeSchema.meta({
     description: 'Type of relationship to delete',

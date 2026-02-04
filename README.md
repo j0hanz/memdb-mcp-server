@@ -123,7 +123,7 @@ Store a new memory with tags.
 
 Notes:
 
-- Content is deduplicated by MD5 hash. Storing the same content again returns the same hash with `isNew: false`.
+- Content is deduplicated by SHA-256 hash. Storing the same content again returns the same hash with `isNew: false`.
 - Tags must not contain whitespace. Use hyphens for compound words (e.g., `api-design`, `error-handling`).
 
 ### `store_memories`
@@ -173,9 +173,9 @@ Notes:
 
 Retrieve a specific memory by its hash.
 
-| Parameter | Type   | Required | Default | Description         |
-| :-------- | :----- | :------- | :------ | :------------------ |
-| `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
+| Parameter | Type   | Required | Default | Description             |
+| :-------- | :----- | :------- | :------ | :---------------------- |
+| `hash`    | string | Yes      | -       | SHA-256 hash (64 chars) |
 
 **Returns:** `Memory` (includes `tags`).
 
@@ -187,9 +187,9 @@ Notes:
 
 Delete a memory by its hash.
 
-| Parameter | Type   | Required | Default | Description         |
-| :-------- | :----- | :------- | :------ | :------------------ |
-| `hash`    | string | Yes      | -       | MD5 hash (32 chars) |
+| Parameter | Type   | Required | Default | Description             |
+| :-------- | :----- | :------- | :------ | :---------------------- |
+| `hash`    | string | Yes      | -       | SHA-256 hash (64 chars) |
 
 **Returns:** `{ deleted: true }`.
 
@@ -197,9 +197,9 @@ Delete a memory by its hash.
 
 Delete multiple memories by hash in a single batch operation.
 
-| Parameter | Type     | Required | Default | Description                           |
-| :-------- | :------- | :------- | :------ | :------------------------------------ |
-| `hashes`  | string[] | Yes      | -       | Array of MD5 hashes (1-50 hashes max) |
+| Parameter | Type     | Required | Default | Description                               |
+| :-------- | :------- | :------- | :------ | :---------------------------------------- |
+| `hashes`  | string[] | Yes      | -       | Array of SHA-256 hashes (1-50 hashes max) |
 
 **Returns:** `{ results, succeeded, failed }`
 
@@ -225,11 +225,11 @@ _No parameters required._
 
 Update the content of a memory. Returns the new hash since changing content changes the hash.
 
-| Parameter | Type     | Required | Default | Description                             |
-| :-------- | :------- | :------- | :------ | :-------------------------------------- |
-| `hash`    | string   | Yes      | -       | MD5 hash of memory to update (32 chars) |
-| `content` | string   | Yes      | -       | New content (1-100000 chars)            |
-| `tags`    | string[] | No       | -       | Replace tags (max 100, each 1-50 chars) |
+| Parameter | Type     | Required | Default | Description                                 |
+| :-------- | :------- | :------- | :------ | :------------------------------------------ |
+| `hash`    | string   | Yes      | -       | SHA-256 hash of memory to update (64 chars) |
+| `content` | string   | Yes      | -       | New content (1-100000 chars)                |
+| `tags`    | string[] | No       | -       | Replace tags (max 100, each 1-50 chars)     |
 
 **Returns:** `{ updated: true, oldHash, newHash }`.
 
@@ -249,7 +249,7 @@ All memory-shaped responses include:
 - `tags`: string array
 - `created_at`: timestamp string
 - `accessed_at`: timestamp string
-- `hash`: MD5 hash
+- `hash`: SHA-256 hash
 
 ## Client Configuration
 
@@ -312,14 +312,14 @@ Add to your `claude_desktop_config.json`:
 | **Max tags per memory** | 100           | Maximum number of tags when storing a memory                                  |
 | **Max tag length**      | 50 chars      | Maximum characters per tag                                                    |
 | **Tag format**          | No whitespace | Tags cannot contain spaces or tabs; use hyphens for compound words            |
-| **Hash length**         | 32 chars      | MD5 hash length                                                               |
+| **Hash length**         | 64 chars      | SHA-256 hash length                                                           |
 | **Batch store limit**   | 50 items      | Maximum items per `store_memories` call                                       |
 | **Batch delete limit**  | 50 hashes     | Maximum hashes per `delete_memories` call                                     |
 | **Search mode**         | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
 
 ### Notes
 
-- **Content deduplication**: Memories are deduplicated using MD5 hashes.
+- **Content deduplication**: Memories are deduplicated using SHA-256 hashes.
 - **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
 - **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
 - **Batch operations**: `store_memories` and `delete_memories` support partial success—individual item failures don't affect other items in the batch.

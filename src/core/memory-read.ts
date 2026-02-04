@@ -16,23 +16,27 @@ import {
   withImmediateTransaction,
 } from './db.js';
 
-const touchMemoryAccessTime = (hash: string): void => {
-  const stmt = prepareCached(
-    'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ?'
-  );
-  executeRun(stmt, hash);
+const throwIfAborted = (signal?: AbortSignal): void => {
+  if (!signal) return;
+  if (typeof signal.throwIfAborted === 'function') {
+    signal.throwIfAborted();
+    return;
+  }
+  if (signal.aborted) {
+    throw new Error('Operation aborted');
+  }
 };
 
-const loadMemoryRowByHash = (hash: string): DbRow | undefined => {
-  const stmt = prepareCached('SELECT * FROM memories WHERE hash = ?');
+const loadMemoryRowByHashAndTouch = (hash: string): DbRow | undefined => {
+  const stmt = prepareCached(
+    'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ? RETURNING *'
+  );
   return executeGet(stmt, hash);
 };
 
 export const getMemory = (hash: string): Memory | undefined => {
   return withImmediateTransaction(() => {
-    touchMemoryAccessTime(hash);
-
-    const row = loadMemoryRowByHash(hash);
+    const row = loadMemoryRowByHashAndTouch(hash);
     if (!row) return undefined;
 
     const id = toSafeInteger(row.id, 'id');
@@ -69,13 +73,18 @@ const deleteMemoryForBatch = (
   }
 };
 
-export const deleteMemories = (hashes: string[]): BatchDeleteResult => {
+export const deleteMemories = (
+  hashes: string[],
+  signal?: AbortSignal
+): BatchDeleteResult => {
   return withImmediateTransaction(() => {
     const results: BatchDeleteItemResult[] = [];
     let succeeded = 0;
     let failed = 0;
 
+    throwIfAborted(signal);
     for (const hash of hashes) {
+      throwIfAborted(signal);
       const outcome = deleteMemoryForBatch(hash);
       results.push(outcome.item);
       succeeded += outcome.succeeded ? 1 : 0;

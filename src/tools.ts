@@ -291,7 +291,7 @@ const buildTools = (deps: ToolDependencies): ToolDef[] => [
     outputSchema: DefaultOutputSchema,
     annotations: { idempotentHint: true },
     errorCode: 'E_STORE_MEMORIES',
-    run: async (input) => {
+    run: async (input, ctx) => {
       const items = input.items.map((item) =>
         toCreateMemoryInput({
           content: item.content,
@@ -300,7 +300,7 @@ const buildTools = (deps: ToolDependencies): ToolDef[] => [
           memory_type: item.memory_type,
         })
       );
-      return await deps.createMemories(items);
+      return await deps.createMemories(items, ctx.signal);
     },
   }),
 
@@ -343,8 +343,11 @@ const buildTools = (deps: ToolDependencies): ToolDef[] => [
     outputSchema: DefaultOutputSchema,
     annotations: { destructiveHint: true },
     errorCode: 'E_DELETE_MEMORIES',
-    run: async (input) => {
-      return await deps.deleteMemories(input.hashes.map(normalizeHash));
+    run: async (input, ctx) => {
+      return await deps.deleteMemories(
+        input.hashes.map(normalizeHash),
+        ctx.signal
+      );
     },
   }),
 

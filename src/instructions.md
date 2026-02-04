@@ -15,7 +15,7 @@ _Describe the standard order of operations using ONLY tools that exist._
 
 1. Call `search_memories` with a focused query.
 2. Call `recall` for connected graph exploration (depth 1–2).
-3. Call `get_memory` using the `hash` (MD5/SHA-256) from results.
+3. Call `get_memory` using the `hash` (SHA-256) from results.
    > **Constraint:** Never guess hashes. Always search or recall first.
 
 ### Workflow B: Store or revise knowledge
