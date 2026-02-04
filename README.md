@@ -1,38 +1,50 @@
 # MemDB MCP Server
 
-<img src="assets/logo.svg" alt="ThinkSeq MCP Server Logo" width="225" />
+<img src="assets/logo.svg" alt="MemDB MCP Server Logo" width="225" />
 
-[![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb)
+[![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb) [![License](https://img.shields.io/npm/l/@j0hanz/memdb.svg)](https://github.com/j0hanz/memdb-mcp-server/blob/master/package.json)
 
 [![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D&quality=insiders)
 
 [![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=memdb&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovbWVtZGJAbGF0ZXN0Il19)
 
-A local memory database MCP server for storing and searching text snippets with tags. Built with Node.js and SQLite, it provides tools to create, retrieve, update, delete, and search memories using a simple JSON-based protocol.
+A specialized Memory MCP Server that provides a local Knowledge Graph and full-text search capabilities for AI assistants, backed by SQLite.
 
-## Features
+## Overview
 
-| Feature          | Description                                                       |
-| :--------------- | :---------------------------------------------------------------- |
-| Memory Storage   | Store text memories with tags                                     |
-| Full-Text Search | FTS5-backed tokenized search with relevance ranking               |
-| Stats            | Memory and tag counts + activity range                            |
-| Local Privacy    | All data stored locally in SQLite (`.memdb/memory.db` by default) |
+MemDB allows AI assistants to persist long-term memories, facts, and relationships in a local SQLite database. Beyond simple storage, it supports **content-deduplicated versioning**, **tag-based organization**, and **graph relationships** (linking memories together). It includes a powerful `recall` tool that traverses these relationships to retrieve connected context, effectively acting as a graph-augmented RAG system for your workspace.
 
-## Quick Start
+## Key Features
 
-### VS Code / Cursor
+- **Local Storage**: All data persists in a local SQLite database (`.memdb/memory.db`) within your workspace.
+- **Knowledge Graph**: Link memories with typed relationships (e.g., `causes`, `depends_on`, `related_to`).
+- **Graph Traversal**: `recall` tool traverses the graph (up to 3 hops) to find connected context.
+- **Full-Text Search**: Powered by SQLite FTS5 for fast, relevance-ranked searches.
+- **Deduplication**: Content is automatically hashed (SHA-256) to prevent duplicate storage.
+- **Categorization**: Rich metadata support including tags, importance levels, and memory types.
+- **Batch Operations**: dedicated tools for bulk `store` and `delete` actions.
 
-Add this to your `mcpServers` configuration:
+## Tech Stack
 
-```json
-{
-  "memdb": {
-    "command": "npx",
-    "args": ["-y", "@j0hanz/memdb@latest"]
-  }
-}
+- **Runtime**: Node.js >= 22.0.0 (Required for native `node:sqlite`)
+- **Database**: SQLite (using `node:sqlite` sync API)
+- **Protocol**: Model Context Protocol (MCP) SDK `v1.26.0+`
+- **Validation**: Zod schema validation
+- **Architecture**: Layered (Core DB <-> Tools <-> Transport)
+
+## Requirements
+
+- **Node.js**: Version **22.0.0** or higher is **strictly required**. This server uses the native `node:sqlite` module available only in recent Node.js versions.
+
+## Quickstart
+
+Run directly with `npx`:
+
+```bash
+npx -y @j0hanz/memdb@latest
 ```
+
+This will start the server on stdio. The database will be created at `.memdb/memory.db` in the current working directory.
 
 ## Installation
 
@@ -42,12 +54,6 @@ Add this to your `mcpServers` configuration:
 npx -y @j0hanz/memdb@latest
 ```
 
-### Global Installation
-
-```bash
-npm install -g @j0hanz/memdb
-```
-
 ### From Source
 
 ```bash
@@ -55,208 +61,66 @@ git clone https://github.com/j0hanz/memdb-mcp-server.git
 cd memdb-mcp-server
 npm install
 npm run build
+npm start
 ```
 
-## Storage
+## Configuration
 
-The server uses a local SQLite database at `<cwd>/.memdb/memory.db`. The
-directory is created automatically when needed. All data remains local to your
-workspace.
+The server is configured via environment variables.
 
-> **Tip:** Add `.memdb/` to your `.gitignore` to keep your memory database out of
-> version control:
->
-> ```bash
-> echo ".memdb/" >> .gitignore
-> ```
+| Environment Variable    | Description                                                             | Default            |
+| :---------------------- | :---------------------------------------------------------------------- | :----------------- |
+| `MEMDB_PATH`            | Path to the SQLite database file. Use `:memory:` for ephemeral storage. | `.memdb/memory.db` |
+| `MEMDB_LOG_LEVEL`       | Logging level (`info`, `warn`, `error`).                                | `info`             |
+| `MEMDB_TOOL_TIMEOUT_MS` | Execution timeout for tools in milliseconds.                            | `15000`            |
 
-To completely reset or remove all stored memories, simply delete the `.memdb/`
-folder. The server will create a fresh database on the next run.
+**Note**: To keep the database out of version control, add `.memdb/` to your `.gitignore`.
 
-## Tool Response Format
+## MCP Surface
 
-All tools return structured JSON in `structuredContent`. For backwards
-compatibility, the first `content` item is a JSON string that matches
-`structuredContent`.
+### Tools
 
-Success (`structuredContent`):
+This server exposes 12 tools for managing memories and relationships.
 
-```json
-{
-  "ok": true,
-  "result": { "...": "..." }
-}
-```
+#### Memory Management
 
-Error (`structuredContent`):
+| Tool                  | Description                                              | Key Parameters                                        |
+| :-------------------- | :------------------------------------------------------- | :---------------------------------------------------- |
+| **`store_memory`**    | Store a single memory. Deduplicates by content hash.     | `content`, `tags`, `importance` (0-10), `memory_type` |
+| **`store_memories`**  | Batch store multiple memories. Supports partial success. | `items` (array of objects)                            |
+| **`get_memory`**      | Retrieve a memory by its SHA-256 hash.                   | `hash`                                                |
+| **`update_memory`**   | Update an existing memory (creates new hash).            | `hash`, `content`, `tags` (optional replace)          |
+| **`delete_memory`**   | Delete a single memory by hash.                          | `hash`                                                |
+| **`delete_memories`** | Batch delete multiple memories.                          | `hashes` (array)                                      |
 
-```json
-{
-  "ok": false,
-  "error": {
-    "code": "E_CODE",
-    "message": "Human-readable message"
-  }
-}
-```
+#### Search & Retrieval
 
-Error responses also set `isError: true` on the top-level tool result.
+| Tool                  | Description                                                                               | Key Parameters                    |
+| :-------------------- | :---------------------------------------------------------------------------------------- | :-------------------------------- |
+| **`search_memories`** | FTS5 full-text search across content and tags.                                            | `query`                           |
+| **`recall`**          | **Graph Search**. Finds a memory and traverses relationships to return connected context. | `query`, `depth` (0-3, default 1) |
+| **`memory_stats`**    | Get total counts, tag counts, and timeline stats.                                         | _(none)_                          |
 
-Example `content[0].text`:
+#### Relationships (Knowledge Graph)
 
-```text
-{"ok":true,"result":{...}}
-```
+| Tool                      | Description                                     | Key Parameters                                       |
+| :------------------------ | :---------------------------------------------- | :--------------------------------------------------- |
+| **`create_relationship`** | Create a directional link between two memories. | `from_hash`, `to_hash`, `relation_type`              |
+| **`get_relationships`**   | Get linked memories for a given hash.           | `hash`, `direction` ('outgoing', 'incoming', 'both') |
+| **`delete_relationship`** | Remove a specific link between memories.        | `from_hash`, `to_hash`, `relation_type`              |
 
-## Tools
+### Resources
 
-### `store_memory`
+| URI                       | Description                                       | Mime Type       |
+| :------------------------ | :------------------------------------------------ | :-------------- |
+| `internal://instructions` | Usage instructions and guidelines for the server. | `text/markdown` |
 
-Store a new memory with tags.
-
-| Parameter | Type     | Required | Default | Description                                         |
-| :-------- | :------- | :------- | :------ | :-------------------------------------------------- |
-| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars)          |
-| `tags`    | string[] | Yes      | -       | Tags (1-100 tags, no whitespace, max 50 chars each) |
-
-**Returns:** `{ id, hash, isNew }`
-
-Notes:
-
-- Content is deduplicated by SHA-256 hash. Storing the same content again returns the same hash with `isNew: false`.
-- Tags must not contain whitespace. Use hyphens for compound words (e.g., `api-design`, `error-handling`).
-
-### `store_memories`
-
-Store multiple memories in a single batch operation.
-
-| Parameter | Type     | Required | Default | Description                            |
-| :-------- | :------- | :------- | :------ | :------------------------------------- |
-| `items`   | object[] | Yes      | -       | Array of memory items (1-50 items max) |
-
-Each item in `items` has:
-
-| Field     | Type     | Required | Default | Description                                         |
-| :-------- | :------- | :------- | :------ | :-------------------------------------------------- |
-| `content` | string   | Yes      | -       | The content of the memory (1-100000 chars)          |
-| `tags`    | string[] | Yes      | -       | Tags (1-100 tags, no whitespace, max 50 chars each) |
-
-**Returns:** `{ results, succeeded, failed }`
-
-- `results`: Array of `{ index, hash?, isNew?, error? }` for each item
-- `succeeded`: Count of successfully stored memories
-- `failed`: Count of failed items
-
-Notes:
-
-- Supports partial success: if one item fails, others still process.
-- Each item is validated independently.
-- Useful for bulk memory imports.
-
-### `search_memories`
-
-Search memories by content and tags.
-
-| Parameter | Type   | Required | Default | Description                               |
-| :-------- | :----- | :------- | :------ | :---------------------------------------- |
-| `query`   | string | Yes      | -       | Search query (1-1000 chars, max 50 terms) |
-
-**Returns:** Array of search results (`Memory` + `relevance`, includes `tags`).
-
-Notes:
-
-- Searches both memory content (full-text) and tags.
-- Returns up to 100 results, ranked by relevance.
-- Content matches rank higher than tag matches.
-
-### `get_memory`
-
-Retrieve a specific memory by its hash.
-
-| Parameter | Type   | Required | Default | Description             |
-| :-------- | :----- | :------- | :------ | :---------------------- |
-| `hash`    | string | Yes      | -       | SHA-256 hash (64 chars) |
-
-**Returns:** `Memory` (includes `tags`).
-
-Notes:
-
-- Updates `accessed_at` on read.
-
-### `delete_memory`
-
-Delete a memory by its hash.
-
-| Parameter | Type   | Required | Default | Description             |
-| :-------- | :----- | :------- | :------ | :---------------------- |
-| `hash`    | string | Yes      | -       | SHA-256 hash (64 chars) |
-
-**Returns:** `{ deleted: true }`.
-
-### `delete_memories`
-
-Delete multiple memories by hash in a single batch operation.
-
-| Parameter | Type     | Required | Default | Description                               |
-| :-------- | :------- | :------- | :------ | :---------------------------------------- |
-| `hashes`  | string[] | Yes      | -       | Array of SHA-256 hashes (1-50 hashes max) |
-
-**Returns:** `{ results, succeeded, failed }`
-
-- `results`: Array of `{ hash, deleted, error? }` for each hash
-- `succeeded`: Count of successfully deleted memories
-- `failed`: Count of hashes not found or failed
-
-Notes:
-
-- Supports partial success: if one hash doesn't exist, others still delete.
-- Returns `deleted: false` for non-existent hashes (not an error).
-- Useful for bulk cleanup operations.
-
-### `memory_stats`
-
-Get database statistics.
-
-_No parameters required._
-
-**Returns:** `{ memoryCount, tagCount, oldestMemory, newestMemory }`.
-
-### `update_memory`
-
-Update the content of a memory. Returns the new hash since changing content changes the hash.
-
-| Parameter | Type     | Required | Default | Description                                 |
-| :-------- | :------- | :------- | :------ | :------------------------------------------ |
-| `hash`    | string   | Yes      | -       | SHA-256 hash of memory to update (64 chars) |
-| `content` | string   | Yes      | -       | New content (1-100000 chars)                |
-| `tags`    | string[] | No       | -       | Replace tags (max 100, each 1-50 chars)     |
-
-**Returns:** `{ updated: true, oldHash, newHash }`.
-
-Notes:
-
-- If `tags` is omitted, existing tags are preserved.
-- If `tags` is provided, it replaces all existing tags for the memory.
-- Updating to content that already exists in another memory returns an error.
-
-### Memory Fields
-
-All memory-shaped responses include:
-
-- `id`: integer ID
-- `content`: original content string
-- `summary`: optional summary (currently unset by tools)
-- `tags`: string array
-- `created_at`: timestamp string
-- `accessed_at`: timestamp string
-- `hash`: SHA-256 hash
-
-## Client Configuration
+## Client Configuration Examples
 
 <details>
 <summary><b>VS Code</b></summary>
 
-Add to your `settings.json` or `mcpServers` config:
+Add to `settings.json` or `.vscode/mcp.json`:
 
 ```json
 {
@@ -274,7 +138,7 @@ Add to your `settings.json` or `mcpServers` config:
 <details>
 <summary><b>Claude Desktop</b></summary>
 
-Add to your `claude_desktop_config.json`:
+Add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -292,91 +156,50 @@ Add to your `claude_desktop_config.json`:
 <details>
 <summary><b>Cursor</b></summary>
 
-1. Go to **Cursor Settings** > **Features** > **MCP**
-2. Click **+ Add New MCP Server**
-3. Name: `memdb`
-4. Type: `command`
-5. Command: `npx -y @j0hanz/memdb@latest`
+1. Open **Cursor Settings** > **Features** > **MCP**.
+2. Click **+ Add New MCP Server**.
+3. **Name**: `memdb`
+4. **Type**: `command`
+5. **Command**: `npx -y @j0hanz/memdb@latest`
+
+Or use the **Install in Cursor** button at the top of this README.
 
 </details>
 
-## Limits & Constraints
-
-| Constraint              | Value         | Description                                                                   |
-| :---------------------- | :------------ | :---------------------------------------------------------------------------- |
-| **Max content length**  | 100,000 chars | Maximum characters in memory content                                          |
-| **Max query length**    | 1,000 chars   | Maximum characters in search query                                            |
-| **Max search terms**    | 50            | Maximum whitespace-separated terms per query                                  |
-| **Max search results**  | 100           | Maximum results returned from `search_memories`                               |
-| **Min tags per memory** | 1             | At least one tag is required                                                  |
-| **Max tags per memory** | 100           | Maximum number of tags when storing a memory                                  |
-| **Max tag length**      | 50 chars      | Maximum characters per tag                                                    |
-| **Tag format**          | No whitespace | Tags cannot contain spaces or tabs; use hyphens for compound words            |
-| **Hash length**         | 64 chars      | SHA-256 hash length                                                           |
-| **Batch store limit**   | 50 items      | Maximum items per `store_memories` call                                       |
-| **Batch delete limit**  | 50 hashes     | Maximum hashes per `delete_memories` call                                     |
-| **Search mode**         | Tokenized OR  | Whitespace-split terms are quoted and OR'ed; FTS5 operators are not supported |
-
-### Notes
-
-- **Content deduplication**: Memories are deduplicated using SHA-256 hashes.
-- **Search errors**: If FTS5 is unavailable, `search_memories` returns an error indicating the index is missing. Invalid query syntax returns an error with details.
-- **Search tokenization**: Queries are split on whitespace (max 50 terms); whitespace-only queries are rejected.
-- **Batch operations**: `store_memories` and `delete_memories` support partial success—individual item failures don't affect other items in the batch.
-- **Tag requirements**: At least one tag is required. Tags cannot contain whitespace; use hyphens for compound words (e.g., `api-design`).
-- **Local storage**: All data is stored locally in `.memdb/memory.db`.
-
-## Development
-
-### Prerequisites
-
-- Node.js >= 22.0.0 (required for `node:sqlite`)
-
-### Scripts
-
-| Command                   | Description                                |
-| :------------------------ | :----------------------------------------- |
-| `npm run clean`           | Remove `dist/`                             |
-| `npm run build`           | Compile TypeScript to `dist/`              |
-| `npm run dev`             | Run in development mode with watch         |
-| `npm run start`           | Run compiled server (`node dist/index.js`) |
-| `npm run test`            | Run tests                                  |
-| `npm run test:coverage`   | Run tests with coverage                    |
-| `npm run lint`            | Run ESLint                                 |
-| `npm run format`          | Format code with Prettier                  |
-| `npm run format:check`    | Check code formatting                      |
-| `npm run type-check`      | TypeScript type checking                   |
-| `npm run type-check:test` | Type-check tests only                      |
-| `npm run duplication`     | Run duplication report (jscpd)             |
-| `npm run inspector`       | Run MCP inspector                          |
-
-### Project Structure
+## Repository Structure
 
 ```text
-src/
-|-- index.ts                 # Server entry point (stdio transport)
-|-- config.ts                # CLI/env configuration
-|-- logger.ts                # stderr logger with level filtering
-|-- protocol-version-guard.ts # Reject unsupported MCP protocol versions
-|-- tools.ts                 # Tool registration + handlers
-|-- schemas.ts               # Zod input/output schemas
-|-- types.ts                 # Shared TypeScript types
-`-- core/                     # SQLite setup + memory CRUD/search
-    |-- db.ts                 # DB init + schema + helpers
-    |-- memory-read.ts        # Read + delete + stats
-    |-- memory-write.ts       # Create + update + tag handling
-    `-- search.ts             # FTS + tag search
-
-tests/
-`-- *.test.ts         # Node.js test runner tests
+c:\memdb
+├── src
+│   ├── core          # Database logic, schema, and search
+│   │   ├── db.ts           # SQLite connection & schema
+│   │   ├── memory-read.ts  # Get/Delete/Stats operations
+│   │   ├── memory-write.ts # Store/Update operations
+│   │   ├── relationships.ts# Graph edge operations
+│   │   └── search.ts       # FTS5 & Graph traversal
+│   ├── index.ts      # Server entrypoint & transport setup
+│   ├── schemas.ts    # Zod schemas for tools
+│   ├── tools.ts      # Tool definitions & registration
+│   └── types.ts      # TypeScript interfaces
+├── scripts           # Build and test automation
+├── tests/            # Node.js native tests
+└── package.json
 ```
+
+## Development Workflow
+
+1. **Install**: `npm install`
+2. **Dev Mode**: `npm run dev` (watches and recompiles)
+3. **Run**: `npm start` (runs `dist/index.js`)
+4. **Test**: `npm test` (runs native Node.js test runner)
+5. **Lint**: `npm run lint`
 
 ## Troubleshooting
 
-- **`node:sqlite` / `DatabaseSync` not found**: Ensure Node.js >= 22.0.0.
-- **Search errors about FTS5**: FTS5 must be available; the server creates the
-  virtual table automatically, but your SQLite build must include FTS5 support.
+- **`node:sqlite` not found**: You are likely running a Node.js version older than 22.0.0. Please upgrade Node.js.
+- **Database Locked**: This server uses WAL mode (`PRAGMA journal_mode = WAL`). If you access the `.memdb/memory.db` file with another tool while the server is running, you may encounter locking issues.
+- **FTS5 Errors**: The bundled `node:sqlite` usually includes FTS5. If you see FTS errors, ensure your Node.js binary was built with standard SQLite extensions.
 
-## Contributing
+## License
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+This project is licensed under the **MIT** License.
