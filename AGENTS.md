@@ -4,68 +4,72 @@
 
 ## 1) Project Context
 
-- **Domain:** SQLite-backed MCP memory server with local workspace storage ([README.md](README.md)).
+- **Domain:** SQLite-backed Memory Server for Model Context Protocol (MCP).
 - **Tech Stack (Verified):**
-  - **Languages:** TypeScript 5.9+ ([package.json](package.json), [tsconfig.json](tsconfig.json)).
-  - **Runtime:** Node.js >= 22 ([package.json](package.json), [README.md](README.md)).
-  - **Frameworks/Protocols:** MCP SDK v1.x ([package.json](package.json)).
-  - **Key Libraries:** @modelcontextprotocol/sdk, zod ([package.json](package.json)).
-- **Architecture:** Single-package MCP server with stdio entrypoint and tool registry layered over a SQLite core ([src/index.ts](src/index.ts), [src/tools.ts](src/tools.ts), [src/core/db.ts](src/core/db.ts)).
+  - **Languages:** TypeScript 5.9+ (Verified: `tsconfig.json` target `ES2022`/`NodeNext`).
+  - **Runtime:** Node.js >= 22.0.0 (Required for `node:sqlite`).
+  - **Frameworks:** `@modelcontextprotocol/sdk`.
+  - **Key Libraries:** `zod` (Validation), `node:sqlite` (Native synchronous SQLite).
+- **Architecture:**
+  - **Layered:** `src/core` (Database/Logic) -> `src/tools.ts` (MCP Interface) -> `src/index.ts` (Server Entry).
+  - **Storage:** Local SQLite database with FTS5 text search (`node:sqlite`).
 
 ## 2) Repository Map (High-Level)
 
-- [src/](src/): Server entrypoint, tool registration, schemas, and SQLite core.
-- [tests/](tests/): Node.js test runner specs.
-- [scripts/](scripts/): Quality metrics artifacts and scripts.
-- [.github/workflows/](.github/workflows/): CI/CD automation.
-  > Ignore generated/vendor dirs like [dist/](dist/), [build/](build/), [node_modules/](node_modules/), [.venv/](.venv/), [\_\_pycache\_\_/](__pycache__/).
+- `src/core/`: Database schema, migration, and core logical operations (`db.ts`, `search.ts`).
+- `src/tools.ts`: MCP tool definitions and handlers.
+- `src/index.ts`: Server entry point and MCP initialization.
+- `scripts/`: Build and test automation (`tasks.mjs` is the task runner).
+- `tests/`: Integration and End-to-End tests using Node.js native test runner.
 
 ## 3) Operational Commands (Verified)
 
-- **Environment:** Node.js >= 22 ([package.json](package.json)).
-- **Install:** `npm ci` ([.github/workflows/publish.yml](.github/workflows/publish.yml)).
-- **Dev:** `npm run dev` ([package.json](package.json)).
-- **Test:** `npm run test` ([package.json](package.json), [.github/workflows/publish.yml](.github/workflows/publish.yml)).
-- **Build:** `npm run build` ([package.json](package.json), [.github/workflows/publish.yml](.github/workflows/publish.yml)).
-- **Lint/Format:** `npm run lint`, `npm run format`, `npm run format:check` ([package.json](package.json)).
-- **Type-check:** `npm run type-check` ([package.json](package.json)).
+- **Reviewing:** `node scripts/tasks.mjs` (Main task runner source).
+- **Install:** `npm install` (or `npm ci` in CI).
+- **Dev:** `npm run dev` (Runs `tsc --watch`).
+- **Test:** `npm test` (Runs `node scripts/tasks.mjs test` -> `node --test`).
+- **Build:** `npm run build` (Runs `node scripts/tasks.mjs build` -> cleaner + tsc + assets).
+- **Lint:** `npm run lint` (`eslint .`).
+- **Type Check:** `npm run type-check` (`tsc -p tsconfig.json --noEmit`).
 
 ## 4) Coding Standards (Style & Patterns)
 
-- **Naming:** camelCase for variables/defaults, PascalCase for types, UPPER_CASE allowed for constants (ESLint rules in [eslint.config.mjs](eslint.config.mjs)).
 - **Structure:**
-  - Entry + transport wiring in [src/index.ts](src/index.ts).
-  - Tool definitions and handlers in [src/tools.ts](src/tools.ts).
-  - DB schema + data access in [src/core/](src/core/).
-  - Zod schemas in [src/schemas.ts](src/schemas.ts).
-- **Typing/Strictness:** TypeScript strict mode with NodeNext ESM, isolatedModules, and noUncheckedIndexedAccess ([tsconfig.json](tsconfig.json)).
+  - Use `src/core/` for all database interactions.
+  - Define Zod schemas in `src/schemas.ts` or close to usage.
+- **Typing/Strictness:**
+  - **Strict:** `tsconfig.json` has `strict: true` and `noUncheckedIndexedAccess: true`.
+  - **Explicit:** Avoid `any`; use `unknown` with narrowing (seen in `db.ts` parsers).
 - **Patterns Observed:**
-  - Zod `z.strictObject()` schemas with constraints for tool inputs/outputs ([src/schemas.ts](src/schemas.ts)).
-  - Tool handlers return structured responses with `content` + `structuredContent` ([src/tools.ts](src/tools.ts)).
-  - SQLite access via node:sqlite with schema and row mappers ([src/core/db.ts](src/core/db.ts)).
+  - **Synchronous DB:** `node:sqlite` calls are synchronous (`DatabaseSync`), wrapped in async functions in `src/core` only if needed for interface, but mostly sync logic.
+  - **Safe Parsing:** Extensive usage of helper functions (`toSafeInteger`, `toString`) to parse untyped DB rows.
+  - **FTS5:** Full-text search usage in SQLite (`memories_fts` table).
 
 ## 5) Agent Behavioral Rules (Do Nots)
 
-- Do not introduce new dependencies without updating manifests/lockfiles via the package manager ([package.json](package.json), [package-lock.json](package-lock.json)).
-- Do not edit lockfiles manually ([package-lock.json](package-lock.json)).
-- Do not commit secrets; never print `.env` values; use existing config mechanisms.
-- Do not change public APIs without updating docs/tests and noting migration impact.
-- Do not remove the shebang or change the entrypoint contract in [src/index.ts](src/index.ts).
-- Do not drop `.js` extensions in local ESM imports (see [src/index.ts](src/index.ts), [src/tools.ts](src/tools.ts)).
-- Do not disable or bypass existing ESLint/TypeScript rules without explicit approval.
+- Do not introduce `better-sqlite3` or `sqlite3`; use the native `node:sqlite`.
+- Do not downgrade Node.js engine requirement below 22.0.0.
+- Do not make changes to `scripts/tasks.mjs` unless modifying the build system itself.
+- Do not commit secrets/tokens.
+- Do not use `console.log` for production logging; use the `Logger` pattern or MCP logging.
+- Do not bypass `noUncheckedIndexedAccess` (check array access availability).
 
 ## 6) Testing Strategy (Verified)
 
-- **Framework:** Node.js built-in test runner (`node:test`) with `node:assert/strict` ([tests/memory-service-core.test.ts](tests/memory-service-core.test.ts)).
-- **Where tests live:** [tests/](tests/) (`*.test.ts`).
-- **Approach:** In-memory SQLite via `MEMDB_PATH=':memory:'` for unit-level core tests ([tests/memory-service-core.test.ts](tests/memory-service-core.test.ts)).
+- **Framework:** Node.js Native Test Runner (`node --test`).
+- **Loader:** `tsx` (via `scripts/tasks.mjs` detection).
+- **Where tests live:** `tests/*.test.ts`.
+- **Approach:**
+  - **Integration:** Tests run against a real SQLite database instance (often verified via temp files or memory).
+  - **Tool-Centric:** Tests often instantiate the tools or server to verify MCP behavior (`tests/tools.test.ts`).
 
 ## 7) Common Pitfalls (Optional; Verified Only)
 
-- Node < 22 lacks `node:sqlite` → upgrade Node to >= 22 ([README.md](README.md)).
-- Missing FTS5 support causes search failures → ensure SQLite build includes FTS5 ([README.md](README.md)).
+- **Node Version:** Failing to use Node 22+ will cause `node:sqlite` import errors.
+- **Strict Null Checks:** `noUncheckedIndexedAccess` means `arr[0]` is always `T | undefined`. Must guard access.
+- **Database Schema:** Schema is defined in `SCHEMA_SQL` in `src/core/db.ts`; migrations are not fully automated in a separate folder—edit carefully.
 
 ## 8) Evolution Rules
 
-- If conventions change, include an AGENTS.md update in the same PR.
-- If a command is corrected after failures, record the final verified command here.
+- Update this file if the Node.js requirement changes or if the testing framework is swapped (e.g. to Vitest).
+- If `scripts/tasks.mjs` logic changes (e.g. adding new assets), update the Build command description.
