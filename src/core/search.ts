@@ -1,5 +1,6 @@
 import { getErrorMessage } from '../error-utils.js';
 import type { RecallResult, SearchResult } from '../types.js';
+import { throwIfAborted } from './abort.js';
 import {
   type DbRow,
   executeAll,
@@ -29,12 +30,6 @@ const QUERY_SEGMENTER =
   typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
     ? new Intl.Segmenter(undefined, { granularity: 'word' })
     : undefined;
-
-const throwIfAborted = (signal?: AbortSignal): void => {
-  if (signal && typeof signal.throwIfAborted === 'function') {
-    signal.throwIfAborted();
-  }
-};
 
 const normalizeTagToken = (token: string): string =>
   token.normalize('NFKC').toLocaleLowerCase(CASE_FOLD_LOCALE);

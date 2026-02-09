@@ -13,7 +13,7 @@ import {
 } from '../types.js';
 
 export type DbRow = Record<string, unknown>;
-export type SqlParam = string | number | bigint | null | Uint8Array;
+type SqlParam = string | number | bigint | null | Uint8Array;
 
 const SCHEMA_SQL = `
   PRAGMA journal_mode = WAL;
@@ -230,19 +230,6 @@ export const executeAll = (
   stmt: StatementSync,
   ...params: SqlParam[]
 ): DbRow[] => stmt.all(...params) as DbRow[];
-
-export const executeGet = (
-  stmt: StatementSync,
-  ...params: SqlParam[]
-): DbRow | undefined => stmt.get(...params) as DbRow | undefined;
-
-export const executeRun = (
-  stmt: StatementSync,
-  ...params: SqlParam[]
-): { changes: number | bigint } => {
-  const res = stmt.run(...params);
-  return { changes: res.changes };
-};
 
 export const sqlAll = (
   strings: TemplateStringsArray,

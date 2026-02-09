@@ -5,6 +5,7 @@ import type {
   MemoryStats,
   StatementResult,
 } from '../types.js';
+import { throwIfAborted } from './abort.js';
 import {
   type DbRow,
   loadTagsForMemoryIds,
@@ -14,17 +15,6 @@ import {
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
-
-const throwIfAborted = (signal?: AbortSignal): void => {
-  if (!signal) return;
-  if (typeof signal.throwIfAborted === 'function') {
-    signal.throwIfAborted();
-    return;
-  }
-  if (signal.aborted) {
-    throw new Error('Operation aborted');
-  }
-};
 
 const loadMemoryRowByHash = (hash: string): DbRow | undefined =>
   sqlGet`SELECT * FROM memories WHERE hash = ${hash}`;

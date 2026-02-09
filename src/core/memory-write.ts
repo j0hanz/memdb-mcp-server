@@ -8,6 +8,7 @@ import type {
   MemoryType,
   MemoryUpdateResult,
 } from '../types.js';
+import { throwIfAborted } from './abort.js';
 import {
   findMemoryIdByHash,
   sqlGet,
@@ -23,17 +24,6 @@ const TAG_CASE_FOLD_LOCALE = 'en-US';
 
 const normalizeTagCase = (tag: string): string =>
   tag.normalize('NFKC').toLocaleLowerCase(TAG_CASE_FOLD_LOCALE);
-
-const throwIfAborted = (signal?: AbortSignal): void => {
-  if (!signal) return;
-  if (typeof signal.throwIfAborted === 'function') {
-    signal.throwIfAborted();
-    return;
-  }
-  if (signal.aborted) {
-    throw new Error('Operation aborted');
-  }
-};
 
 const validateTag = (tag: string): void => {
   if (tag.length === 0) throw new Error('Tag must be at least 1 character');
