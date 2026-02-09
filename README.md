@@ -1,57 +1,127 @@
-# MemDB MCP Server
+# memdb
 
-<img src="assets/logo.svg" alt="MemDB MCP Server Logo" width="225" />
+[![npm version](https://img.shields.io/npm/v/%40j0hanz%2Fmemdb)](https://www.npmjs.com/package/@j0hanz/memdb) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D24-339933?logo=node.js)](https://nodejs.org/) [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/) [![MCP SDK](https://img.shields.io/badge/MCP_SDK-1.26-blueviolet)](https://modelcontextprotocol.io/)
 
-[![npm version](https://img.shields.io/npm/v/@j0hanz/memdb.svg)](https://www.npmjs.com/package/@j0hanz/memdb) [![License](https://img.shields.io/npm/l/@j0hanz/memdb.svg)](https://github.com/j0hanz/memdb-mcp-server/blob/master/package.json)
+[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0078d7?logo=visual-studio-code&logoColor=white)](https://insiders.vscode.dev/redirect?url=vscode%3Amcp%2Finstall%3F%7B%22name%22%3A%22memdb%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?logo=visual-studio-code&logoColor=white)](https://insiders.vscode.dev/redirect?url=vscode-insiders%3Amcp%2Finstall%3F%7B%22name%22%3A%22memdb%22%2C%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D)
 
-[![Install with NPX in VS Code](https://img.shields.io/badge/VS_Code-Install-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D) [![Install with NPX in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=memdb&inputs=%5B%5D&config=%7B%22command%22%3A%22npx%22%2C%22args%22%3A%5B%22-y%22%2C%22%40j0hanz%2Fmemdb%40latest%22%5D%7D&quality=insiders)
+> A SQLite-backed MCP memory server with local workspace storage, full-text search (FTS5), and knowledge graph capabilities for AI assistants.
 
-[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=memdb&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovbWVtZGJAbGF0ZXN0Il19)
-
-A specialized Memory MCP Server that provides a local Knowledge Graph and full-text search capabilities for AI assistants, backed by SQLite.
+---
 
 ## Overview
 
-MemDB allows AI assistants to persist long-term memories, facts, and relationships in a local SQLite database. Beyond simple storage, it supports **content-deduplicated versioning**, **tag-based organization**, and **graph relationships** (linking memories together). It includes a powerful `recall` tool that traverses these relationships to retrieve connected context, effectively acting as a graph-augmented RAG system for your workspace.
+**memdb** is a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that provides persistent memory storage for AI assistants. It uses Node.js's native `node:sqlite` module to store memories locally with SHA-256 content deduplication, FTS5 full-text search, and a knowledge graph of typed relationships between memories. Communication happens over **stdio** transport.
 
 ## Key Features
 
-- **Local Storage**: All data persists in a local SQLite database (`.memdb/memory.db`) within your workspace.
-- **Knowledge Graph**: Link memories with typed relationships (e.g., `causes`, `depends_on`, `related_to`).
-- **Graph Traversal**: `recall` tool traverses the graph (up to 3 hops) to find connected context.
-- **Full-Text Search**: Powered by SQLite FTS5 for fast, relevance-ranked searches.
-- **Deduplication**: Content is automatically hashed (SHA-256) to prevent duplicate storage.
-- **Categorization**: Rich metadata support including tags, importance levels, and memory types.
-- **Batch Operations**: dedicated tools for bulk `store` and `delete` actions.
+- **Persistent local storage** — SQLite database stored in the workspace (`.memdb/memory.db` by default) with WAL mode for performance
+- **Full-text search** — FTS5-powered content and tag search with BM25 relevance scoring and recency boosting
+- **Knowledge graph** — Directed, typed relationships between memories with recursive graph traversal (`recall`)
+- **SHA-256 deduplication** — Content-addressed storage prevents duplicate memories automatically
+- **Batch operations** — Store or delete up to 50 memories in a single call with partial success support
+- **Memory classification** — Categorize memories by type (general, fact, plan, decision, reflection, lesson, error, gradient) and importance (0–10)
+- **Protocol safety** — Custom stdio transport that rejects JSON-RPC batch requests, protocol version guard, and tool execution timeouts
 
 ## Tech Stack
 
-- **Runtime**: Node.js >= 22.0.0 (Required for native `node:sqlite`)
-- **Database**: SQLite (using `node:sqlite` sync API)
-- **Protocol**: Model Context Protocol (MCP) SDK `v1.26.0+`
-- **Validation**: Zod schema validation
-- **Architecture**: Layered (Core DB <-> Tools <-> Transport)
+| Component       | Technology                                |
+| --------------- | ----------------------------------------- |
+| Runtime         | Node.js ≥ 24                              |
+| Language        | TypeScript 5.9 (strict mode)              |
+| MCP SDK         | `@modelcontextprotocol/sdk` v1.26.0       |
+| Database        | SQLite via native `node:sqlite` with FTS5 |
+| Validation      | Zod v4                                    |
+| Transport       | stdio                                     |
+| Package Manager | npm                                       |
+
+## Architecture
+
+```text
+┌─────────────────────────────────────────────┐
+│                   Client                    │
+└──────────────────┬──────────────────────────┘
+                   │ stdio (JSON-RPC)
+┌──────────────────▼──────────────────────────┐
+│ 1. BatchRejectingStdioServerTransport       │  ← Rejects JSON-RPC batch arrays
+│ 2. ProtocolVersionGuardTransport            │  ← Validates protocol version
+│ 3. McpServer (MCP SDK)                      │  ← Tool/resource registration
+│ 4. Tool handlers with timeout + error wrap  │  ← Zod validation, abort signals
+│ 5. Core layer (db, search, relationships)   │  ← SQLite + FTS5 + knowledge graph
+└─────────────────────────────────────────────┘
+```
+
+## Repository Structure
+
+```text
+memdb/
+├── src/
+│   ├── core/               # Database and business logic
+│   │   ├── db.ts            # SQLite connection, schema, WAL, statement cache
+│   │   ├── memory-read.ts   # Get, delete, stats operations
+│   │   ├── memory-write.ts  # Store, update with SHA-256 deduplication
+│   │   ├── relationships.ts # Knowledge graph edge operations
+│   │   ├── search.ts        # FTS5 search and graph traversal (recall)
+│   │   └── abort.ts         # Abort signal utilities
+│   ├── index.ts             # Server entrypoint, stdio transport, shutdown
+│   ├── tools.ts             # MCP tool registration with timeout handling
+│   ├── schemas.ts           # Zod schemas for all 12 tools
+│   ├── types.ts             # TypeScript interfaces
+│   ├── config.ts            # Environment variable configuration
+│   ├── logger.ts            # Logging (console.error, never stdout)
+│   ├── stdio-transport.ts   # Custom stdio transport with batch rejection
+│   ├── protocol-version-guard.ts  # Protocol version validation
+│   ├── instructions.md      # User-facing instructions (MCP resource)
+│   ├── async-context.ts     # AsyncLocalStorage for tool context
+│   └── error-utils.ts       # Error message extraction
+├── tests/                   # node:test runner tests
+├── scripts/                 # Build & task automation
+├── assets/                  # Logo/icon assets
+├── .github/workflows/       # CI/CD (npm publish on release)
+├── package.json
+├── tsconfig.json
+└── eslint.config.mjs
+```
 
 ## Requirements
 
-- **Node.js**: Version **22.0.0** or higher is **strictly required**. This server uses the native `node:sqlite` module available only in recent Node.js versions.
+- **Node.js ≥ 24** — required for the native `node:sqlite` module
 
 ## Quickstart
 
-Run directly with `npx`:
+The fastest way to start using memdb is via `npx`:
 
 ```bash
 npx -y @j0hanz/memdb@latest
 ```
 
-This will start the server on stdio. The database will be created at `.memdb/memory.db` in the current working directory.
+Add to your MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "memdb": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
+    }
+  }
+}
+```
 
 ## Installation
 
-### NPX (Recommended)
+### NPX (recommended)
+
+No installation needed — runs the latest version directly:
 
 ```bash
 npx -y @j0hanz/memdb@latest
+```
+
+### Global Install
+
+```bash
+npm install -g @j0hanz/memdb
+memdb
 ```
 
 ### From Source
@@ -66,70 +136,382 @@ npm start
 
 ## Configuration
 
-The server is configured via environment variables.
+### Environment Variables
 
-| Environment Variable    | Description                                                             | Default            |
-| :---------------------- | :---------------------------------------------------------------------- | :----------------- |
-| `MEMDB_PATH`            | Path to the SQLite database file. Use `:memory:` for ephemeral storage. | `.memdb/memory.db` |
-| `MEMDB_LOG_LEVEL`       | Logging level (`info`, `warn`, `error`).                                | `info`             |
-| `MEMDB_TOOL_TIMEOUT_MS` | Execution timeout for tools in milliseconds.                            | `15000`            |
+| Variable                | Type                        | Default            | Description                                                                    |
+| ----------------------- | --------------------------- | ------------------ | ------------------------------------------------------------------------------ |
+| `MEMDB_PATH`            | `string`                    | `.memdb/memory.db` | Path to the SQLite database file. Set to `:memory:` for an in-memory database. |
+| `MEMDB_LOG_LEVEL`       | `error` \| `warn` \| `info` | `info`             | Logging verbosity level                                                        |
+| `MEMDB_TOOL_TIMEOUT_MS` | `integer`                   | `15000`            | Tool execution timeout in milliseconds (non-negative integer)                  |
 
-**Note**: To keep the database out of version control, add `.memdb/` to your `.gitignore`.
+Environment variables can be set via a `.env` file when using `npm run dev:run`, or passed directly to the process.
 
-**Timeouts**: Tool timeouts are best-effort. SQLite operations are synchronous, so a timeout response may be returned only after the current database call finishes. For hard time limits, run the server in a dedicated process or add a worker/IPC layer.
+### Database Location
+
+By default, memdb creates the database at `.memdb/memory.db` relative to the working directory. The directory is created automatically if it doesn't exist.
+
+## Usage
+
+memdb communicates exclusively over **stdio** transport. Start the server and connect via any MCP-compatible client:
+
+```bash
+# Direct
+node dist/index.js
+
+# Via npx
+npx -y @j0hanz/memdb@latest
+
+# With custom database path
+MEMDB_PATH=/path/to/my.db npx -y @j0hanz/memdb@latest
+```
 
 ## MCP Surface
 
 ### Tools
 
-This server exposes 12 tools for managing memories and relationships.
+memdb exposes **12 tools** organized into memory management, search, knowledge graph, and diagnostics.
 
-#### Memory Management
+---
 
-| Tool                  | Description                                              | Key Parameters                                        |
-| :-------------------- | :------------------------------------------------------- | :---------------------------------------------------- |
-| **`store_memory`**    | Store a single memory. Deduplicates by content hash.     | `content`, `tags`, `importance` (0-10), `memory_type` |
-| **`store_memories`**  | Batch store multiple memories. Supports partial success. | `items` (array of objects)                            |
-| **`get_memory`**      | Retrieve a memory by its SHA-256 hash.                   | `hash`                                                |
-| **`update_memory`**   | Update an existing memory (creates new hash).            | `hash`, `content`, `tags` (optional replace)          |
-| **`delete_memory`**   | Delete a single memory by hash.                          | `hash`                                                |
-| **`delete_memories`** | Batch delete multiple memories.                          | `hashes` (array)                                      |
+#### `store_memory`
 
-#### Search & Retrieval
+Store a new memory with tags. Idempotent — storing the same content returns the existing hash.
 
-| Tool                  | Description                                                                               | Key Parameters                    |
-| :-------------------- | :---------------------------------------------------------------------------------------- | :-------------------------------- |
-| **`search_memories`** | FTS5 full-text search across content and tags.                                            | `query`                           |
-| **`recall`**          | **Graph Search**. Finds a memory and traverses relationships to return connected context. | `query`, `depth` (0-3, default 1) |
-| **`memory_stats`**    | Get total counts, tag counts, and timeline stats.                                         | _(none)_                          |
+| Parameter     | Type       | Required | Default     | Description                                                                                      |
+| ------------- | ---------- | -------- | ----------- | ------------------------------------------------------------------------------------------------ |
+| `content`     | `string`   | Yes      | —           | The content of the memory (1–100,000 chars)                                                      |
+| `tags`        | `string[]` | Yes      | —           | Tags to categorize the memory (1–100 tags, no whitespace, max 50 chars each)                     |
+| `importance`  | `integer`  | No       | `0`         | Priority level 0–10 (0=lowest, 10=critical). Higher importance memories surface first in search. |
+| `memory_type` | `string`   | No       | `"general"` | Category: `general`, `fact`, `plan`, `decision`, `reflection`, `lesson`, `error`, `gradient`     |
 
-#### Relationships (Knowledge Graph)
+**Returns:**
 
-| Tool                      | Description                                     | Key Parameters                                       |
-| :------------------------ | :---------------------------------------------- | :--------------------------------------------------- |
-| **`create_relationship`** | Create a directional link between two memories. | `from_hash`, `to_hash`, `relation_type`              |
-| **`get_relationships`**   | Get linked memories for a given hash.           | `hash`, `direction` ('outgoing', 'incoming', 'both') |
-| **`delete_relationship`** | Remove a specific link between memories.        | `from_hash`, `to_hash`, `relation_type`              |
+```json
+{
+  "ok": true,
+  "result": {
+    "id": 1,
+    "hash": "a1b2c3d4e5f6...",
+    "isNew": true
+  }
+}
+```
+
+---
+
+#### `store_memories`
+
+Store multiple memories in a single batch operation (1–50 items). Supports partial success.
+
+| Parameter | Type       | Required | Default | Description                                                                                            |
+| --------- | ---------- | -------- | ------- | ------------------------------------------------------------------------------------------------------ |
+| `items`   | `object[]` | Yes      | —       | Array of 1–50 memory objects, each with `content`, `tags`, and optional `importance` and `memory_type` |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "results": [
+      { "ok": true, "index": 0, "hash": "a1b2...", "isNew": true },
+      { "ok": false, "index": 1, "error": "Tag must not contain whitespace" }
+    ],
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
+
+---
+
+#### `get_memory`
+
+Retrieve a single memory by its SHA-256 hash.
+
+| Parameter | Type     | Required | Default | Description                               |
+| --------- | -------- | -------- | ------- | ----------------------------------------- |
+| `hash`    | `string` | Yes      | —       | SHA-256 hash of the memory (64 hex chars) |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "id": 1,
+    "content": "TypeScript uses structural typing",
+    "summary": null,
+    "tags": ["typescript", "types"],
+    "importance": 5,
+    "memory_type": "fact",
+    "created_at": "2025-01-15 10:30:00",
+    "accessed_at": "2025-01-15 10:30:00",
+    "hash": "a1b2c3d4..."
+  }
+}
+```
+
+---
+
+#### `update_memory`
+
+Update memory content. Returns the new hash since content changes affect the hash. Idempotent.
+
+| Parameter | Type       | Required | Default | Description                                    |
+| --------- | ---------- | -------- | ------- | ---------------------------------------------- |
+| `hash`    | `string`   | Yes      | —       | Hash of the memory to update                   |
+| `content` | `string`   | Yes      | —       | New content for the memory (1–100,000 chars)   |
+| `tags`    | `string[]` | No       | —       | Replace tags (max 100 tags, each max 50 chars) |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "updated": true,
+    "oldHash": "a1b2c3d4...",
+    "newHash": "e5f6g7h8..."
+  }
+}
+```
+
+---
+
+#### `delete_memory`
+
+Delete a single memory by hash. Destructive operation.
+
+| Parameter | Type     | Required | Default | Description                               |
+| --------- | -------- | -------- | ------- | ----------------------------------------- |
+| `hash`    | `string` | Yes      | —       | SHA-256 hash of the memory (64 hex chars) |
+
+**Returns:**
+
+```json
+{ "ok": true, "result": { "deleted": true } }
+```
+
+---
+
+#### `delete_memories`
+
+Delete multiple memories by hash in a single batch operation (1–50 hashes). Supports partial success. Destructive.
+
+| Parameter | Type       | Required | Default | Description                            |
+| --------- | ---------- | -------- | ------- | -------------------------------------- |
+| `hashes`  | `string[]` | Yes      | —       | Array of 1–50 SHA-256 hashes to delete |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "results": [
+      { "hash": "a1b2...", "deleted": true },
+      { "hash": "c3d4...", "deleted": false, "error": "Memory not found" }
+    ],
+    "succeeded": 1,
+    "failed": 1
+  }
+}
+```
+
+---
+
+#### `search_memories`
+
+Search memories by content and tags using FTS5 full-text search with BM25 relevance scoring and recency boosting. Read-only.
+
+| Parameter | Type     | Required | Default | Description                                             |
+| --------- | -------- | -------- | ------- | ------------------------------------------------------- |
+| `query`   | `string` | Yes      | —       | Search query (1–1,000 chars, searches content and tags) |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": [
+    {
+      "id": 1,
+      "content": "TypeScript uses structural typing",
+      "tags": ["typescript", "types"],
+      "importance": 5,
+      "memory_type": "fact",
+      "relevance": 0.85,
+      "hash": "a1b2c3d4...",
+      "created_at": "2025-01-15 10:30:00",
+      "accessed_at": "2025-01-15 10:30:00"
+    }
+  ]
+}
+```
+
+---
+
+#### `recall`
+
+Search for memories and traverse relationships to return a connected graph cluster. Use for deeper context retrieval that follows knowledge graph connections. Read-only.
+
+| Parameter | Type      | Required | Default | Description                                                                      |
+| --------- | --------- | -------- | ------- | -------------------------------------------------------------------------------- |
+| `query`   | `string`  | Yes      | —       | Search query to find initial memories (1–1,000 chars)                            |
+| `depth`   | `integer` | No       | `1`     | How many relationship hops to follow (0–3). 0 = search only, no graph traversal. |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "memories": [{ "id": 1, "content": "...", "relevance": 0.9, "...": "..." }],
+    "relationships": [
+      {
+        "id": 1,
+        "from_hash": "a1b2...",
+        "to_hash": "c3d4...",
+        "relation_type": "related_to",
+        "created_at": "2025-01-15 10:30:00"
+      }
+    ],
+    "depth": 1
+  }
+}
+```
+
+---
+
+#### `create_relationship`
+
+Link two memories with a typed, directed relationship. Idempotent — creating the same relationship returns the existing ID.
+
+| Parameter       | Type     | Required | Default | Description                                                                                                        |
+| --------------- | -------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `from_hash`     | `string` | Yes      | —       | SHA-256 hash of the source memory                                                                                  |
+| `to_hash`       | `string` | Yes      | —       | SHA-256 hash of the target memory                                                                                  |
+| `relation_type` | `string` | Yes      | —       | Type of relationship (e.g., `related_to`, `causes`, `depends_on`, `part_of`, `follows`; 1–50 chars, no whitespace) |
+
+**Returns:**
+
+```json
+{ "ok": true, "result": { "id": 1, "isNew": true } }
+```
+
+---
+
+#### `get_relationships`
+
+Get all relationships for a memory. Read-only.
+
+| Parameter   | Type     | Required | Default  | Description                                         |
+| ----------- | -------- | -------- | -------- | --------------------------------------------------- |
+| `hash`      | `string` | Yes      | —        | SHA-256 hash of the memory                          |
+| `direction` | `string` | No       | `"both"` | Direction filter: `outgoing`, `incoming`, or `both` |
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": [
+    {
+      "id": 1,
+      "from_hash": "a1b2...",
+      "to_hash": "c3d4...",
+      "relation_type": "depends_on",
+      "created_at": "2025-01-15 10:30:00"
+    }
+  ]
+}
+```
+
+---
+
+#### `delete_relationship`
+
+Remove a relationship between two memories. Destructive.
+
+| Parameter       | Type     | Required | Default | Description                       |
+| --------------- | -------- | -------- | ------- | --------------------------------- |
+| `from_hash`     | `string` | Yes      | —       | SHA-256 hash of the source memory |
+| `to_hash`       | `string` | Yes      | —       | SHA-256 hash of the target memory |
+| `relation_type` | `string` | Yes      | —       | Type of relationship to delete    |
+
+**Returns:**
+
+```json
+{ "ok": true, "result": { "deleted": true } }
+```
+
+---
+
+#### `memory_stats`
+
+Database statistics and health. No parameters required. Read-only.
+
+**Returns:**
+
+```json
+{
+  "ok": true,
+  "result": {
+    "memoryCount": 42,
+    "tagCount": 15,
+    "oldestMemory": "2025-01-01 00:00:00",
+    "newestMemory": "2025-02-09 12:00:00"
+  }
+}
+```
+
+---
 
 ### Resources
 
-| URI                       | Description                                       | Mime Type       |
-| :------------------------ | :------------------------------------------------ | :-------------- |
-| `internal://instructions` | Usage instructions and guidelines for the server. | `text/markdown` |
+| URI                       | MIME Type       | Description                                        |
+| ------------------------- | --------------- | -------------------------------------------------- |
+| `internal://instructions` | `text/markdown` | Server usage instructions and tool reference guide |
+
+### Prompts
+
+None.
 
 ## Client Configuration Examples
 
 <details>
-<summary><b>VS Code</b></summary>
+<summary><b>VS Code / VS Code Insiders</b></summary>
 
-Add to `settings.json` or `.vscode/mcp.json`:
+Add to your VS Code `settings.json` or use the one-click install buttons above:
 
 ```json
 {
-  "mcpServers": {
-    "memdb": {
-      "command": "npx",
-      "args": ["-y", "@j0hanz/memdb@latest"]
+  "mcp": {
+    "servers": {
+      "memdb": {
+        "command": "npx",
+        "args": ["-y", "@j0hanz/memdb@latest"]
+      }
+    }
+  }
+}
+```
+
+With environment variables:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "memdb": {
+        "command": "npx",
+        "args": ["-y", "@j0hanz/memdb@latest"],
+        "env": {
+          "MEMDB_PATH": "${workspaceFolder}/.memdb/memory.db",
+          "MEMDB_LOG_LEVEL": "warn"
+        }
+      }
     }
   }
 }
@@ -140,7 +522,7 @@ Add to `settings.json` or `.vscode/mcp.json`:
 <details>
 <summary><b>Claude Desktop</b></summary>
 
-Add to `claude_desktop_config.json`:
+Add to your Claude Desktop configuration file (`claude_desktop_config.json`):
 
 ```json
 {
@@ -158,50 +540,124 @@ Add to `claude_desktop_config.json`:
 <details>
 <summary><b>Cursor</b></summary>
 
-1. Open **Cursor Settings** > **Features** > **MCP**.
-2. Click **+ Add New MCP Server**.
-3. **Name**: `memdb`
-4. **Type**: `command`
-5. **Command**: `npx -y @j0hanz/memdb@latest`
+[![Install in Cursor](https://cursor.com/deeplink/mcp-install-dark.svg)](https://cursor.com/install-mcp?name=memdb&config=eyJjb21tYW5kIjoibnB4IiwiYXJncyI6WyIteSIsIkBqMGhhbnovbWVtZGJAbGF0ZXN0Il19)
 
-Or use the **Install in Cursor** button at the top of this README.
+Or manually add to Cursor MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "memdb": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
+    }
+  }
+}
+```
 
 </details>
 
-## Repository Structure
+<details>
+<summary><b>Windsurf</b></summary>
 
-```text
-c:\memdb
-├── src
-│   ├── core          # Database logic, schema, and search
-│   │   ├── db.ts           # SQLite connection & schema
-│   │   ├── memory-read.ts  # Get/Delete/Stats operations
-│   │   ├── memory-write.ts # Store/Update operations
-│   │   ├── relationships.ts# Graph edge operations
-│   │   └── search.ts       # FTS5 & Graph traversal
-│   ├── index.ts      # Server entrypoint & transport setup
-│   ├── schemas.ts    # Zod schemas for tools
-│   ├── tools.ts      # Tool definitions & registration
-│   └── types.ts      # TypeScript interfaces
-├── scripts           # Build and test automation
-├── tests/            # Node.js native tests
-└── package.json
+Add to your Windsurf MCP configuration:
+
+```json
+{
+  "mcpServers": {
+    "memdb": {
+      "command": "npx",
+      "args": ["-y", "@j0hanz/memdb@latest"]
+    }
+  }
+}
 ```
+
+</details>
+
+## Security
+
+- **stdio hygiene** — All logging is sent to `stderr` via `console.error()`. No non-MCP output is written to `stdout`, preventing JSON-RPC corruption.
+- **Batch request rejection** — JSON-RPC batch arrays are explicitly rejected by the custom `BatchRejectingStdioServerTransport` with proper error responses per MCP spec (≥ 2025-06-18).
+- **Protocol version guard** — Unsupported protocol versions are rejected at the transport layer before reaching tool handlers. The connection is closed after sending the error.
+- **Input validation** — All tool inputs are validated via Zod strict schemas at the MCP boundary. Null bytes in environment variables are detected and rejected.
+- **Database safety** — SQLite defensive mode is enabled, foreign key constraints are enforced, and the `allowExtension` option is set to `false`.
 
 ## Development Workflow
 
-1. **Install**: `npm install`
-2. **Dev Mode**: `npm run dev` (watches and recompiles)
-3. **Run**: `npm start` (runs `dist/index.js`)
-4. **Test**: `npm test` (runs native Node.js test runner)
-5. **Lint**: `npm run lint`
+### Prerequisites
+
+- Node.js ≥ 24
+
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Scripts
+
+| Script          | Command                                  | Purpose                                      |
+| --------------- | ---------------------------------------- | -------------------------------------------- |
+| `dev`           | `tsc --watch`                            | TypeScript watch mode (compile on change)    |
+| `dev:run`       | `node --watch dist/index.js`             | Run server with auto-restart and `.env` file |
+| `build`         | `node scripts/tasks.mjs build`           | Compile TypeScript to `dist/`                |
+| `start`         | `node dist/index.js`                     | Run the compiled server                      |
+| `test`          | `node scripts/tasks.mjs test`            | Run tests with `node:test` runner            |
+| `test:coverage` | `node scripts/tasks.mjs test --coverage` | Run tests with coverage                      |
+| `type-check`    | `node scripts/tasks.mjs type-check`      | TypeScript type checking (`tsc --noEmit`)    |
+| `lint`          | `eslint .`                               | Run ESLint                                   |
+| `lint:fix`      | `eslint . --fix`                         | Auto-fix linting issues                      |
+| `format`        | `prettier --write .`                     | Format code with Prettier                    |
+| `clean`         | `node scripts/tasks.mjs clean`           | Remove build artifacts                       |
+| `inspector`     | `npx @modelcontextprotocol/inspector`    | Launch MCP Inspector for debugging           |
+
+## Build and Release
+
+The project publishes to npm via a GitHub Actions workflow triggered on GitHub Releases:
+
+1. Checkout → Setup Node.js 20 → Install dependencies
+2. Lint → Type-check → Test → Coverage
+3. Build → Extract version from release tag → Publish to npm with trusted publishing (OIDC)
+
+See [`.github/workflows/publish.yml`](.github/workflows/publish.yml) for the full pipeline.
 
 ## Troubleshooting
 
-- **`node:sqlite` not found**: You are likely running a Node.js version older than 22.0.0. Please upgrade Node.js.
-- **Database Locked**: This server uses WAL mode (`PRAGMA journal_mode = WAL`). If you access the `.memdb/memory.db` file with another tool while the server is running, you may encounter locking issues.
-- **FTS5 Errors**: The bundled `node:sqlite` usually includes FTS5. If you see FTS errors, ensure your Node.js binary was built with standard SQLite extensions.
+### `node:sqlite` not found
+
+You are running Node.js < 24. The native `node:sqlite` module requires Node.js ≥ 24.
+
+```bash
+node --version  # Must be >= 24.0.0
+```
+
+### Database locked errors
+
+The server uses SQLite WAL mode. If you see locked errors, ensure no external tools are accessing `.memdb/memory.db` while the server is running.
+
+### FTS5 errors
+
+If you get errors mentioning `fts5` or `no such module`, ensure your Node.js binary includes the standard SQLite FTS5 extension (it should by default in Node.js ≥ 24).
+
+### Debugging with MCP Inspector
+
+```bash
+npx @modelcontextprotocol/inspector node dist/index.js
+```
+
+### stdout corruption (stdio mode)
+
+If your MCP client receives malformed responses, ensure no middleware or debugging tools are writing to `stdout`. memdb routes all logging to `stderr`.
+
+## Contributing
+
+Contributions are welcome! Please ensure your changes pass all checks before submitting:
+
+```bash
+npm run lint && npm run type-check && npm run build && npm test
+```
 
 ## License
 
-This project is licensed under the **MIT** License.
+[MIT](https://opensource.org/licenses/MIT)
