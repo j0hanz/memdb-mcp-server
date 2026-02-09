@@ -26,17 +26,12 @@ const throwIfAborted = (signal?: AbortSignal): void => {
   }
 };
 
-const loadMemoryRowByHashAndTouch = (hash: string): DbRow | undefined =>
-  sqlGet`
-    UPDATE memories
-    SET accessed_at = CURRENT_TIMESTAMP
-    WHERE hash = ${hash}
-    RETURNING *
-  `;
+const loadMemoryRowByHash = (hash: string): DbRow | undefined =>
+  sqlGet`SELECT * FROM memories WHERE hash = ${hash}`;
 
 export const getMemory = (hash: string): Memory | undefined => {
   return withImmediateTransaction(() => {
-    const row = loadMemoryRowByHashAndTouch(hash);
+    const row = loadMemoryRowByHash(hash);
     if (!row) return undefined;
 
     const id = toSafeInteger(row.id, 'id');

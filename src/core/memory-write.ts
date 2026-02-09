@@ -105,12 +105,18 @@ const resolveMemoryId = (
   return { id: existingId, isNew: false };
 };
 
-const createMemoryInTransaction = (input: {
+const prepareMemory = (input: {
   content: string;
   tags?: readonly string[];
   importance?: number;
   memory_type?: MemoryType;
-}): MemoryInsertResult => {
+}): {
+  content: string;
+  hash: string;
+  normalizedTags: string[];
+  importance: number;
+  memoryType: MemoryType;
+} => {
   const {
     content,
     tags = [],
@@ -121,9 +127,19 @@ const createMemoryInTransaction = (input: {
   const hash = buildHash(content);
   const normalizedTags = normalizeTags(tags, MAX_TAGS);
 
+  return { content, hash, normalizedTags, importance, memoryType };
+};
+
+const insertMemory = (input: {
+  content: string;
+  hash: string;
+  normalizedTags: string[];
+  importance: number;
+  memoryType: MemoryType;
+}): MemoryInsertResult => {
+  const { content, hash, normalizedTags, importance, memoryType } = input;
   const { id, isNew } = resolveMemoryId(content, hash, importance, memoryType);
   insertTags(id, normalizedTags);
-
   return { id, hash, isNew };
 };
 
@@ -133,7 +149,7 @@ export const createMemory = (input: {
   importance?: number;
   memory_type?: MemoryType;
 }): MemoryInsertResult =>
-  withImmediateTransaction(() => createMemoryInTransaction(input));
+  withImmediateTransaction(() => insertMemory(prepareMemory(input)));
 
 const createMemoryWithSavepoint = (
   index: number,
@@ -149,9 +165,9 @@ const createMemoryWithSavepoint = (
 
   try {
     throwIfAborted(signal);
-    const created = withSavepoint(savepointName, () =>
-      createMemoryInTransaction(item)
-    );
+    const prepared = prepareMemory(item);
+
+    const created = withSavepoint(savepointName, () => insertMemory(prepared));
 
     return {
       ok: true,

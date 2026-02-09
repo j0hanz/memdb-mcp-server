@@ -165,16 +165,12 @@ const getSqlTagStore = (): SqlTagStore => {
 
 const resetSqlTagStore = (): void => {
   if (!sqlTagStore) return;
-  const store = sqlTagStore as unknown as {
-    reset?: () => void;
-    clear?: () => void;
-  };
-  if (typeof store.reset === 'function') {
-    store.reset();
+  if ('reset' in sqlTagStore && typeof sqlTagStore.reset === 'function') {
+    (sqlTagStore.reset as () => void)();
     return;
   }
-  if (typeof store.clear === 'function') {
-    store.clear();
+  if ('clear' in sqlTagStore && typeof sqlTagStore.clear === 'function') {
+    (sqlTagStore.clear as () => void)();
   }
 };
 
