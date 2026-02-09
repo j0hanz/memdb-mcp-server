@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
 import type {
@@ -70,16 +71,12 @@ const insertTags = (memoryId: number, tags: readonly string[]): void => {
     INSERT OR IGNORE INTO tags (memory_id, tag)
     SELECT ${memoryId}, value FROM json_each(${JSON.stringify(tags)})
   `;
-  if (insertResult.changes < 0) {
-    throw new Error('Invalid tag insert result');
-  }
+  assert.ok(insertResult.changes >= 0, 'Invalid tag insert result');
 };
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
   const deleteResult = sqlRun`DELETE FROM tags WHERE memory_id = ${memoryId}`;
-  if (deleteResult.changes < 0) {
-    throw new Error('Invalid tag delete result');
-  }
+  assert.ok(deleteResult.changes >= 0, 'Invalid tag delete result');
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
 
@@ -103,9 +100,7 @@ const resolveMemoryId = (
   }
 
   const existingId = findMemoryIdByHash(hash);
-  if (existingId === undefined) {
-    throw new Error('Failed to resolve memory id');
-  }
+  assert.ok(existingId !== undefined, 'Failed to resolve memory id');
 
   return { id: existingId, isNew: false };
 };
@@ -240,9 +235,7 @@ const updateMemoryInTransaction = (
     SET content = ${options.content}, hash = ${newHash}
     WHERE id = ${memoryId}
   `;
-  if (updateResult.changes < 0) {
-    throw new Error('Invalid update result');
-  }
+  assert.ok(updateResult.changes >= 0, 'Invalid update result');
 
   if (options.tags !== undefined) {
     replaceTags(memoryId, options.tags);

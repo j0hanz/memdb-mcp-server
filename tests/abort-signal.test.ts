@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
+import { skipIfMissingThrowIfAborted } from './helpers/test-utils.js';
+
 // Use in-memory database for tests
 process.env.MEMDB_PATH = ':memory:';
 
@@ -55,28 +57,19 @@ void describe('AbortSignal support', () => {
     );
   });
 
-  void it('signal checks are properly placed in operations', async () => {
-    // Verify throwIfAborted is available in this Node version
-    const controller = new AbortController();
-    const hasThrowIfAborted =
-      typeof controller.signal.throwIfAborted === 'function';
-
-    if (hasThrowIfAborted) {
+  void it('signal checks are properly placed in operations', async (t) => {
+    if (!skipIfMissingThrowIfAborted(t)) {
       // Create test data
       await createMemory({ content: 'Test abort', tags: ['abort-test'] });
 
       // Create an already-aborted signal
+      const controller = new AbortController();
       controller.abort();
 
       // Operations should throw when signal is aborted
       assert.throws(
         () => searchMemories({ query: 'abort-test' }, controller.signal),
         'Expected searchMemories to throw when signal is aborted'
-      );
-    } else {
-      // Skip abort test if throwIfAborted not available
-      console.log(
-        '  ⚠ Skipping abort throw test (throwIfAborted not available in this Node version)'
       );
     }
   });

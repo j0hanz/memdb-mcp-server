@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
@@ -233,12 +234,12 @@ const isDbRow = (value: unknown): value is DbRow =>
   typeof value === 'object' && value !== null;
 
 const assertDbRow = (value: unknown): DbRow => {
-  if (!isDbRow(value)) throw new Error('Invalid row');
+  assert.ok(isDbRow(value), 'Invalid row');
   return value;
 };
 
 const toDbRowArray = (value: unknown): DbRow[] => {
-  if (!Array.isArray(value)) throw new Error('Expected rows array');
+  assert.ok(Array.isArray(value), 'Expected rows array');
   return value.map(assertDbRow);
 };
 
@@ -248,16 +249,15 @@ const toDbRowOrUndefined = (value: unknown): DbRow | undefined => {
 };
 
 const toRunResult = (value: unknown): { changes: number | bigint } => {
-  if (typeof value !== 'object' || value === null) {
-    throw new Error('Invalid run result');
-  }
+  assert.ok(typeof value === 'object' && value !== null, 'Invalid run result');
 
   const result = value as { changes?: unknown };
   const { changes } = result;
 
-  if (typeof changes !== 'number' && typeof changes !== 'bigint') {
-    throw new Error('Invalid run result');
-  }
+  assert.ok(
+    typeof changes === 'number' || typeof changes === 'bigint',
+    'Invalid run result'
+  );
 
   return { changes };
 };
@@ -297,9 +297,7 @@ export const sqlRun = (
 export const withImmediateTransaction = <T>(operation: () => T): T => {
   const db = getDb();
 
-  if (db.isTransaction) {
-    throw new Error('Cannot start nested transaction');
-  }
+  assert.ok(!db.isTransaction, 'Cannot start nested transaction');
 
   db.exec('BEGIN IMMEDIATE');
 
@@ -316,9 +314,10 @@ export const withImmediateTransaction = <T>(operation: () => T): T => {
 const SAVEPOINT_NAME_PATTERN = /^[A-Za-z_]\w*$/;
 
 export const withSavepoint = <T>(name: string, operation: () => T): T => {
-  if (!SAVEPOINT_NAME_PATTERN.test(name)) {
-    throw new Error(`Invalid savepoint name: ${name}`);
-  }
+  assert.ok(
+    SAVEPOINT_NAME_PATTERN.test(name),
+    `Invalid savepoint name: ${name}`
+  );
 
   const db = getDb();
   db.exec(`SAVEPOINT ${name}`);
