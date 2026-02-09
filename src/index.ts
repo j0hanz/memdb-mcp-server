@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { findPackageJSON } from 'node:module';
 import process from 'node:process';
 
 import {
@@ -10,16 +11,25 @@ import {
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js';
 
-import pkg from '../package.json' with { type: 'json' };
 import { closeDb, initDb } from './core/db.js';
 import { attachProtocolLogger, logger } from './logger.js';
 import { ProtocolVersionGuardTransport } from './protocol-version-guard.js';
 import { BatchRejectingStdioServerTransport } from './stdio-transport.js';
 import { registerAllTools } from './tools.js';
 
-const readPackageVersion = (): Promise<string | undefined> => {
-  const { version } = pkg as { version?: unknown };
-  return Promise.resolve(typeof version === 'string' ? version : undefined);
+const readPackageVersion = async (): Promise<string | undefined> => {
+  const packageJsonPath = findPackageJSON('..', import.meta.url);
+  if (!packageJsonPath) return undefined;
+  try {
+    const raw = await readFile(packageJsonPath, {
+      encoding: 'utf-8',
+      signal: AbortSignal.timeout(2000),
+    });
+    const parsed = JSON.parse(raw) as { version?: unknown };
+    return typeof parsed.version === 'string' ? parsed.version : undefined;
+  } catch {
+    return undefined;
+  }
 };
 
 const toNonEmptyTrimmedOrUndefined = (text: string): string | undefined => {
@@ -151,9 +161,9 @@ const closeServerResources = async (): Promise<void> => {
   await transport?.close();
 };
 
-const clearTimerAndExit = (timer: NodeJS.Timeout, code: number): never => {
+const clearTimerAndExit = (timer: NodeJS.Timeout, code: number): void => {
   clearTimeout(timer);
-  process.exit(code);
+  process.exitCode = code;
 };
 
 const exitWithShutdownTimer = (
@@ -231,20 +241,24 @@ const main = async (): Promise<void> => {
 const registerSignalHandlers = (): void => {
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGBREAK'];
   for (const signal of signals) {
-    process.on(signal, () => {
+    process.once(signal, () => {
       shutdown(signal);
     });
   }
 };
 
+const handleFatalError = (message: string, error: unknown): void => {
+  logger.error(message, error);
+  closeDb();
+  process.exit(1);
+};
+
 const registerProcessHandlers = (): void => {
-  process.on('uncaughtException', (err, origin) => {
-    logger.error(`Uncaught exception (${origin}):`, err);
-    process.exit(1);
+  process.once('uncaughtException', (err, origin) => {
+    handleFatalError(`Uncaught exception (${origin}):`, err);
   });
-  process.on('unhandledRejection', (reason) => {
-    logger.error('Unhandled rejection:', reason);
-    process.exit(1);
+  process.once('unhandledRejection', (reason) => {
+    handleFatalError('Unhandled rejection:', reason);
   });
 };
 
