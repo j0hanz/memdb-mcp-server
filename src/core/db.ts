@@ -230,69 +230,42 @@ export const prepareCached = (sql: string): StatementSync => {
   return stmt;
 };
 
-const isDbRow = (value: unknown): value is DbRow =>
-  typeof value === 'object' && value !== null;
-
-const assertDbRow = (value: unknown): DbRow => {
-  assert.ok(isDbRow(value), 'Invalid row');
-  return value;
-};
-
-const toDbRowArray = (value: unknown): DbRow[] => {
-  assert.ok(Array.isArray(value), 'Expected rows array');
-  return value.map(assertDbRow);
-};
-
-const toDbRowOrUndefined = (value: unknown): DbRow | undefined => {
-  if (value === undefined) return undefined;
-  return assertDbRow(value);
-};
-
-const toRunResult = (value: unknown): { changes: number | bigint } => {
-  assert.ok(typeof value === 'object' && value !== null, 'Invalid run result');
-
-  const result = value as { changes?: unknown };
-  const { changes } = result;
-
-  assert.ok(
-    typeof changes === 'number' || typeof changes === 'bigint',
-    'Invalid run result'
-  );
-
-  return { changes };
-};
-
 export const executeAll = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow[] => toDbRowArray(stmt.all(...params));
+): DbRow[] => stmt.all(...params) as DbRow[];
 
 export const executeGet = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): DbRow | undefined => toDbRowOrUndefined(stmt.get(...params));
+): DbRow | undefined => stmt.get(...params) as DbRow | undefined;
 
 export const executeRun = (
   stmt: StatementSync,
   ...params: SqlParam[]
-): { changes: number | bigint } => toRunResult(stmt.run(...params));
+): { changes: number | bigint } => {
+  const res = stmt.run(...params);
+  return { changes: res.changes };
+};
 
 export const sqlAll = (
   strings: TemplateStringsArray,
   ...params: SqlParam[]
-): DbRow[] => toDbRowArray(getSqlTagStore().all(strings, ...params));
+): DbRow[] => getSqlTagStore().all(strings, ...params) as DbRow[];
 
 export const sqlGet = (
   strings: TemplateStringsArray,
   ...params: SqlParam[]
 ): DbRow | undefined =>
-  toDbRowOrUndefined(getSqlTagStore().get(strings, ...params));
+  getSqlTagStore().get(strings, ...params) as DbRow | undefined;
 
 export const sqlRun = (
   strings: TemplateStringsArray,
   ...params: SqlParam[]
-): { changes: number | bigint } =>
-  toRunResult(getSqlTagStore().run(strings, ...params));
+): { changes: number | bigint } => {
+  const res = getSqlTagStore().run(strings, ...params);
+  return { changes: res.changes };
+};
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
   const db = getDb();
@@ -361,68 +334,123 @@ export const toSafeInteger = (value: unknown, field: string): number => {
   return numeric;
 };
 
-const toString = (value: unknown, field: string): string => {
-  if (typeof value === 'string') return value;
-  throw createFieldError(field);
+export const mapRowToMemory = (row: DbRow, tags: string[] = []): Memory => {
+  const {
+    id: idRaw,
+    content,
+    summary: summaryRaw,
+    importance: impRaw = 0,
+    memory_type: typeRaw = 'general',
+    created_at: created,
+    accessed_at: accessed,
+    hash,
+  } = row;
+
+  const id = typeof idRaw === 'bigint' ? Number(idRaw) : (idRaw as number);
+  if (!Number.isSafeInteger(id)) throw new Error('Invalid id');
+
+  if (typeof content !== 'string') throw new Error('Invalid content');
+
+  let summary: string | undefined;
+  if (summaryRaw === null || summaryRaw === undefined) {
+    summary = undefined;
+  } else if (typeof summaryRaw === 'string') {
+    summary = summaryRaw;
+  } else {
+    throw new Error('Invalid summary');
+  }
+
+  const importance =
+    typeof impRaw === 'bigint' ? Number(impRaw) : (impRaw as number);
+  if (!Number.isSafeInteger(importance)) throw new Error('Invalid importance');
+
+  if (
+    typeof typeRaw !== 'string' ||
+    !MEMORY_TYPES.includes(typeRaw as MemoryType)
+  ) {
+    throw new Error('Invalid memory_type');
+  }
+
+  if (typeof created !== 'string') throw new Error('Invalid created_at');
+
+  if (typeof accessed !== 'string') throw new Error('Invalid accessed_at');
+
+  if (typeof hash !== 'string') throw new Error('Invalid hash');
+
+  return {
+    id,
+    content,
+    summary,
+    tags,
+    importance,
+    memory_type: typeRaw as MemoryType,
+    created_at: created,
+    accessed_at: accessed,
+    hash,
+  };
 };
-
-const toOptionalString = (
-  value: unknown,
-  field: string
-): string | undefined => {
-  if (value === null || value === undefined) return undefined;
-  return toString(value, field);
-};
-
-const toOptionalNumber = (
-  value: unknown,
-  field: string
-): number | undefined => {
-  if (value === null || value === undefined) return undefined;
-  return toNumber(value, field);
-};
-
-const isMemoryType = (value: string): value is MemoryType =>
-  MEMORY_TYPES.includes(value as MemoryType);
-
-const toMemoryType = (value: unknown, field: string): MemoryType => {
-  const str = toString(value, field);
-  if (!isMemoryType(str)) throw createFieldError(field);
-  return str;
-};
-
-export const mapRowToMemory = (row: DbRow, tags: string[] = []): Memory => ({
-  id: toSafeInteger(row.id, 'id'),
-  content: toString(row.content, 'content'),
-  summary: toOptionalString(row.summary, 'summary'),
-  tags,
-  importance: toSafeInteger(row.importance ?? 0, 'importance'),
-  memory_type: toMemoryType(row.memory_type ?? 'general', 'memory_type'),
-  created_at: toString(row.created_at, 'created_at'),
-  accessed_at: toString(row.accessed_at, 'accessed_at'),
-  hash: toString(row.hash, 'hash'),
-});
 
 export const mapRowToSearchResult = (
   row: DbRow,
   tags: string[] = []
-): SearchResult => ({
-  ...mapRowToMemory(row, tags),
-  relevance: toOptionalNumber(row.relevance, 'relevance') ?? 0,
-});
+): SearchResult => {
+  const memory = mapRowToMemory(row, tags);
+  const relRaw = row.relevance;
 
-export const mapRowToRelationship = (row: DbRow): Relationship => ({
-  id: toSafeInteger(row.id, 'id'),
-  from_hash: toString(row.from_hash, 'from_hash'),
-  to_hash: toString(row.to_hash, 'to_hash'),
-  relation_type: toString(row.relation_type, 'relation_type'),
-  created_at: toString(row.created_at, 'created_at'),
-});
+  let relevance = 0;
+  if (relRaw !== null && relRaw !== undefined) {
+    if (typeof relRaw === 'bigint') {
+      relevance = Number(relRaw);
+    } else {
+      relevance = relRaw as number;
+    }
+  }
+
+  if (!Number.isFinite(relevance)) throw new Error('Invalid relevance');
+
+  return {
+    ...memory,
+    relevance,
+  };
+};
+
+export const mapRowToRelationship = (row: DbRow): Relationship => {
+  const {
+    id: idRaw,
+    from_hash: fromHash,
+    to_hash: toHash,
+    relation_type: relationType,
+    created_at: created,
+  } = row;
+
+  const id = typeof idRaw === 'bigint' ? Number(idRaw) : (idRaw as number);
+  if (!Number.isSafeInteger(id)) throw new Error('Invalid id');
+
+  if (typeof fromHash !== 'string') throw new Error('Invalid from_hash');
+
+  if (typeof toHash !== 'string') throw new Error('Invalid to_hash');
+
+  if (typeof relationType !== 'string')
+    throw new Error('Invalid relation_type');
+
+  if (typeof created !== 'string') throw new Error('Invalid created_at');
+
+  return {
+    id,
+    from_hash: fromHash,
+    to_hash: toHash,
+    relation_type: relationType,
+    created_at: created,
+  };
+};
 
 export const findMemoryIdByHash = (hash: string): number | undefined => {
   const row = sqlGet`SELECT id FROM memories WHERE hash = ${hash}`;
   if (!row) return undefined;
-  return toSafeInteger(row.id, 'id');
+  const idRaw = row.id;
+  const id = typeof idRaw === 'bigint' ? Number(idRaw) : (idRaw as number);
+  if (!Number.isSafeInteger(id)) throw new Error('Invalid id');
+  return id;
 };
 
 export const requireMemoryIdByHash = (
@@ -434,32 +462,18 @@ export const requireMemoryIdByHash = (
   return id;
 };
 
-const dedupeIds = (ids: readonly number[]): number[] => {
-  const seen = new Set<number>();
-  const unique: number[] = [];
-
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    unique.push(id);
-  }
-
-  return unique;
-};
-
-const pushToMapArray = <K, V>(map: Map<K, V[]>, key: K, value: V): void => {
-  const existing = map.get(key);
-  if (existing) {
-    existing.push(value);
-    return;
-  }
-  map.set(key, [value]);
-};
-
 export const loadTagsForMemoryIds = (
   memoryIds: readonly number[]
 ): Map<number, string[]> => {
-  const uniqueIds = dedupeIds(memoryIds);
+  const uniqueIds: number[] = [];
+  const seen = new Set<number>();
+  for (const id of memoryIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      uniqueIds.push(id);
+    }
+  }
+
   if (uniqueIds.length === 0) return new Map();
 
   const rows = sqlAll`
@@ -471,9 +485,20 @@ export const loadTagsForMemoryIds = (
 
   const tagsById = new Map<number, string[]>();
   for (const row of rows) {
-    const memoryId = toSafeInteger(row.memory_id, 'memory_id');
-    const tag = toString(row.tag, 'tag');
-    pushToMapArray(tagsById, memoryId, tag);
+    const memoryIdRaw = row.memory_id;
+    const memoryId =
+      typeof memoryIdRaw === 'bigint'
+        ? Number(memoryIdRaw)
+        : (memoryIdRaw as number);
+
+    const tag = row.tag as string;
+
+    const list = tagsById.get(memoryId);
+    if (list) {
+      list.push(tag);
+    } else {
+      tagsById.set(memoryId, [tag]);
+    }
   }
 
   return tagsById;
