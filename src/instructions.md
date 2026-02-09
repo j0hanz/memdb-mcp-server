@@ -1,59 +1,55 @@
-# memdb Instructions
+# memdb INSTRUCTIONS
 
-> Guidance for the Agent: These instructions are available as a resource (`internal://instructions`) or prompt (`get-help`). Load them when you are unsure about tool usage.
+> Available as resource `internal://instructions`. Load when unsure about tool usage.
 
-## 1. Core Capability
+## CORE CAPABILITY
 
-- **Domain:** Local SQLite-backed memory store with vector-like text search and graph relationships.
-- **Primary Resources:** `Memory`, `Relationship`, `Stats`.
+- Domain: SQLite-backed memory store with FTS5 search and knowledge graph for AI assistants.
+- Primary Resources: Memory (content+tags+hash), Relationship (directed edges).
+- Tools: `search_memories` `get_memory` `recall` `get_relationships` `memory_stats` (READ); `store_memory` `store_memories` `update_memory` `delete_memory` `delete_memories` `create_relationship` `delete_relationship` (WRITE).
 
-## 2. The "Golden Path" Workflows (Critical)
+## THE "GOLDEN PATH" WORKFLOWS (CRITICAL)
 
-_Describe the standard order of operations using ONLY tools that exist._
+### WORKFLOW A: Recall & Exploration
 
-### Workflow A: Recall & Exploration
+1. `search_memories` with `{ query }` — find memories by content/tags.
+2. `recall` with `{ query, depth }` — traverse graph connections from hits.
+3. `get_memory` with `{ hash }` — exact retrieval using hash from results.
+   NOTE: Never guess hashes. Always search first.
 
-1. Call `search_memories` to find entry points by content/tags.
-2. Call `recall` (depth 1–2) to traverse the knowledge graph from relevant hits.
-3. Call `get_memory` using the `hash` (SHA-256) for exact retrieval.
-   > Constraint: Never guess hashes. Always search or recall first.
+### WORKFLOW B: Knowledge Management
 
-### Workflow B: Knowledge Management
+1. `store_memory` or `store_memories` (batch ≤50) to persist content with tags.
+2. `create_relationship` to link memories via `{ from_hash, to_hash, relation_type }`.
+3. `update_memory` with `{ hash, content }` to revise — returns new hash.
+4. `delete_memory` / `delete_memories` — confirm with user first.
 
-1. Call `store_memory` (single) or `store_memories` (batch) to add context.
-2. Call `create_relationship` to link related memories (directed).
-3. Call `update_memory` to revise; this changes the hash.
-4. Call `delete_memory` only with user confirmation.
+## TOOL NUANCES & GOTCHAS
 
-## 3. Tool Nuances & Gotchas
+`search_memories` — `query` 1–1000 chars. Broaden if no results.
 
-_Do NOT repeat JSON schema. Focus on behavior and pitfalls._
+`recall` — `depth` 0–3 (default 1). Higher depth = more latency. 0 = no traversal.
 
-- **`search_memories`**
-  - **Purpose:** Full-text search over content and tags.
-  - **Inputs:** `query` string (required).
-  - **Common failure modes:** Empty results for too-specific queries; try broader terms.
+`store_memory` / `store_memories` — `content` ≤100K, `tags` 1–100 (no whitespace, ≤50 chars), optional `importance` 0–10, optional `memory_type` (general|fact|plan|decision|reflection|lesson|error|gradient). Idempotent. Batch supports partial success.
 
-- **`recall`**
-  - **Purpose:** Graph traversal starting from a defined query.
-  - **Inputs:** `query` string; `depth` (default 1, max 3 recommended).
-  - **Latency:** Higher depth increases time/token usage significantly.
+`update_memory` — `hash` must exist. New `content` required, `tags` optional. Changes the hash.
 
-- **`store_memory` / `store_memories`**
-  - **Purpose:** Persist new information.
-  - **Inputs:** `content` (text), `tags` (array of strings).
-  - **Side effects:** Writes to DB. Idempotent if content/tags identical (same hash).
+`get_memory` — `hash`: 64 hex chars (SHA-256). E_NOT_FOUND if missing.
 
-- **`update_memory`**
-  - **Inputs:** `hash` (must exist), new `content`/`tags`.
-  - **Side effects:** Creating a new memory hash; effectively a "move" + "create".
+`create_relationship` — `from_hash`, `to_hash`, `relation_type` (e.g. related_to, causes, depends_on). Both hashes must exist. Idempotent.
 
-- **`create_relationship`**
-  - **Inputs:** `from_hash`, `to_hash`, `relation_type` (e.g., "related_to").
-  - **Constraint:** Both hashes must exist.
+`get_relationships` — `hash` required, `direction` optional (outgoing|incoming|both).
 
-## 4. Error Handling Strategy
+`delete_memory` / `delete_memories` / `delete_relationship` — Destructive. E_NOT_FOUND if missing.
 
-- **`E_NOT_FOUND`**: The hash doesn't exist. Re-run search/recall.
-- **`E_TIMEOUT`**: Operation took too long (>5s default). Reduce batch size or depth.
-- **`E_INVALID_ARG`**: Check inputs against schema (e.g. valid hashes).
+`memory_stats` — No input. Returns counts and timestamps.
+
+## ERROR HANDLING STRATEGY
+
+- `E_NOT_FOUND`: Hash missing. Search/recall first.
+- `E_TIMEOUT`: Reduce batch size or recall depth.
+- Validation error: 64-char hex hash, non-empty content, no whitespace in tags.
+
+## RESOURCES
+
+- `internal://instructions`: This document.
