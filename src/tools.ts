@@ -8,6 +8,7 @@ import type {
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js';
 
+import { runWithToolContext } from './async-context.js';
 import { config } from './config.js';
 import {
   deleteMemories,
@@ -26,6 +27,7 @@ import {
   getRelationships,
 } from './core/relationships.js';
 import { recallMemories, searchMemories } from './core/search.js';
+import { logger } from './logger.js';
 import {
   CreateRelationshipInputSchema,
   DefaultOutputSchema,
@@ -164,6 +166,7 @@ const createTimeoutResponse = (timeoutMs: number): ErrorResponse =>
   );
 
 const createTimedToolHandler = (
+  toolName: string,
   defaultErrorCode: string,
   timeoutMs: number,
   run: (params: unknown, ctx: ToolContext) => MaybePromise<CallToolResult>
@@ -171,37 +174,55 @@ const createTimedToolHandler = (
   return async (params: unknown) => {
     const controller = new AbortController();
     const ctx: ToolContext = { signal: controller.signal };
+    const store = { toolName, startTime: Date.now() };
+    let outcome: 'error' | 'ok' | 'timeout' = 'ok';
 
-    const execution = Promise.resolve().then(() => run(params, ctx));
+    const execution = runWithToolContext(store, () =>
+      Promise.resolve().then(() => run(params, ctx))
+    );
+
+    const logOutcome = (): void => {
+      const durationMs = Date.now() - store.startTime;
+      runWithToolContext(store, () => {
+        logger.info(`Tool ${toolName} ${outcome} in ${durationMs}ms`);
+      });
+    };
 
     if (timeoutMs <= 0) {
       try {
         return await execution;
       } catch (err) {
+        outcome = 'error';
         if (err instanceof ToolFailure) {
           return createErrorResponse(err.code, err.message, err.result);
         }
         return createErrorResponse(defaultErrorCode, getErrorMessage(err));
+      } finally {
+        logOutcome();
       }
     }
 
     let timeout: NodeJS.Timeout | undefined;
     const timeoutPromise = new Promise<CallToolResult>((resolve) => {
       timeout = setTimeout(() => {
+        outcome = 'timeout';
         controller.abort();
         resolve(createTimeoutResponse(timeoutMs));
       }, timeoutMs);
     });
 
     try {
-      return await Promise.race([execution, timeoutPromise]);
+      const result = await Promise.race([execution, timeoutPromise]);
+      return result;
     } catch (err) {
+      outcome = 'error';
       if (err instanceof ToolFailure) {
         return createErrorResponse(err.code, err.message, err.result);
       }
       return createErrorResponse(defaultErrorCode, getErrorMessage(err));
     } finally {
       if (timeout) clearTimeout(timeout);
+      logOutcome();
     }
   };
 };
@@ -241,6 +262,7 @@ const defineTool = <TInput, TResult>(spec: {
       ...(spec.annotations ? { annotations: spec.annotations } : {}),
     },
     handler: createTimedToolHandler(
+      spec.name,
       spec.errorCode,
       spec.timeoutMs ?? TOOL_TIMEOUT_MS,
       async (params, ctx) => {

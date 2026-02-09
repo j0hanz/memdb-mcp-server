@@ -1,5 +1,6 @@
 import { format } from 'node:util';
 
+import { getToolContext, type ToolContextStore } from './async-context.js';
 import { config } from './config.js';
 
 type LogLevel = 'error' | 'info' | 'warn';
@@ -30,13 +31,18 @@ const toProtocolLogLevel = (level: LogLevel): ProtocolLogLevel => {
 const formatLogMessage = (msg: string, args: readonly unknown[]): string =>
   args.length === 0 ? msg : format(msg, ...args);
 
+const formatContextPrefix = (context: ToolContextStore | undefined): string =>
+  context ? `[tool:${context.toolName}] ` : '';
+
 const createWriter =
   (level: LogLevel) =>
   (msg: string, ...args: unknown[]): void => {
     if (LEVELS[level] > threshold) return;
-    console.error(`[${level.toUpperCase()}] ${msg}`, ...args);
     const formatted = formatLogMessage(msg, args);
-    protocolLogSink?.(toProtocolLogLevel(level), formatted);
+    const context = getToolContext();
+    const withContext = `${formatContextPrefix(context)}${formatted}`;
+    console.error(`[${level.toUpperCase()}] ${withContext}`);
+    protocolLogSink?.(toProtocolLogLevel(level), withContext);
   };
 
 export const attachProtocolLogger = (
