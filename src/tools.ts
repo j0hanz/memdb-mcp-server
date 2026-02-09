@@ -181,6 +181,18 @@ const createTimedToolHandler = (
       Promise.resolve().then(() => run(params, ctx))
     );
 
+    const safeExecution = execution.catch((err: unknown) => {
+      if (outcome === 'timeout') {
+        runWithToolContext(store, () => {
+          logger.warn(
+            `Tool ${toolName} error after timeout: ${getErrorMessage(err)}`
+          );
+        });
+        return createErrorResponse(defaultErrorCode, getErrorMessage(err));
+      }
+      throw err;
+    });
+
     const logOutcome = (): void => {
       const durationMs = Date.now() - store.startTime;
       runWithToolContext(store, () => {
@@ -212,7 +224,7 @@ const createTimedToolHandler = (
     });
 
     try {
-      const result = await Promise.race([execution, timeoutPromise]);
+      const result = await Promise.race([safeExecution, timeoutPromise]);
       return result;
     } catch (err) {
       outcome = 'error';

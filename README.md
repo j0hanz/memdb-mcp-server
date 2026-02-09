@@ -76,6 +76,8 @@ The server is configured via environment variables.
 
 **Note**: To keep the database out of version control, add `.memdb/` to your `.gitignore`.
 
+**Timeouts**: Tool timeouts are best-effort. SQLite operations are synchronous, so a timeout response may be returned only after the current database call finishes. For hard time limits, run the server in a dedicated process or add a worker/IPC layer.
+
 ## MCP Surface
 
 ### Tools
