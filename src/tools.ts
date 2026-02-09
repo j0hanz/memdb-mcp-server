@@ -110,7 +110,13 @@ const isNonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
 
 const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) return error.message;
+  if (error instanceof Error) {
+    const { code } = error as NodeJS.ErrnoException;
+    if (isNonEmptyString(code)) {
+      return `${code}: ${error.message}`;
+    }
+    return error.message;
+  }
   if (isNonEmptyString(error)) return error;
   return 'Unknown error';
 };

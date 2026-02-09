@@ -69,32 +69,17 @@ class LineBuffer {
     newlineIndex: number,
     lineLength: number
   ): Buffer {
-    const lineBuffer = Buffer.allocUnsafe(lineLength);
-    const writeOffset = this.copyChunksBeforeIndex(lineBuffer, chunkIndex);
-    this.copyChunkPrefix(lineBuffer, chunkIndex, newlineIndex, writeOffset);
-    return lineBuffer;
-  }
-
-  private copyChunksBeforeIndex(target: Buffer, chunkIndex: number): number {
-    let writeOffset = 0;
+    const segments: Buffer[] = [];
     for (let i = 0; i < chunkIndex; i++) {
       const part = this.chunks[i];
       if (!part) continue;
-      part.copy(target, writeOffset);
-      writeOffset += part.length;
+      segments.push(part);
     }
-    return writeOffset;
-  }
-
-  private copyChunkPrefix(
-    target: Buffer,
-    chunkIndex: number,
-    newlineIndex: number,
-    writeOffset: number
-  ): void {
     const chunk = this.chunks[chunkIndex];
-    if (!chunk || newlineIndex <= 0) return;
-    chunk.copy(target, writeOffset, 0, newlineIndex);
+    if (chunk && newlineIndex > 0) {
+      segments.push(chunk.subarray(0, newlineIndex));
+    }
+    return Buffer.concat(segments, lineLength);
   }
 
   private consumeLine(

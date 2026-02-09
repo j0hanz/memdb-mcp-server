@@ -79,37 +79,26 @@ const FTS_SYNC_SQL = `
   WHERE id NOT IN (SELECT rowid FROM memories_fts);
 `;
 
-const withTimeout = async <T>(
-  promise: Promise<T>,
-  ms: number,
-  message: string
-): Promise<T> => {
-  let timeout: NodeJS.Timeout | undefined;
-
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeout = setTimeout(() => {
-      reject(new Error(message));
-    }, ms);
-  });
-
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    if (timeout) clearTimeout(timeout);
-  }
-};
-
 const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   if (dbPath === ':memory:') return;
 
   const dbDir = path.dirname(dbPath);
   if (dbDir === '.') return;
 
-  await withTimeout(
-    mkdir(dbDir, { recursive: true }),
-    5000,
-    'Database directory creation timed out'
-  );
+  const timeoutMs = 5000;
+  let timeout: NodeJS.Timeout | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error('Database directory creation timed out'));
+    }, timeoutMs);
+  });
+
+  try {
+    await Promise.race([mkdir(dbDir, { recursive: true }), timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 };
 
 const enableDefensiveMode = (database: DatabaseSync): void => {
