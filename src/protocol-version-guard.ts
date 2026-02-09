@@ -27,17 +27,19 @@ const isPingRequest = (message: JSONRPCMessage): boolean =>
 
 const rejectBatchIfPresent = (message: unknown, inner: Transport): boolean => {
   if (!Array.isArray(message)) return false;
+  let sentAny = false;
+  const errorMessage = 'Invalid request: JSON-RPC batching is not supported';
   for (const item of message) {
     if (!isObject(item)) continue;
     const id: unknown = Reflect.get(item, 'id');
     if (typeof id !== 'string' && typeof id !== 'number') continue;
-    void inner.send(
-      createLifecycleError(
-        id,
-        'Invalid request: JSON-RPC batching is not supported'
-      ),
-      { relatedRequestId: id }
-    );
+    void inner.send(createLifecycleError(id, errorMessage), {
+      relatedRequestId: id,
+    });
+    sentAny = true;
+  }
+  if (!sentAny) {
+    void inner.send(createLifecycleErrorUnknownId(errorMessage));
   }
   return true;
 };
@@ -81,6 +83,16 @@ const createLifecycleError = (
     message,
   },
 });
+
+const createLifecycleErrorUnknownId = (message: string): JSONRPCMessage =>
+  ({
+    jsonrpc: '2.0',
+    id: null,
+    error: {
+      code: -32600,
+      message,
+    },
+  }) as unknown as JSONRPCMessage;
 
 export class ProtocolVersionGuardTransport implements Transport {
   readonly inner: Transport;
