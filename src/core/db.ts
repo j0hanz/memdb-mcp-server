@@ -160,6 +160,31 @@ export const getDb = (): DatabaseSync => {
 
 const MAX_CACHED_STATEMENTS = 200;
 
+type SqlTagStore = ReturnType<DatabaseSync['createTagStore']>;
+
+let sqlTagStore: SqlTagStore | undefined;
+
+const getSqlTagStore = (): SqlTagStore => {
+  const db = getDb();
+  sqlTagStore ??= db.createTagStore(MAX_CACHED_STATEMENTS);
+  return sqlTagStore;
+};
+
+const resetSqlTagStore = (): void => {
+  if (!sqlTagStore) return;
+  const store = sqlTagStore as unknown as {
+    reset?: () => void;
+    clear?: () => void;
+  };
+  if (typeof store.reset === 'function') {
+    store.reset();
+    return;
+  }
+  if (typeof store.clear === 'function') {
+    store.clear();
+  }
+};
+
 class LruStatementCache {
   private readonly cache = new Map<string, StatementSync>();
 
@@ -197,6 +222,8 @@ export const closeDb = (): void => {
 
   dbInstance.close();
   dbInstance = undefined;
+  resetSqlTagStore();
+  sqlTagStore = undefined;
   statementCache.clear();
 };
 
@@ -257,6 +284,23 @@ export const executeRun = (
   stmt: StatementSync,
   ...params: SqlParam[]
 ): { changes: number | bigint } => toRunResult(stmt.run(...params));
+
+export const sqlAll = (
+  strings: TemplateStringsArray,
+  ...params: SqlParam[]
+): DbRow[] => toDbRowArray(getSqlTagStore().all(strings, ...params));
+
+export const sqlGet = (
+  strings: TemplateStringsArray,
+  ...params: SqlParam[]
+): DbRow | undefined =>
+  toDbRowOrUndefined(getSqlTagStore().get(strings, ...params));
+
+export const sqlRun = (
+  strings: TemplateStringsArray,
+  ...params: SqlParam[]
+): { changes: number | bigint } =>
+  toRunResult(getSqlTagStore().run(strings, ...params));
 
 export const withImmediateTransaction = <T>(operation: () => T): T => {
   const db = getDb();
@@ -385,8 +429,7 @@ export const mapRowToRelationship = (row: DbRow): Relationship => ({
 });
 
 export const findMemoryIdByHash = (hash: string): number | undefined => {
-  const stmt = prepareCached('SELECT id FROM memories WHERE hash = ?');
-  const row = executeGet(stmt, hash);
+  const row = sqlGet`SELECT id FROM memories WHERE hash = ${hash}`;
   if (!row) return undefined;
   return toSafeInteger(row.id, 'id');
 };
@@ -428,11 +471,12 @@ export const loadTagsForMemoryIds = (
   const uniqueIds = dedupeIds(memoryIds);
   if (uniqueIds.length === 0) return new Map();
 
-  const stmt = prepareCached(
-    'SELECT memory_id, tag FROM tags WHERE memory_id IN (SELECT value FROM json_each(?)) ORDER BY memory_id, tag'
-  );
-
-  const rows = executeAll(stmt, JSON.stringify(uniqueIds));
+  const rows = sqlAll`
+    SELECT memory_id, tag
+    FROM tags
+    WHERE memory_id IN (SELECT value FROM json_each(${JSON.stringify(uniqueIds)}))
+    ORDER BY memory_id, tag
+  `;
 
   const tagsById = new Map<number, string[]>();
   for (const row of rows) {

@@ -8,10 +8,9 @@ import type {
   MemoryUpdateResult,
 } from '../types.js';
 import {
-  executeGet,
-  executeRun,
   findMemoryIdByHash,
-  prepareCached,
+  sqlGet,
+  sqlRun,
   toSafeInteger,
   withImmediateTransaction,
   withSavepoint,
@@ -62,15 +61,20 @@ const normalizeTags = (tags: readonly string[], maxTags: number): string[] => {
 const insertTags = (memoryId: number, tags: readonly string[]): void => {
   if (tags.length === 0) return;
 
-  const stmt = prepareCached(
-    'INSERT OR IGNORE INTO tags (memory_id, tag) SELECT ?, value FROM json_each(?)'
-  );
-  executeRun(stmt, memoryId, JSON.stringify(tags));
+  const insertResult = sqlRun`
+    INSERT OR IGNORE INTO tags (memory_id, tag)
+    SELECT ${memoryId}, value FROM json_each(${JSON.stringify(tags)})
+  `;
+  if (insertResult.changes < 0) {
+    throw new Error('Invalid tag insert result');
+  }
 };
 
 const replaceTags = (memoryId: number, tags: readonly string[]): void => {
-  const stmtDelete = prepareCached('DELETE FROM tags WHERE memory_id = ?');
-  executeRun(stmtDelete, memoryId);
+  const deleteResult = sqlRun`DELETE FROM tags WHERE memory_id = ${memoryId}`;
+  if (deleteResult.changes < 0) {
+    throw new Error('Invalid tag delete result');
+  }
   insertTags(memoryId, normalizeTags(tags, MAX_TAGS));
 };
 
@@ -83,17 +87,11 @@ const resolveMemoryId = (
   importance: number,
   memoryType: MemoryType
 ): { id: number; isNew: boolean } => {
-  const stmtInsert = prepareCached(
-    'INSERT OR IGNORE INTO memories (content, hash, importance, memory_type) VALUES (?, ?, ?, ?) RETURNING id'
-  );
-
-  const inserted = executeGet(
-    stmtInsert,
-    content,
-    hash,
-    importance,
-    memoryType
-  );
+  const inserted = sqlGet`
+    INSERT OR IGNORE INTO memories (content, hash, importance, memory_type)
+    VALUES (${content}, ${hash}, ${importance}, ${memoryType})
+    RETURNING id
+  `;
 
   if (inserted) {
     return { id: toSafeInteger(inserted.id, 'id'), isNew: true };
@@ -232,10 +230,14 @@ const updateMemoryInTransaction = (
 
   assertNoDuplicateOnUpdate(hash, newHash);
 
-  const stmtUpdateContent = prepareCached(
-    'UPDATE memories SET content = ?, hash = ? WHERE id = ?'
-  );
-  executeRun(stmtUpdateContent, options.content, newHash, memoryId);
+  const updateResult = sqlRun`
+    UPDATE memories
+    SET content = ${options.content}, hash = ${newHash}
+    WHERE id = ${memoryId}
+  `;
+  if (updateResult.changes < 0) {
+    throw new Error('Invalid update result');
+  }
 
   if (options.tags !== undefined) {
     replaceTags(memoryId, options.tags);

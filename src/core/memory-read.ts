@@ -7,11 +7,10 @@ import type {
 } from '../types.js';
 import {
   type DbRow,
-  executeGet,
-  executeRun,
   loadTagsForMemoryIds,
   mapRowToMemory,
-  prepareCached,
+  sqlGet,
+  sqlRun,
   toSafeInteger,
   withImmediateTransaction,
 } from './db.js';
@@ -27,12 +26,13 @@ const throwIfAborted = (signal?: AbortSignal): void => {
   }
 };
 
-const loadMemoryRowByHashAndTouch = (hash: string): DbRow | undefined => {
-  const stmt = prepareCached(
-    'UPDATE memories SET accessed_at = CURRENT_TIMESTAMP WHERE hash = ? RETURNING *'
-  );
-  return executeGet(stmt, hash);
-};
+const loadMemoryRowByHashAndTouch = (hash: string): DbRow | undefined =>
+  sqlGet`
+    UPDATE memories
+    SET accessed_at = CURRENT_TIMESTAMP
+    WHERE hash = ${hash}
+    RETURNING *
+  `;
 
 export const getMemory = (hash: string): Memory | undefined => {
   return withImmediateTransaction(() => {
@@ -47,8 +47,7 @@ export const getMemory = (hash: string): Memory | undefined => {
 };
 
 export const deleteMemory = (hash: string): StatementResult => {
-  const stmt = prepareCached('DELETE FROM memories WHERE hash = ?');
-  const result = executeRun(stmt, hash);
+  const result = sqlRun`DELETE FROM memories WHERE hash = ${hash}`;
   return { changes: toSafeInteger(result.changes, 'changes') };
 };
 
@@ -103,15 +102,8 @@ const toDateString = (value: unknown): string | null => {
 };
 
 const queryCounts = (): { memoryRow: DbRow; tagRow: DbRow } => {
-  const stmtMemoryCount = prepareCached(
-    'SELECT COUNT(*) as count FROM memories'
-  );
-  const memoryRow = executeGet(stmtMemoryCount);
-
-  const stmtTagCount = prepareCached(
-    'SELECT COUNT(DISTINCT tag) as count FROM tags'
-  );
-  const tagRow = executeGet(stmtTagCount);
+  const memoryRow = sqlGet`SELECT COUNT(*) as count FROM memories`;
+  const tagRow = sqlGet`SELECT COUNT(DISTINCT tag) as count FROM tags`;
 
   if (!memoryRow) throw new Error('Failed to load memory stats');
   if (!tagRow) throw new Error('Failed to load tag stats');
@@ -122,10 +114,7 @@ const queryCounts = (): { memoryRow: DbRow; tagRow: DbRow } => {
 export const getStats = (): MemoryStats => {
   const { memoryRow, tagRow } = queryCounts();
 
-  const stmtDateRange = prepareCached(
-    'SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM memories'
-  );
-  const dateRow = executeGet(stmtDateRange);
+  const dateRow = sqlGet`SELECT MIN(created_at) as oldest, MAX(created_at) as newest FROM memories`;
 
   return {
     memoryCount: toSafeInteger(memoryRow.count, 'memoryCount'),

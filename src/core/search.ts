@@ -6,6 +6,7 @@ import {
   mapRowToRelationship,
   mapRowToSearchResult,
   prepareCached,
+  sqlAll,
   toSafeInteger,
 } from './db.js';
 
@@ -166,68 +167,41 @@ const normalizeRecallDepth = (depth: number | undefined): number => {
   return Math.min(Math.max(0, asInt), MAX_RECALL_DEPTH);
 };
 
-const buildRecallQuery = (): string => `
-  WITH RECURSIVE connected(memory_id, depth) AS (
-    -- Seed memories from search results
-    SELECT m.id, 0
-    FROM memories m
-    WHERE m.id IN (SELECT value FROM json_each(?))
-
-    UNION
-
-    -- Follow relationships (both directions) up to max depth
-    SELECT 
-      CASE 
-        WHEN r.from_memory_id = c.memory_id THEN r.to_memory_id
-        ELSE r.from_memory_id
-      END,
-      c.depth + 1
-    FROM relationships r
-    JOIN connected c ON (r.from_memory_id = c.memory_id OR r.to_memory_id = c.memory_id)
-    WHERE c.depth < ?
-  ),
-  unique_memories AS (
-    SELECT DISTINCT memory_id, MIN(depth) as min_depth
-    FROM connected
-    GROUP BY memory_id
-    ORDER BY min_depth
-    LIMIT ?
-  )
-  SELECT m.*, 1.0 / (1.0 + um.min_depth) as relevance
-  FROM memories m
-  JOIN unique_memories um ON m.id = um.memory_id
-  ORDER BY um.min_depth, m.created_at DESC
-`;
-
-const buildRelationshipsQuery = (): string => `
-  WITH ids(id) AS (SELECT value FROM json_each(?))
-  SELECT r.id, r.relation_type, r.created_at,
-         mf.hash as from_hash, mt.hash as to_hash
-  FROM relationships r
-  JOIN ids a ON r.from_memory_id = a.id
-  JOIN ids b ON r.to_memory_id = b.id
-  JOIN memories mf ON r.from_memory_id = mf.id
-  JOIN memories mt ON r.to_memory_id = mt.id
-  ORDER BY r.relation_type, mf.hash, mt.hash, r.created_at, r.id
-`;
-
-const executeWithSql = (
-  sql: string,
-  params: readonly (number | string)[]
-): DbRow[] => {
-  const stmt = prepareCached(sql);
-  return executeAll(stmt, ...params);
-};
-
 const executeRecall = (seedIds: readonly number[], depth: number): DbRow[] => {
   if (seedIds.length === 0) return [];
 
-  const sql = buildRecallQuery();
-  return executeWithSql(sql, [
-    JSON.stringify(seedIds),
-    depth,
-    MAX_RECALL_MEMORIES,
-  ]);
+  return sqlAll`
+    WITH RECURSIVE connected(memory_id, depth) AS (
+      -- Seed memories from search results
+      SELECT m.id, 0
+      FROM memories m
+      WHERE m.id IN (SELECT value FROM json_each(${JSON.stringify(seedIds)}))
+
+      UNION
+
+      -- Follow relationships (both directions) up to max depth
+      SELECT 
+        CASE 
+          WHEN r.from_memory_id = c.memory_id THEN r.to_memory_id
+          ELSE r.from_memory_id
+        END,
+        c.depth + 1
+      FROM relationships r
+      JOIN connected c ON (r.from_memory_id = c.memory_id OR r.to_memory_id = c.memory_id)
+      WHERE c.depth < ${depth}
+    ),
+    unique_memories AS (
+      SELECT DISTINCT memory_id, MIN(depth) as min_depth
+      FROM connected
+      GROUP BY memory_id
+      ORDER BY min_depth
+      LIMIT ${MAX_RECALL_MEMORIES}
+    )
+    SELECT m.*, 1.0 / (1.0 + um.min_depth) as relevance
+    FROM memories m
+    JOIN unique_memories um ON m.id = um.memory_id
+    ORDER BY um.min_depth, m.created_at DESC
+  `;
 };
 
 const loadRelationshipsForMemoryIds = (
@@ -235,8 +209,17 @@ const loadRelationshipsForMemoryIds = (
 ): RecallResult['relationships'] => {
   if (memoryIds.length === 0) return [];
 
-  const sql = buildRelationshipsQuery();
-  const rows = executeWithSql(sql, [JSON.stringify(memoryIds)]);
+  const rows = sqlAll`
+    WITH ids(id) AS (SELECT value FROM json_each(${JSON.stringify(memoryIds)}))
+    SELECT r.id, r.relation_type, r.created_at,
+           mf.hash as from_hash, mt.hash as to_hash
+    FROM relationships r
+    JOIN ids a ON r.from_memory_id = a.id
+    JOIN ids b ON r.to_memory_id = b.id
+    JOIN memories mf ON r.from_memory_id = mf.id
+    JOIN memories mt ON r.to_memory_id = mt.id
+    ORDER BY r.relation_type, mf.hash, mt.hash, r.created_at, r.id
+  `;
   return rows.map(mapRowToRelationship);
 };
 
