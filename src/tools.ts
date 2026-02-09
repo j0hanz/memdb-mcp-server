@@ -27,6 +27,7 @@ import {
   getRelationships,
 } from './core/relationships.js';
 import { recallMemories, searchMemories } from './core/search.js';
+import { getErrorMessage } from './error-utils.js';
 import { logger } from './logger.js';
 import {
   CreateRelationshipInputSchema,
@@ -105,21 +106,6 @@ type ErrorResponse = CallToolResult & {
 const TOOL_TIMEOUT_MS = config.toolTimeoutMs;
 
 const normalizeHash = (hash: string): string => hash.toLowerCase();
-
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === 'string' && value.length > 0;
-
-const getErrorMessage = (error: unknown): string => {
-  if (error instanceof Error) {
-    const { code } = error as NodeJS.ErrnoException;
-    if (isNonEmptyString(code)) {
-      return `${code}: ${error.message}`;
-    }
-    return error.message;
-  }
-  if (isNonEmptyString(error)) return error;
-  return 'Unknown error';
-};
 
 const createErrorResponse = (
   code: string,

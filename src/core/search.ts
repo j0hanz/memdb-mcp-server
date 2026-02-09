@@ -1,3 +1,4 @@
+import { getErrorMessage } from '../error-utils.js';
 import type { RecallResult, SearchResult } from '../types.js';
 import {
   type DbRow,
@@ -125,17 +126,6 @@ const isSearchIndexMissing = (message: string): boolean =>
 
 const isSearchQueryInvalid = (message: string): boolean =>
   QUERY_INVALID_TOKENS.some((token) => message.includes(token));
-
-const getErrorMessage = (err: unknown): string => {
-  if (err instanceof Error) {
-    const { code } = err as NodeJS.ErrnoException;
-    if (typeof code === 'string' && code.length > 0) {
-      return `${code}: ${err.message}`;
-    }
-    return err.message;
-  }
-  return String(err);
-};
 
 const toSearchError = (err: unknown): Error | undefined => {
   const message = getErrorMessage(err);
