@@ -8,7 +8,6 @@ import {
   mapRowToSearchResult,
   prepareCached,
   sqlAll,
-  toSafeInteger,
 } from './db.js';
 
 const MAX_QUERY_TOKENS = 50;
@@ -21,6 +20,10 @@ const RECENCY_DECAY_DAYS = 7;
 const RECENCY_WEIGHT = 0.15;
 
 const CASE_FOLD_LOCALE = 'en-US';
+
+// Hoisted regex for performance
+const WHITESPACE_REGEX = /\s+/;
+const QUOTE_GLOBAL_REGEX = /"/g;
 
 const QUERY_SEGMENTER =
   typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
@@ -36,11 +39,11 @@ const throwIfAborted = (signal?: AbortSignal): void => {
 const normalizeTagToken = (token: string): string =>
   token.normalize('NFKC').toLocaleLowerCase(CASE_FOLD_LOCALE);
 
-const splitOnWhitespace = (query: string): string[] =>
-  query
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0);
+const splitOnWhitespace = (query: string): string[] => {
+  const trimmed = query.trim();
+  if (trimmed.length === 0) return [];
+  return trimmed.split(WHITESPACE_REGEX);
+};
 
 const segmentQuery = (query: string): string[] => {
   if (!QUERY_SEGMENTER) return splitOnWhitespace(query);
@@ -65,14 +68,37 @@ const tokenizeQuery = (query: string): string[] => {
   return parts;
 };
 
-const normalizeTokensForTags = (tokens: string[]): string[] =>
-  tokens.map(normalizeTagToken).filter((token) => token.length > 0);
+const normalizeTokensForTags = (tokens: string[]): string[] => {
+  const len = tokens.length;
+  const normalized: string[] = [];
+  for (let i = 0; i < len; i++) {
+    const t = tokens[i];
+    if (!t) continue;
+    const token = normalizeTagToken(t);
+    if (token.length > 0) normalized.push(token);
+  }
+  return normalized;
+};
 
 const escapeFtsToken = (token: string): string =>
-  `"${token.replace(/"/g, '""')}"`;
+  `"${token.replace(QUOTE_GLOBAL_REGEX, '""')}"`;
 
-const buildFtsQuery = (tokens: string[]): string =>
-  tokens.length === 0 ? '""' : tokens.map(escapeFtsToken).join(' OR ');
+const buildFtsQuery = (tokens: string[]): string => {
+  const len = tokens.length;
+  if (len === 0) return '""';
+
+  const first = tokens[0];
+  if (!first) return '""';
+
+  let query = escapeFtsToken(first);
+  for (let i = 1; i < len; i++) {
+    const val = tokens[i];
+    if (val) {
+      query += ` OR ${escapeFtsToken(val)}`;
+    }
+  }
+  return query;
+};
 
 const buildSearchQuery = (
   tokens: string[],
@@ -165,13 +191,31 @@ const enrichSearchResultsWithTags = (
 ): SearchResult[] => {
   throwIfAborted(signal);
 
-  const ids = rows.map((row) => toSafeInteger(row.id, 'id'));
-  const tagsById = loadTagsForMemoryIds(ids);
+  const count = rows.length;
+  if (count === 0) return [];
 
-  return rows.map((row) => {
-    const id = toSafeInteger(row.id, 'id');
-    return mapRowToSearchResult(row, tagsById.get(id) ?? []);
-  });
+  const ids = new Array<number>(count);
+  for (let i = 0; i < count; i++) {
+    const row = rows[i];
+    if (!row) throw new Error('Unreachable');
+    // Fast cast for internal DB use; strict validation happens in mapRowToSearchResult
+    ids[i] = Number(row.id);
+  }
+
+  const tagsById = loadTagsForMemoryIds(ids);
+  const results = new Array<SearchResult>(count);
+
+  for (let i = 0; i < count; i++) {
+    const row = rows[i];
+    const id = ids[i];
+    if (!row || id === undefined) throw new Error('Unreachable');
+
+    // Map tags safely; id validation happens inside mapRowToSearchResult
+    const tags = tagsById.get(id);
+    results[i] = mapRowToSearchResult(row, tags ?? []);
+  }
+
+  return results;
 };
 
 export const searchMemories = (
@@ -276,7 +320,14 @@ const recallAtPositiveDepth = (
 ): RecallResult => {
   throwIfAborted(signal);
 
-  const seedIds = searchResults.map((m) => m.id);
+  const len = searchResults.length;
+  const seedIds = new Array<number>(len);
+  for (let i = 0; i < len; i++) {
+    const res = searchResults[i];
+    if (!res) throw new Error('Unreachable');
+    seedIds[i] = res.id;
+  }
+
   const recallRows = executeRecall(seedIds, depth);
 
   throwIfAborted(signal);
@@ -286,9 +337,15 @@ const recallAtPositiveDepth = (
 
   throwIfAborted(signal);
 
-  const relationships = loadRelationshipsForMemoryIds(
-    memories.map((m) => m.id)
-  );
+  const memLen = memories.length;
+  const memIds = new Array<number>(memLen);
+  for (let i = 0; i < memLen; i++) {
+    const mem = memories[i];
+    if (!mem) throw new Error('Unreachable');
+    memIds[i] = mem.id;
+  }
+
+  const relationships = loadRelationshipsForMemoryIds(memIds);
   return { memories, relationships, depth };
 };
 
