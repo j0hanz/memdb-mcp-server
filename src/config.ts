@@ -3,7 +3,7 @@ import process from 'node:process';
 
 type LogLevel = 'error' | 'info' | 'warn';
 
-const DEFAULT_DB_PATH = path.join(process.cwd(), '.memdb', 'memory.db');
+const DEFAULT_DB_PATH = path.resolve('.memdb', 'memory.db');
 const DEFAULT_LOG_LEVEL: LogLevel = 'info';
 const DEFAULT_TOOL_TIMEOUT_MS = 15000;
 
@@ -47,8 +47,17 @@ const resolveDbPath = (env: NodeJS.ProcessEnv): string => {
     if (hasNullByte(envPath)) {
       throw new Error('Invalid MEMDB_PATH: null byte detected');
     }
-    if (envPath === ':memory:') return ':memory:';
-    if (envPath.length > 0) return path.resolve(envPath);
+    const normalizedEnvPath = envPath.trim();
+    if (normalizedEnvPath === ':memory:') return ':memory:';
+    if (normalizedEnvPath.length > 0) {
+      if (
+        process.platform !== 'win32' &&
+        path.win32.isAbsolute(normalizedEnvPath)
+      ) {
+        return path.win32.normalize(normalizedEnvPath);
+      }
+      return path.resolve(normalizedEnvPath);
+    }
   }
   return path.resolve(DEFAULT_DB_PATH);
 };

@@ -102,8 +102,11 @@ const withTimeout = async <T>(
 const ensureDbDirectory = async (dbPath: string): Promise<void> => {
   if (dbPath === ':memory:') return;
 
+  const dbDir = path.dirname(dbPath);
+  if (dbDir === '.') return;
+
   await withTimeout(
-    mkdir(path.dirname(dbPath), { recursive: true }),
+    mkdir(dbDir, { recursive: true }),
     5000,
     'Database directory creation timed out'
   );
