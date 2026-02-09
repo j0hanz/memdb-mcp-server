@@ -258,6 +258,31 @@ void describe('tools responses search/update', () => {
     assertOk(updated);
   });
 
+  void it('matches tags case-insensitively in search', async () => {
+    const registrations = setupRegistrations();
+
+    const store = getTool(registrations, 'store_memory');
+    const search = getTool(registrations, 'search_memories');
+
+    const stored = await store.handler({
+      content: 'Case-folded tag memory',
+      tags: ['CamelTag'],
+    });
+    assertOk(stored);
+    const hash = getHash(stored);
+
+    const searched = await search.handler({ query: 'cameltag' });
+    assertOk(searched);
+
+    const searchStructured = searched.structuredContent as {
+      result: Array<{ hash: string }>;
+    };
+    assert.ok(
+      searchStructured.result.some((r) => r.hash === hash),
+      'Expected to find stored memory via case-folded tag search'
+    );
+  });
+
   void it('rejects overly long search token lists', async () => {
     const registrations = setupRegistrations();
     const search = getTool(registrations, 'search_memories');

@@ -19,17 +19,42 @@ const MAX_RECALL_MEMORIES = 50;
 const RECENCY_DECAY_DAYS = 7;
 const RECENCY_WEIGHT = 0.15;
 
+const CASE_FOLD_LOCALE = 'en-US';
+
+const QUERY_SEGMENTER =
+  typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter(undefined, { granularity: 'word' })
+    : undefined;
+
 const throwIfAborted = (signal?: AbortSignal): void => {
   if (signal && typeof signal.throwIfAborted === 'function') {
     signal.throwIfAborted();
   }
 };
 
-const tokenizeQuery = (query: string): string[] => {
-  const parts = query
+const normalizeTagToken = (token: string): string =>
+  token.normalize('NFKC').toLocaleLowerCase(CASE_FOLD_LOCALE);
+
+const splitOnWhitespace = (query: string): string[] =>
+  query
     .trim()
     .split(/\s+/)
     .filter((w) => w.length > 0);
+
+const segmentQuery = (query: string): string[] => {
+  if (!QUERY_SEGMENTER) return splitOnWhitespace(query);
+
+  const tokens: string[] = [];
+  for (const segment of QUERY_SEGMENTER.segment(query.trim())) {
+    if (!segment.isWordLike) continue;
+    const token = segment.segment.trim();
+    if (token.length > 0) tokens.push(token);
+  }
+  return tokens;
+};
+
+const tokenizeQuery = (query: string): string[] => {
+  const parts = segmentQuery(query);
 
   if (parts.length === 0) return [];
   if (parts.length > MAX_QUERY_TOKENS) {
@@ -39,6 +64,9 @@ const tokenizeQuery = (query: string): string[] => {
   return parts;
 };
 
+const normalizeTokensForTags = (tokens: string[]): string[] =>
+  tokens.map(normalizeTagToken).filter((token) => token.length > 0);
+
 const escapeFtsToken = (token: string): string =>
   `"${token.replace(/"/g, '""')}"`;
 
@@ -46,7 +74,8 @@ const buildFtsQuery = (tokens: string[]): string =>
   tokens.length === 0 ? '""' : tokens.map(escapeFtsToken).join(' OR ');
 
 const buildSearchQuery = (
-  tokens: string[]
+  tokens: string[],
+  tagTokens: string[]
 ): { sql: string; params: (number | string)[] } => {
   const ftsQuery = buildFtsQuery(tokens);
   const relevanceExpr = '1.0 / (1.0 + abs(bm25(memories_fts)))';
@@ -79,7 +108,10 @@ const buildSearchQuery = (
     LIMIT ?
   `;
 
-  return { sql, params: [ftsQuery, JSON.stringify(tokens), DEFAULT_LIMIT] };
+  return {
+    sql,
+    params: [ftsQuery, JSON.stringify(tagTokens), DEFAULT_LIMIT],
+  };
 };
 
 const INDEX_MISSING_TOKENS = [
@@ -161,7 +193,9 @@ export const searchMemories = (
   const tokens = tokenizeQuery(input.query);
   if (tokens.length === 0) throw new Error('Query cannot be empty');
 
-  const { sql, params } = buildSearchQuery(tokens);
+  const tagTokens = normalizeTokensForTags(tokens);
+
+  const { sql, params } = buildSearchQuery(tokens, tagTokens);
   const rows = executeSearch(sql, params);
 
   throwIfAborted(signal);

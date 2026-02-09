@@ -18,6 +18,10 @@ import {
 
 const MAX_TAGS = 100;
 const TAG_PATTERN = /^\S+$/;
+const TAG_CASE_FOLD_LOCALE = 'en-US';
+
+const normalizeTagCase = (tag: string): string =>
+  tag.normalize('NFKC').toLocaleLowerCase(TAG_CASE_FOLD_LOCALE);
 
 const throwIfAborted = (signal?: AbortSignal): void => {
   if (!signal) return;
@@ -46,8 +50,9 @@ const validateTagCount = (tags: readonly string[], maxTags: number): void => {
 const dedupeTags = (tags: readonly string[]): string[] => {
   const seen = new Set<string>();
   for (const tag of tags) {
-    validateTag(tag);
-    seen.add(tag);
+    const normalized = normalizeTagCase(tag);
+    validateTag(normalized);
+    seen.add(normalized);
   }
   return [...seen];
 };
